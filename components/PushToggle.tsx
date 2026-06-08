@@ -14,7 +14,7 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
   return arr
 }
 
-type State = 'loading' | 'unsupported' | 'off' | 'enabling' | 'on' | 'denied'
+type State = 'loading' | 'unsupported' | 'ios-install' | 'off' | 'enabling' | 'on' | 'denied'
 
 export default function PushToggle() {
   const [state, setState] = useState<State>('loading')
@@ -33,6 +33,14 @@ export default function PushToggle() {
 
   useEffect(() => {
     if (typeof window === 'undefined') return
+
+    // iOS only allows web push for apps added to the Home Screen (installed PWA).
+    const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent)
+    const standalone =
+      window.matchMedia?.('(display-mode: standalone)').matches ||
+      (navigator as unknown as { standalone?: boolean }).standalone === true
+    if (isIos && !standalone) { setState('ios-install'); return }
+
     const supported =
       'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window && !!VAPID_PUBLIC_KEY
     if (!supported) { setState('unsupported'); return }
@@ -85,6 +93,20 @@ export default function PushToggle() {
   }
 
   if (state === 'loading' || state === 'unsupported') return null
+
+  if (state === 'ios-install') {
+    return (
+      <div className="mx-4 mb-4 bg-stone-900 border border-stone-800 rounded-2xl px-4 py-3 flex items-start gap-3">
+        <BellOff size={18} className="text-stone-300 shrink-0 mt-0.5" aria-hidden="true" />
+        <div className="flex-1 min-w-0">
+          <p className="text-white text-sm font-medium">Turn on push on iPhone</p>
+          <p className="text-stone-400 text-xs mt-0.5">
+            Tap the <span className="text-stone-200">Share</span> icon → <span className="text-stone-200">Add to Home Screen</span>, then open NutriSync from your home screen and enable notifications here.
+          </p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="mx-4 mb-4 bg-stone-900 border border-stone-800 rounded-2xl px-4 py-3 flex items-center gap-3">
