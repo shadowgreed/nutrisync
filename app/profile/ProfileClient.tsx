@@ -2,7 +2,9 @@
 
 import Link from 'next/link'
 import { useState, useEffect } from 'react'
-import { Settings, Flame, Utensils, TrendingUp, Users, Copy, Check } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { Settings, Flame, Utensils, TrendingUp, Users, Copy, Check, LogOut } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
 import { BottomNav } from '../dashboard/DashboardClient'
 import {
   calculateBMR, calculateTDEE, calculateBMI, bmiCategory,
@@ -14,7 +16,7 @@ import type { Profile } from '@/types'
 interface LogRow { logged_at: string; total_calories: number }
 interface ActivityRow { logged_at: string; calories_burned: number; activity_name: string; duration_minutes: number }
 
-interface GroupRow { name: string; invite_code: string }
+interface GroupRow { id: string; name: string; invite_code: string }
 
 interface Props {
   profile: Profile
@@ -41,6 +43,9 @@ export default function ProfileClient({ profile, email, logs, activities, group 
   // render match (avoids a hydration mismatch on the invite link).
   const [origin, setOrigin] = useState('')
   const [copied, setCopied] = useState(false)
+  const [confirmLeave, setConfirmLeave] = useState(false)
+  const [leaving, setLeaving] = useState(false)
+  const router = useRouter()
   useEffect(() => { setOrigin(window.location.origin) }, [])
 
   const inviteUrl = group ? `${origin}/group/join/${group.invite_code}` : ''
@@ -49,6 +54,21 @@ export default function ProfileClient({ profile, email, logs, activities, group 
     navigator.clipboard.writeText(inviteUrl)
     setCopied(true)
     setTimeout(() => setCopied(false), 1800)
+  }
+
+  async function leaveGroup() {
+    if (!group) return
+    setLeaving(true)
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { setLeaving(false); return }
+    const { error } = await supabase
+      .from('group_members')
+      .delete()
+      .eq('group_id', group.id)
+      .eq('user_id', user.id)
+    setLeaving(false)
+    if (!error) { setConfirmLeave(false); router.refresh() }
   }
 
   // Calculated values
@@ -197,6 +217,35 @@ export default function ProfileClient({ profile, email, logs, activities, group 
                   {copied ? 'Copied' : 'Copy link'}
                 </button>
               </div>
+            </div>
+
+            {/* Leave group */}
+            <div className="pt-1 border-t border-stone-800">
+              {confirmLeave ? (
+                <div className="flex items-center gap-2 pt-3">
+                  <p className="flex-1 text-stone-300 text-xs">Leave “{group.name}”? You can rejoin with the code.</p>
+                  <button
+                    onClick={leaveGroup}
+                    disabled={leaving}
+                    className="shrink-0 bg-red-900/60 hover:bg-red-900 text-red-200 text-xs font-semibold px-3 py-2 rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    {leaving ? 'Leaving…' : 'Leave'}
+                  </button>
+                  <button
+                    onClick={() => setConfirmLeave(false)}
+                    className="shrink-0 text-stone-300 hover:text-white text-xs px-2 py-2 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setConfirmLeave(true)}
+                  className="flex items-center gap-1.5 text-stone-400 hover:text-red-300 text-xs font-medium pt-3 transition-colors"
+                >
+                  <LogOut size={13} aria-hidden="true" /> Leave group
+                </button>
+              )}
             </div>
           </div>
         ) : (

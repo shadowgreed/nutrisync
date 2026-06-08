@@ -30,13 +30,14 @@ export default async function ProfilePage() {
       .order('logged_at', { ascending: false }),
     supabase
       .from('group_members')
-      .select('groups(name, invite_code)')
+      .select('group_id, groups(name, invite_code)')
       .eq('user_id', user.id)
       .limit(1)
       .single(),
   ])
 
-  const group = (membership?.groups as unknown as { name: string; invite_code: string } | null) ?? null
+  const groupRow = (membership?.groups as unknown as { name: string; invite_code: string } | null) ?? null
+  const group = groupRow ? { ...groupRow, id: membership!.group_id as string } : null
 
   return (
     <ProfileClient
