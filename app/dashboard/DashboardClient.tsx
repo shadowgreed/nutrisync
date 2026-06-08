@@ -8,6 +8,7 @@ import NutrientBar from '@/components/NutrientBar'
 import NutrientGapPanel from '@/components/NutrientGapPanel'
 import InfoTip from '@/components/InfoTip'
 import NotificationBell from '@/components/NotificationBell'
+import InstallPrompt from '@/components/InstallPrompt'
 import { formatOz } from '@/lib/water'
 import { sumTotals, emptyTotals, buildGapCorrections } from '@/lib/nutrients'
 import { sumMacros, emptyMacros, MACRO_KEYS, MACRO_META, macroPct } from '@/lib/macros'
@@ -160,6 +161,8 @@ export default function DashboardClient({
           <NotificationBell />
         </div>
       </div>
+
+      <InstallPrompt />
 
       {/* Fix banner — shown when meals have no nutrition data */}
       {logsWithNoData.length > 0 && (
