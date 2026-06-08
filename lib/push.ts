@@ -20,6 +20,24 @@ export interface PushPayload {
   tag?: string
 }
 
+/** Send to an explicit list of subscriptions (used by the server-side cron, which
+ *  reads subscriptions with the admin client rather than the auth-scoped RPC). */
+export async function sendPushToSubscriptions(
+  subscriptions: webpush.PushSubscription[],
+  payload: PushPayload,
+): Promise<number> {
+  ensureConfigured()
+  if (!configured) return 0
+  const body = JSON.stringify(payload)
+  let ok = 0
+  await Promise.all(
+    subscriptions.map(async (sub) => {
+      try { await webpush.sendNotification(sub, body); ok++ } catch { /* expired/invalid — ignore */ }
+    }),
+  )
+  return ok
+}
+
 /**
  * Send a web-push to every device the recipient has registered. Reads the
  * recipient's subscriptions via the group-gated SECURITY DEFINER function so the

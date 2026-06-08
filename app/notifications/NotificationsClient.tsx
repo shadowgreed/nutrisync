@@ -6,6 +6,7 @@ import { ArrowLeft, Bell } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { BottomNav } from '../dashboard/DashboardClient'
 import PushToggle from '@/components/PushToggle'
+import ReminderSettings from '@/components/ReminderSettings'
 import type { AppNotification, NotificationType } from '@/types'
 
 const TYPE_META: Record<NotificationType, { emoji: string; href: string }> = {
@@ -58,6 +59,7 @@ export default function NotificationsClient({ initial }: { initial: AppNotificat
       </div>
 
       <PushToggle />
+      <ReminderSettings />
 
       {items.length === 0 ? (
         <div className="mx-4 text-center py-16 bg-stone-900/50 border border-dashed border-stone-800 rounded-2xl">

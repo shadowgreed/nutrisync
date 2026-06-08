@@ -24,7 +24,8 @@ export async function proxy(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
 
   const { pathname } = request.nextUrl
-  const isPublic = pathname.startsWith('/login') || pathname.startsWith('/auth')
+  // /api/cron does its own CRON_SECRET auth and is called without a user session.
+  const isPublic = pathname.startsWith('/login') || pathname.startsWith('/auth') || pathname.startsWith('/api/cron')
 
   if (!user && !isPublic) {
     return NextResponse.redirect(new URL('/login', request.url))
