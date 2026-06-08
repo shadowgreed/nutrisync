@@ -153,7 +153,7 @@ export default function MealLogger({ onLogged }: Props) {
       <div className="p-4 space-y-4">
         {/* Photo upload */}
         <div>
-          <input ref={fileRef} type="file" accept="image/*" capture="environment" onChange={handlePhoto} className="hidden" />
+          <input ref={fileRef} type="file" accept="image/*" onChange={handlePhoto} className="hidden" />
 
           {photoUrl ? (
             <div className="relative rounded-xl overflow-hidden">
@@ -179,7 +179,7 @@ export default function MealLogger({ onLogged }: Props) {
               {analyzing ? (
                 <><Loader2 size={15} className="animate-spin" /> Analyzing photo…</>
               ) : (
-                <><Camera size={15} /> Scan meal photo with AI</>
+                <><Camera size={15} /> Scan meal</>
               )}
             </button>
           )}

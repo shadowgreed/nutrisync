@@ -70,6 +70,7 @@ export interface Profile {
   birth_year: number | null
   biological_sex: 'male' | 'female' | 'prefer_not_to_say' | null
   goal: Goal | null
+  goals: Goal[] | null
   activity_level: ActivityLevel | null
   calorie_target: number | null
   onboarding_done: boolean

@@ -6,6 +6,7 @@ import { Scale, TrendingUp, Plus } from 'lucide-react'
 import { BottomNav } from '../dashboard/DashboardClient'
 import { summarize, microConsistency, type DayTotal } from '@/lib/trends'
 import { MACRO_KEYS, MACRO_META } from '@/lib/macros'
+import { kgToLbs, lbsToKg } from '@/lib/fitness'
 import type { MacroTargets } from '@/types'
 
 interface WeightLog { weight_kg: number; logged_at: string }
@@ -34,15 +35,15 @@ export default function TrendsClient({ series30, calorieTarget, macroTargets, we
 
   async function logWeight(e: React.FormEvent) {
     e.preventDefault()
-    const w = Number(weightInput)
-    if (!Number.isFinite(w) || w <= 0) return
+    const lbs = Number(weightInput)
+    if (!Number.isFinite(lbs) || lbs <= 0) return
     setSavingWeight(true)
     setWeightError('')
     try {
       const res = await fetch('/api/log-weight', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ weight_kg: w }),
+        body: JSON.stringify({ weight_kg: lbsToKg(lbs) }), // input is lbs; DB stores kg
       })
       const data = await res.json()
       if (!res.ok) { setWeightError(data.error ?? 'Failed to save'); return }
@@ -207,7 +208,7 @@ export default function TrendsClient({ series30, calorieTarget, macroTargets, we
           </div>
           {weightLogs.length >= 2 && (
             <span className={`text-xs font-semibold ${weightDelta < 0 ? 'text-emerald-400' : weightDelta > 0 ? 'text-orange-400' : 'text-stone-400'}`}>
-              {weightDelta > 0 ? '+' : ''}{weightDelta.toFixed(1)} kg
+              {weightDelta > 0 ? '+' : ''}{(weightDelta * 2.20462).toFixed(1)} lbs
             </span>
           )}
         </div>
@@ -221,7 +222,7 @@ export default function TrendsClient({ series30, calorieTarget, macroTargets, we
           </svg>
         ) : (
           <p className="text-stone-400 text-xs mb-3">
-            {currentWeightKg ? `Current: ${currentWeightKg} kg. ` : ''}Log your weight regularly to see your trend.
+            {currentWeightKg ? `Current: ${kgToLbs(currentWeightKg)} lbs. ` : ''}Log your weight regularly to see your trend.
           </p>
         )}
 
@@ -233,7 +234,7 @@ export default function TrendsClient({ series30, calorieTarget, macroTargets, we
             type="number"
             step="0.1"
             inputMode="decimal"
-            placeholder={currentWeightKg ? String(currentWeightKg) : 'Weight (kg)'}
+            placeholder={currentWeightKg ? `${kgToLbs(currentWeightKg)} lbs` : 'Weight (lbs)'}
             className="flex-1 bg-stone-800 border border-stone-700 rounded-xl px-3 py-2.5 text-white text-sm placeholder-stone-600 focus:outline-none focus:ring-1 focus:ring-sky-500"
           />
           <button

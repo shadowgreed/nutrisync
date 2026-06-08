@@ -12,6 +12,12 @@ import { mlToOz, ozToMl, BOTTLE_OZ_PRESETS, TARGET_OZ_PRESETS } from '@/lib/wate
 import type { Goal, ActivityLevel } from '@/types'
 
 const GOALS: Goal[] = ['lose_weight', 'maintain', 'build_muscle', 'improve_health']
+const GOAL_DESC: Record<Goal, string> = {
+  lose_weight:    'Eat at a calorie deficit',
+  maintain:       'Stay at your current weight',
+  build_muscle:   'Eat slightly more to grow',
+  improve_health: 'Focus on nutrients, not the scale',
+}
 const ACTIVITY_LEVELS: ActivityLevel[] = ['sedentary', 'light', 'moderate', 'active', 'very_active']
 
 const TOTAL_STEPS = 5
@@ -36,7 +42,7 @@ export default function OnboardingPage() {
   const [heightIn, setHeightIn] = useState('')
   const [birthYear, setBirthYear] = useState('')
   const [sex, setSex] = useState<'male' | 'female' | 'prefer_not_to_say'>('prefer_not_to_say')
-  const [goal, setGoal] = useState<Goal>('improve_health')
+  const [goals, setGoals] = useState<Goal[]>([])
   const [activityLevel, setActivityLevel] = useState<ActivityLevel>('moderate')
   const [waterBottleMl, setWaterBottleMl] = useState(ozToMl(24))   // 24 oz bottle
   const [waterTargetMl, setWaterTargetMl] = useState(ozToMl(80))   // 80 oz/day
@@ -56,24 +62,37 @@ export default function OnboardingPage() {
       : (heightFt ? ftInToCm(Number(heightFt), Number(heightIn) || 0) : 170)
     const bmr = calculateBMR(w, h, age, sex)
     const tdee = calculateTDEE(bmr, activityLevel)
-    const calorieTarget = calculateCalorieTarget(tdee, goal)
+    // Pick a single "primary" goal for the calorie maths from the selected set.
+    const primaryGoal: Goal =
+      (['lose_weight', 'build_muscle', 'maintain', 'improve_health'] as Goal[])
+        .find(g => goals.includes(g)) ?? 'improve_health'
+    const calorieTarget = calculateCalorieTarget(tdee, primaryGoal)
 
     const hasWeight = useMetric ? !!weightKg : !!weightLbs
     const hasHeight = useMetric ? !!heightCm : !!heightFt
 
-    const { error: err } = await supabase.from('profiles').update({
+    const baseUpdate = {
       display_name:   displayName.trim() || user.email?.split('@')[0],
       weight_kg:      hasWeight ? w : null,
       height_cm:      hasHeight ? h : null,
       birth_year:     birthYear ? Number(birthYear) : null,
       biological_sex: sex,
-      goal,
+      goal:           primaryGoal,
       activity_level: activityLevel,
       calorie_target: calorieTarget,
       onboarding_done: true,
       water_bottle_ml: waterBottleMl,
       water_daily_target_ml: waterTargetMl,
-    }).eq('id', user.id)
+    }
+
+    // Try saving the multi-goal array; if migration 012 (goals column) isn't applied
+    // yet, retry without it so onboarding still completes.
+    let { error: err } = await supabase.from('profiles')
+      .update({ ...baseUpdate, goals: goals.length ? goals : [primaryGoal] })
+      .eq('id', user.id)
+    if (err && (err.code === 'PGRST204' || /goals/.test(err.message))) {
+      ;({ error: err } = await supabase.from('profiles').update(baseUpdate).eq('id', user.id))
+    }
 
     if (err) { setError(err.message); setSaving(false); return }
     router.push('/dashboard')
@@ -260,40 +279,53 @@ export default function OnboardingPage() {
             </div>
           )}
 
-          {/* ── Step 3: Goal ── */}
+          {/* ── Step 3: Goals (multi-select) ── */}
           {step === 3 && (
             <div className="space-y-5 animate-fadeIn">
               <div className="text-center">
-                <div className="text-5xl mb-4">🎯</div>
-                <h1 className="text-white text-2xl font-bold">What's your goal?</h1>
-                <p className="text-stone-400 text-sm mt-2">We'll tailor your calorie targets</p>
+                <div className="text-5xl mb-4" aria-hidden="true">🎯</div>
+                <h1 className="text-white text-2xl font-bold">What are your goals?</h1>
+                <p className="text-stone-400 text-sm mt-2">Pick all that apply — we&apos;ll tailor your plan</p>
               </div>
 
               <div className="space-y-2">
-                {GOALS.map(g => (
-                  <button
-                    key={g}
-                    onClick={() => setGoal(g)}
-                    className={`w-full flex items-center gap-4 p-4 rounded-2xl border-2 transition-all ${
-                      goal === g
-                        ? 'border-emerald-500 bg-emerald-900/30'
-                        : 'border-stone-700 bg-stone-900 hover:border-stone-500'
-                    }`}
-                  >
-                    <span className="text-2xl">{GOAL_EMOJIS[g]}</span>
-                    <span className={`font-medium ${goal === g ? 'text-white' : 'text-stone-300'}`}>
-                      {GOAL_LABELS[g]}
-                    </span>
-                    {goal === g && <span className="ml-auto text-emerald-400">✓</span>}
-                  </button>
-                ))}
+                {GOALS.map(g => {
+                  const selected = goals.includes(g)
+                  return (
+                    <button
+                      key={g}
+                      type="button"
+                      aria-pressed={selected}
+                      onClick={() => setGoals(prev => selected ? prev.filter(x => x !== g) : [...prev, g])}
+                      className={`w-full flex items-center gap-3 p-4 rounded-2xl border-2 text-left transition-all ${
+                        selected ? 'border-emerald-500 bg-emerald-900/30' : 'border-stone-700 bg-stone-900 hover:border-stone-500'
+                      }`}
+                    >
+                      <span className="text-2xl" aria-hidden="true">{GOAL_EMOJIS[g]}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className={`font-medium ${selected ? 'text-white' : 'text-stone-300'}`}>{GOAL_LABELS[g]}</p>
+                        <p className="text-stone-400 text-xs mt-0.5">{GOAL_DESC[g]}</p>
+                      </div>
+                      {/* Checkbox indicator (not colour-only) */}
+                      <span className={`shrink-0 w-6 h-6 rounded-md border-2 flex items-center justify-center ${
+                        selected ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-stone-600'
+                      }`} aria-hidden="true">
+                        {selected && '✓'}
+                      </span>
+                    </button>
+                  )
+                })}
               </div>
 
               <div className="flex gap-3">
                 <button onClick={() => setStep(2)} className="flex-1 bg-stone-800 hover:bg-stone-700 text-stone-300 font-semibold py-4 rounded-2xl transition-colors">
                   ← Back
                 </button>
-                <button onClick={() => setStep(4)} className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-4 rounded-2xl transition-colors">
+                <button
+                  onClick={() => setStep(4)}
+                  disabled={goals.length === 0}
+                  className="flex-1 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white font-semibold py-4 rounded-2xl transition-colors"
+                >
                   Continue →
                 </button>
               </div>

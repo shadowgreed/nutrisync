@@ -1,7 +1,5 @@
 'use client'
 
-export const dynamic = 'force-dynamic'
-
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -18,32 +16,26 @@ export default function JoinGroupPage() {
     e.preventDefault()
     setLoading(true)
     setError('')
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { router.push('/login'); return }
 
-    const { data: group } = await supabase
-      .from('groups')
-      .select('id, name')
-      .eq('invite_code', code.trim().toLowerCase())
-      .single()
+    // SECURITY DEFINER RPC: finds the group by code and adds the membership,
+    // bypassing the RLS rule that hides groups you're not yet a member of.
+    const { data, error: rpcErr } = await supabase.rpc('join_group_by_code', { p_code: code })
+    const row = Array.isArray(data) ? data[0] : data
+    setLoading(false)
 
-    if (!group) { setError('Invalid invite code'); setLoading(false); return }
+    if (rpcErr || !row) { setError('Something went wrong. Please try again.'); return }
 
-    // Check member count (max 6 for test)
-    const { count } = await supabase
-      .from('group_members')
-      .select('*', { count: 'exact', head: true })
-      .eq('group_id', group.id)
-
-    if ((count ?? 0) >= 6) { setError('This group is full (6 members max)'); setLoading(false); return }
-
-    const { error: joinErr } = await supabase
-      .from('group_members')
-      .upsert({ group_id: group.id, user_id: user.id })
-
-    if (joinErr) { setError('Failed to join'); setLoading(false); return }
-
-    router.push('/feed')
+    switch (row.status) {
+      case 'joined':
+      case 'already_member':
+        router.push('/feed'); router.refresh(); break
+      case 'unauthenticated':
+        router.push('/login'); break
+      case 'full':
+        setError('This group is full (6 members max).'); break
+      default:
+        setError('That invite code didn’t match any group.')
+    }
   }
 
   return (

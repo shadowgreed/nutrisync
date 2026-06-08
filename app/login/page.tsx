@@ -37,7 +37,8 @@ export default function LoginPage() {
       if (error) { setError(error.message); setLoading(false); return }
     }
 
-    router.push('/dashboard')
+    const next = new URLSearchParams(window.location.search).get('next') || '/dashboard'
+    router.push(next)
     router.refresh()
   }
 
