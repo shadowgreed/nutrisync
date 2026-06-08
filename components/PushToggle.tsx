@@ -1,0 +1,127 @@
+'use client'
+
+import { useEffect, useState } from 'react'
+import { Bell, BellOff, Loader2 } from 'lucide-react'
+
+const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? ''
+
+function urlBase64ToUint8Array(base64String: string): Uint8Array {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
+  const raw = atob(base64)
+  const arr = new Uint8Array(raw.length)
+  for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i)
+  return arr
+}
+
+type State = 'loading' | 'unsupported' | 'off' | 'enabling' | 'on' | 'denied'
+
+export default function PushToggle() {
+  const [state, setState] = useState<State>('loading')
+  const [testStatus, setTestStatus] = useState<'idle' | 'sending' | 'sent'>('idle')
+
+  async function sendTest() {
+    setTestStatus('sending')
+    try {
+      await fetch('/api/push/test', { method: 'POST' })
+      setTestStatus('sent')
+      setTimeout(() => setTestStatus('idle'), 2500)
+    } catch {
+      setTestStatus('idle')
+    }
+  }
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const supported =
+      'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window && !!VAPID_PUBLIC_KEY
+    if (!supported) { setState('unsupported'); return }
+    if (Notification.permission === 'denied') { setState('denied'); return }
+
+    navigator.serviceWorker.getRegistration().then(async reg => {
+      const sub = reg ? await reg.pushManager.getSubscription() : null
+      setState(sub ? 'on' : 'off')
+    }).catch(() => setState('off'))
+  }, [])
+
+  async function enable() {
+    setState('enabling')
+    try {
+      const permission = await Notification.requestPermission()
+      if (permission !== 'granted') { setState(permission === 'denied' ? 'denied' : 'off'); return }
+
+      const reg = await navigator.serviceWorker.register('/sw.js')
+      await navigator.serviceWorker.ready
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) as BufferSource,
+      })
+      const res = await fetch('/api/push/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subscription: sub.toJSON() }),
+      })
+      setState(res.ok ? 'on' : 'off')
+    } catch {
+      setState('off')
+    }
+  }
+
+  async function disable() {
+    try {
+      const reg = await navigator.serviceWorker.getRegistration()
+      const sub = reg ? await reg.pushManager.getSubscription() : null
+      if (sub) {
+        await fetch('/api/push/subscribe', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ endpoint: sub.endpoint }),
+        })
+        await sub.unsubscribe()
+      }
+    } finally {
+      setState('off')
+    }
+  }
+
+  if (state === 'loading' || state === 'unsupported') return null
+
+  return (
+    <div className="mx-4 mb-4 bg-stone-900 border border-stone-800 rounded-2xl px-4 py-3 flex items-center gap-3">
+      <span className="text-stone-300 shrink-0" aria-hidden="true">
+        {state === 'on' ? <Bell size={18} className="text-emerald-400" /> : <BellOff size={18} />}
+      </span>
+      <div className="flex-1 min-w-0">
+        <p className="text-white text-sm font-medium">Push notifications</p>
+        <p className="text-stone-400 text-xs">
+          {state === 'on' ? 'On — you’ll be notified even when the app is closed.'
+            : state === 'denied' ? 'Blocked. Enable notifications for this site in your browser settings.'
+            : 'Get pinged when your group reacts or comments.'}
+        </p>
+      </div>
+      {state === 'on' ? (
+        <div className="shrink-0 flex items-center gap-1.5">
+          <button
+            onClick={sendTest}
+            disabled={testStatus === 'sending'}
+            className="text-emerald-300 hover:text-emerald-200 text-xs font-semibold px-3 py-2 bg-emerald-900/40 hover:bg-emerald-900/60 disabled:opacity-60 rounded-lg transition-colors"
+          >
+            {testStatus === 'sent' ? 'Sent ✓' : testStatus === 'sending' ? 'Sending…' : 'Send test'}
+          </button>
+          <button onClick={disable} aria-label="Turn off push notifications" className="text-stone-300 hover:text-white text-xs font-semibold px-3 py-2 bg-stone-800 hover:bg-stone-700 rounded-lg transition-colors">
+            Off
+          </button>
+        </div>
+      ) : state === 'denied' ? null : (
+        <button
+          onClick={enable}
+          disabled={state === 'enabling'}
+          className="shrink-0 flex items-center gap-1.5 text-white text-xs font-semibold px-3 py-2 bg-emerald-700 hover:bg-emerald-600 disabled:opacity-60 rounded-lg transition-colors"
+        >
+          {state === 'enabling' ? <Loader2 size={13} className="animate-spin" aria-hidden="true" /> : null}
+          {state === 'enabling' ? 'Enabling…' : 'Enable'}
+        </button>
+      )}
+    </div>
+  )
+}

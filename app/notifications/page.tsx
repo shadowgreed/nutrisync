@@ -1,0 +1,19 @@
+import { redirect } from 'next/navigation'
+import { createClient } from '@/lib/supabase/server'
+import NotificationsClient from './NotificationsClient'
+import type { AppNotification } from '@/types'
+
+export default async function NotificationsPage() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  const { data } = await supabase
+    .from('notifications')
+    .select('*, actor:actor_id(display_name)')
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: false })
+    .limit(50)
+
+  return <NotificationsClient initial={(data as AppNotification[]) ?? []} />
+}
