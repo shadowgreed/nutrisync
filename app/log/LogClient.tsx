@@ -9,6 +9,7 @@ export default function LogClient({ weightKg }: { weightKg: number }) {
   const [tab, setTab] = useState<'food' | 'activity'>('food')
   const [activityName, setActivityName] = useState('')
   const [duration, setDuration] = useState('')
+  const [caloriesOverride, setCaloriesOverride] = useState('') // user-edited burn (overrides estimate)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
@@ -16,6 +17,10 @@ export default function LogClient({ weightKg }: { weightKg: number }) {
   const estimatedCalories = activityName && duration
     ? estimateCaloriesBurned(activityName, Number(duration), weightKg)
     : null
+  // What the field shows: the user's edit if they typed one, else the live estimate.
+  const shownCalories = caloriesOverride !== '' ? caloriesOverride : (estimatedCalories != null ? String(estimatedCalories) : '')
+  const finalCalories = Math.max(0, Math.round(Number(shownCalories) || 0))
+  const isEdited = caloriesOverride !== '' && estimatedCalories != null && Number(caloriesOverride) !== estimatedCalories
 
   async function logActivity() {
     if (!activityName || !duration) return
@@ -28,7 +33,7 @@ export default function LogClient({ weightKg }: { weightKg: number }) {
       body: JSON.stringify({
         activity_name: activityName,
         duration_minutes: Number(duration),
-        calories_burned: estimatedCalories ?? 0,
+        calories_burned: finalCalories,
       }),
     })
 
@@ -39,6 +44,7 @@ export default function LogClient({ weightKg }: { weightKg: number }) {
       setSaved(true)
       setActivityName('')
       setDuration('')
+      setCaloriesOverride('')
       setTimeout(() => setSaved(false), 3000)
     }
     setSaving(false)
@@ -104,9 +110,33 @@ export default function LogClient({ weightKg }: { weightKg: number }) {
           </div>
 
           {estimatedCalories !== null && (
-            <div className="bg-orange-950/40 border border-orange-800/40 rounded-xl px-4 py-3 flex items-center justify-between">
-              <span className="text-stone-400 text-sm">Estimated burn</span>
-              <span className="text-orange-400 font-bold text-lg">-{estimatedCalories} kcal</span>
+            <div>
+              <label className="text-stone-400 text-xs mb-2 block uppercase tracking-wider">Calories burned</label>
+              <div className="bg-orange-950/40 border border-orange-800/40 rounded-xl px-4 py-3 flex items-center gap-2">
+                <span className="text-orange-400 font-bold text-lg shrink-0">−</span>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  value={shownCalories}
+                  onChange={e => setCaloriesOverride(e.target.value)}
+                  aria-label="Calories burned"
+                  className="flex-1 min-w-0 bg-transparent text-orange-400 font-bold text-lg focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                />
+                <span className="text-stone-400 text-sm shrink-0">kcal</span>
+                {isEdited && (
+                  <button
+                    type="button"
+                    onClick={() => setCaloriesOverride('')}
+                    className="shrink-0 text-stone-400 hover:text-white text-xs underline underline-offset-2"
+                  >
+                    reset
+                  </button>
+                )}
+              </div>
+              <p className="text-stone-400 text-[11px] mt-1.5">
+                {isEdited ? 'Using your number.' : 'Our estimate — edit it if your watch or treadmill says different.'}
+              </p>
             </div>
           )}
 

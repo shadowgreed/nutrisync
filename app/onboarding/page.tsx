@@ -46,6 +46,20 @@ export default function OnboardingPage() {
   const [activityLevel, setActivityLevel] = useState<ActivityLevel>('moderate')
   const [waterBottleMl, setWaterBottleMl] = useState(ozToMl(24))   // 24 oz bottle
   const [waterTargetMl, setWaterTargetMl] = useState(ozToMl(80))   // 80 oz/day
+  // Draft strings for the custom oz inputs so they can be cleared without snapping to 0
+  const [bottleOzDraft, setBottleOzDraft] = useState(String(mlToOz(ozToMl(24))))
+  const [targetOzDraft, setTargetOzDraft] = useState(String(mlToOz(ozToMl(80))))
+
+  function setBottleOz(raw: string) {
+    setBottleOzDraft(raw)
+    const n = Number(raw)
+    if (raw !== '' && Number.isFinite(n) && n > 0) setWaterBottleMl(ozToMl(n))
+  }
+  function setTargetOz(raw: string) {
+    setTargetOzDraft(raw)
+    const n = Number(raw)
+    if (raw !== '' && Number.isFinite(n) && n > 0) setWaterTargetMl(ozToMl(n))
+  }
 
   async function finish() {
     setSaving(true)
@@ -393,9 +407,9 @@ export default function OnboardingPage() {
                   {BOTTLE_OZ_PRESETS.map(oz => (
                     <button
                       key={oz}
-                      onClick={() => setWaterBottleMl(ozToMl(oz))}
+                      onClick={() => { setWaterBottleMl(ozToMl(oz)); setBottleOzDraft(String(oz)) }}
                       className={`py-3 rounded-xl text-sm font-medium transition-colors ${
-                        mlToOz(waterBottleMl) === oz
+                        mlToOz(waterBottleMl) === oz && bottleOzDraft !== ''
                           ? 'bg-sky-700 text-white'
                           : 'bg-stone-800 text-stone-400 hover:text-white'
                       }`}
@@ -409,8 +423,9 @@ export default function OnboardingPage() {
                   <input
                     type="number"
                     inputMode="numeric"
-                    value={mlToOz(waterBottleMl)}
-                    onChange={e => setWaterBottleMl(ozToMl(Number(e.target.value)))}
+                    value={bottleOzDraft}
+                    onChange={e => setBottleOz(e.target.value)}
+                    placeholder="oz"
                     className="w-full bg-stone-900 border border-stone-700 rounded-xl px-3 py-3 text-white placeholder-stone-600 focus:outline-none focus:ring-2 focus:ring-sky-500"
                   />
                 </div>
@@ -423,9 +438,9 @@ export default function OnboardingPage() {
                   {TARGET_OZ_PRESETS.map(oz => (
                     <button
                       key={oz}
-                      onClick={() => setWaterTargetMl(ozToMl(oz))}
+                      onClick={() => { setWaterTargetMl(ozToMl(oz)); setTargetOzDraft(String(oz)) }}
                       className={`py-3 rounded-xl text-sm font-medium transition-colors ${
-                        mlToOz(waterTargetMl) === oz
+                        mlToOz(waterTargetMl) === oz && targetOzDraft !== ''
                           ? 'bg-sky-700 text-white'
                           : 'bg-stone-800 text-stone-400 hover:text-white'
                       }`}
@@ -439,8 +454,9 @@ export default function OnboardingPage() {
                   <input
                     type="number"
                     inputMode="numeric"
-                    value={mlToOz(waterTargetMl)}
-                    onChange={e => setWaterTargetMl(ozToMl(Number(e.target.value)))}
+                    value={targetOzDraft}
+                    onChange={e => setTargetOz(e.target.value)}
+                    placeholder="oz"
                     className="w-full bg-stone-900 border border-stone-700 rounded-xl px-3 py-3 text-white placeholder-stone-600 focus:outline-none focus:ring-2 focus:ring-sky-500"
                   />
                 </div>

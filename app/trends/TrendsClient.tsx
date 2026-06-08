@@ -17,9 +17,10 @@ interface Props {
   macroTargets: MacroTargets
   weightLogs: WeightLog[]
   currentWeightKg: number | null
+  targetWeightKg: number | null
 }
 
-export default function TrendsClient({ series30, calorieTarget, macroTargets, weightLogs, currentWeightKg }: Props) {
+export default function TrendsClient({ series30, calorieTarget, macroTargets, weightLogs, currentWeightKg, targetWeightKg }: Props) {
   const router = useRouter()
   const [range, setRange] = useState<7 | 30>(7)
   const [weightInput, setWeightInput] = useState('')
@@ -67,6 +68,31 @@ export default function TrendsClient({ series30, calorieTarget, macroTargets, we
   })
   const polyline = pts.map(p => `${p.x},${p.y}`).join(' ')
   const weightDelta = vals.length >= 2 ? vals[vals.length - 1] - vals[0] : 0
+
+  // ── Goal-weight progress (in 25% milestones) ──
+  const startKg = vals.length ? vals[0] : currentWeightKg
+  const nowKg = vals.length ? vals[vals.length - 1] : currentWeightKg
+  let goal: null | { pct: number; remainingLbs: number; milestone: number; reached: boolean; targetLbs: number } = null
+  if (targetWeightKg != null && startKg != null && nowKg != null && Math.abs(startKg - targetWeightKg) > 0.05) {
+    const total = Math.abs(startKg - targetWeightKg)
+    const progressed = startKg > targetWeightKg ? startKg - nowKg : nowKg - startKg // signed toward goal
+    const pct = Math.max(0, Math.min(100, Math.round((progressed / total) * 100)))
+    const milestone = Math.floor(pct / 25) * 25 // 0,25,50,75,100
+    goal = {
+      pct,
+      remainingLbs: Math.abs(kgToLbs(nowKg) - kgToLbs(targetWeightKg)),
+      milestone,
+      reached: pct >= 100,
+      targetLbs: kgToLbs(targetWeightKg),
+    }
+  }
+  const MILESTONE_MSG: Record<number, string> = {
+    0: 'Off to a start — every log counts!',
+    25: '💪 25% of the way there — keep going!',
+    50: '🎉 Halfway to your goal!',
+    75: '🔥 75% there — so close!',
+    100: '🏆 Goal weight reached. Amazing work!',
+  }
 
   return (
     <div className="min-h-screen bg-stone-950 pb-24">
@@ -224,6 +250,28 @@ export default function TrendsClient({ series30, calorieTarget, macroTargets, we
           <p className="text-stone-400 text-xs mb-3">
             {currentWeightKg ? `Current: ${kgToLbs(currentWeightKg)} lbs. ` : ''}Log your weight regularly to see your trend.
           </p>
+        )}
+
+        {/* Goal weight progress + milestone celebration */}
+        {goal && (
+          <div className={`mt-3 rounded-xl px-4 py-3 border ${goal.reached ? 'bg-amber-950/40 border-amber-700/50' : 'bg-stone-800/50 border-stone-700'}`}>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-stone-300 text-xs font-medium">Goal: {goal.targetLbs} lbs</span>
+              <span className={`text-xs font-semibold ${goal.reached ? 'text-amber-300' : 'text-sky-300'} tabular-nums`}>
+                {goal.reached ? 'Reached 🏆' : `${goal.remainingLbs.toFixed(1)} lbs to go`}
+              </span>
+            </div>
+            <div className="relative h-2 rounded-full bg-stone-700 overflow-hidden">
+              <div className={`h-full rounded-full transition-all ${goal.reached ? 'bg-amber-400' : 'bg-gradient-to-r from-sky-600 to-sky-400'}`} style={{ width: `${Math.max(2, goal.pct)}%` }} />
+              {/* 25 / 50 / 75 milestone ticks */}
+              {[25, 50, 75].map(m => (
+                <span key={m} className="absolute top-0 bottom-0 w-px bg-stone-900/70" style={{ left: `${m}%` }} />
+              ))}
+            </div>
+            <p className={`text-xs mt-2 ${goal.reached ? 'text-amber-300' : 'text-stone-300'}`}>
+              {MILESTONE_MSG[goal.milestone]} <span className="text-stone-400">({goal.pct}%)</span>
+            </p>
+          </div>
         )}
 
         {/* Log weight */}

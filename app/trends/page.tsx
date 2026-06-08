@@ -9,9 +9,10 @@ export default async function TrendsPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
+  // select('*') tolerates a missing target_weight_kg column (pre-migration-014)
   const { data: profile } = await supabase
     .from('profiles')
-    .select('calorie_target, weight_kg, goal')
+    .select('*')
     .eq('id', user.id)
     .single()
 
@@ -58,6 +59,7 @@ export default async function TrendsPage() {
       macroTargets={macroTargets}
       weightLogs={weightLogs}
       currentWeightKg={profile?.weight_kg ?? null}
+      targetWeightKg={profile?.target_weight_kg ?? null}
     />
   )
 }

@@ -66,6 +66,7 @@ export interface Profile {
   privacy_mode: PrivacyMode
   dark_mode_until: string | null
   weight_kg: number | null
+  target_weight_kg: number | null
   height_cm: number | null
   birth_year: number | null
   biological_sex: 'male' | 'female' | 'prefer_not_to_say' | null

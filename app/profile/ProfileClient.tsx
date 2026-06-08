@@ -322,7 +322,7 @@ export default function ProfileClient({ profile, email, logs, activities, group 
             <StatRow label="Activity level" value={profile.activity_level.replace('_', ' ')} />
           )}
           <Link
-            href="/onboarding"
+            href="/profile/edit"
             className="block text-center text-stone-400 text-sm mt-4 hover:text-emerald-400 transition-colors"
           >
             Edit profile →

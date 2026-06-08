@@ -45,13 +45,25 @@ export default function EditProfileClient({ profile }: Props) {
   )
   const [waterBottleMl, setWaterBottleMl] = useState(profile.water_bottle_ml ?? ozToMl(24))
   const [waterTargetMl, setWaterTargetMl] = useState(profile.water_daily_target_ml ?? ozToMl(80))
+  const [targetWeightLbs, setTargetWeightLbs] = useState(
+    profile.target_weight_kg ? String(kgToLbs(profile.target_weight_kg)) : ''
+  )
+  const [calorieTargetInput, setCalorieTargetInput] = useState(String(profile.calorie_target ?? ''))
+
+  // Live "suggested" calorie target from the current form (Mifflin-St Jeor → TDEE → goal)
+  const suggestedCalories = (() => {
+    const age = birthYear ? new Date().getFullYear() - Number(birthYear) : 30
+    const w = useMetric ? Number(weightKg) : (weightLbs ? lbsToKg(Number(weightLbs)) : 0)
+    const h = useMetric ? Number(heightCm) : (heightFt ? ftInToCm(Number(heightFt), Number(heightIn) || 0) : 0)
+    if (!w || !h) return null
+    return calculateCalorieTarget(calculateTDEE(calculateBMR(w, h, age, sex), activityLevel), goal)
+  })()
 
   async function handleSave() {
     setSaving(true)
     setSaved(false)
     setError('')
 
-    const age = birthYear ? new Date().getFullYear() - Number(birthYear) : 30
     const w = useMetric
       ? (Number(weightKg) || null)
       : (weightLbs ? lbsToKg(Number(weightLbs)) : null)
@@ -59,14 +71,11 @@ export default function EditProfileClient({ profile }: Props) {
       ? (Number(heightCm) || null)
       : (heightFt ? ftInToCm(Number(heightFt), Number(heightIn) || 0) : null)
 
-    let calorieTarget = profile.calorie_target
-    if (w && h) {
-      const bmr = calculateBMR(w, h, age, sex)
-      const tdee = calculateTDEE(bmr, activityLevel)
-      calorieTarget = calculateCalorieTarget(tdee, goal)
-    }
+    // Use the user's own target if set, else the suggestion, else keep existing.
+    const typed = Number(calorieTargetInput)
+    const calorieTarget = typed > 0 ? Math.round(typed) : (suggestedCalories ?? profile.calorie_target)
 
-    const { error: err } = await supabase.from('profiles').update({
+    const baseUpdate = {
       display_name:          displayName.trim() || profile.display_name,
       weight_kg:             w,
       height_cm:             h,
@@ -77,7 +86,15 @@ export default function EditProfileClient({ profile }: Props) {
       calorie_target:        calorieTarget,
       water_bottle_ml:       waterBottleMl,
       water_daily_target_ml: waterTargetMl,
-    }).eq('id', profile.id)
+    }
+    const targetKg = targetWeightLbs ? lbsToKg(Number(targetWeightLbs)) : null
+
+    // Retry without target_weight_kg if migration 014 isn't applied yet
+    let { error: err } = await supabase.from('profiles')
+      .update({ ...baseUpdate, target_weight_kg: targetKg }).eq('id', profile.id)
+    if (err && (err.code === 'PGRST204' || /target_weight_kg/.test(err.message))) {
+      ;({ error: err } = await supabase.from('profiles').update(baseUpdate).eq('id', profile.id))
+    }
 
     if (err) { setError(err.message); setSaving(false); return }
     setSaved(true)
@@ -205,6 +222,23 @@ export default function EditProfileClient({ profile }: Props) {
           </div>
         </div>
 
+        {/* Goal weight */}
+        <div>
+          <p className={sectionHdr}>Goal weight</p>
+          <div className="relative">
+            <input
+              type="number"
+              inputMode="decimal"
+              value={targetWeightLbs}
+              onChange={e => setTargetWeightLbs(e.target.value)}
+              placeholder="e.g. 165"
+              className={inputCls + ' pr-12'}
+            />
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm">lbs</span>
+          </div>
+          <p className="text-stone-400 text-[11px] mt-1.5">Optional — we&apos;ll track your progress and celebrate milestones on Trends.</p>
+        </div>
+
         {/* Activity level */}
         <div>
           <p className={sectionHdr}>Activity level</p>
@@ -227,6 +261,34 @@ export default function EditProfileClient({ profile }: Props) {
               </button>
             ))}
           </div>
+        </div>
+
+        {/* Daily calorie target */}
+        <div>
+          <p className={sectionHdr}>Daily calorie target</p>
+          <div className="relative">
+            <input
+              type="number"
+              inputMode="numeric"
+              value={calorieTargetInput}
+              onChange={e => setCalorieTargetInput(e.target.value)}
+              placeholder={suggestedCalories ? String(suggestedCalories) : '2000'}
+              className={inputCls + ' pr-14'}
+            />
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm">kcal</span>
+          </div>
+          {suggestedCalories != null && (
+            <div className="flex items-center justify-between gap-2 mt-1.5">
+              <p className="text-stone-400 text-[11px]">Suggested for your stats &amp; goal: <span className="text-stone-200">{suggestedCalories} kcal</span></p>
+              <button
+                type="button"
+                onClick={() => setCalorieTargetInput(String(suggestedCalories))}
+                className="shrink-0 text-emerald-400 hover:text-emerald-300 text-xs font-medium underline underline-offset-2"
+              >
+                Use suggested
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Water */}
