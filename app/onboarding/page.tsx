@@ -403,7 +403,7 @@ export default function OnboardingPage() {
               {/* Bottle size */}
               <div>
                 <label className="text-stone-400 text-xs uppercase tracking-wider mb-2 block">Your bottle / glass size</label>
-                <div className="grid grid-cols-4 gap-2">
+                <div className="grid grid-cols-3 gap-2">
                   {BOTTLE_OZ_PRESETS.map(oz => (
                     <button
                       key={oz}
@@ -434,7 +434,7 @@ export default function OnboardingPage() {
               {/* Daily target */}
               <div>
                 <label className="text-stone-400 text-xs uppercase tracking-wider mb-2 block">Daily water target</label>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 gap-2">
                   {TARGET_OZ_PRESETS.map(oz => (
                     <button
                       key={oz}

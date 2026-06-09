@@ -6,14 +6,13 @@ import { sendPushToSubscriptions } from '@/lib/push'
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
-// Local wall-clock time (hour/minute) for an IANA timezone.
-function localTime(tz: string, date: Date): { hour: number; minute: number } {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false,
+// Local date + wall-clock time for an IANA timezone.
+function localParts(tz: string, date: Date): { date: string; hour: number; minute: number } {
+  const p = new Intl.DateTimeFormat('en-CA', {
+    timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false,
   }).formatToParts(date)
-  const hour = Number(parts.find(p => p.type === 'hour')?.value ?? '0') % 24
-  const minute = Number(parts.find(p => p.type === 'minute')?.value ?? '0')
-  return { hour, minute }
+  const get = (t: string) => p.find(x => x.type === t)?.value ?? '00'
+  return { date: `${get('year')}-${get('month')}-${get('day')}`, hour: Number(get('hour')) % 24, minute: Number(get('minute')) }
 }
 
 const MEALS: Record<number, { type: string; label: string }> = {
@@ -23,10 +22,9 @@ const MEALS: Record<number, { type: string; label: string }> = {
 }
 
 /**
- * Run by a scheduler (Vercel Cron or any external cron) ideally every ~30 min.
- * Sends water reminders every 2 waking hours and meal reminders at breakfast/
- * lunch/dinner — each skipped if the user already logged recently, with quiet
- * hours (22:00–08:00 local) and a 90-minute de-dupe.
+ * Triggered by a scheduler (Supabase pg_cron, cron-job.org, etc.) every ~30 min.
+ * Uses date+hour "slots" instead of a minute window so it fires correctly no
+ * matter when within the hour the scheduler runs (and never twice per slot).
  */
 export async function GET(req: NextRequest) {
   if (process.env.CRON_SECRET) {
@@ -41,7 +39,6 @@ export async function GET(req: NextRequest) {
   catch { return NextResponse.json({ error: 'Service role key not configured' }, { status: 500 }) }
 
   const now = new Date()
-  const RECENT_MS = 90 * 60 * 1000
 
   const { data: profiles, error } = await supabase
     .from('profiles')
@@ -51,26 +48,30 @@ export async function GET(req: NextRequest) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   let sent = 0
+  let candidates = 0
 
   for (const p of profiles ?? []) {
     const tz = p.reminder_timezone || 'America/New_York'
-    const { hour, minute } = localTime(tz, now)
-    if (hour < 8 || hour >= 22 || minute >= 30) continue // quiet hours + once-per-slot window
+    const { date, hour } = localParts(tz, now)
+    if (hour < 8 || hour >= 22) continue // quiet hours
 
     const wantsWater = p.water_reminders_enabled && hour % 2 === 0 && hour <= 20
     const meal = p.meal_reminders_enabled ? MEALS[hour] : undefined
     if (!wantsWater && !meal) continue
+    candidates++
 
-    // Load this user's push subscriptions (admin client bypasses RLS)
     const { data: subRows } = await supabase
       .from('push_subscriptions').select('subscription').eq('user_id', p.id)
     if (!subRows || subRows.length === 0) continue
     const subscriptions = subRows.map(r => r.subscription) as webpush.PushSubscription[]
 
-    // ── Water ──
+    // ── Water: one per even-hour slot ──
     if (wantsWater) {
-      const recent = p.last_water_reminder_at && now.getTime() - new Date(p.last_water_reminder_at).getTime() < RECENT_MS
-      if (!recent) {
+      const slot = `${date}-${hour}` // already even
+      const lastSlot = p.last_water_reminder_at
+        ? `${localParts(tz, new Date(p.last_water_reminder_at)).date}-${localParts(tz, new Date(p.last_water_reminder_at)).hour}`
+        : ''
+      if (slot !== lastSlot) {
         const since = new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString()
         const { count } = await supabase
           .from('water_logs').select('id', { count: 'exact', head: true })
@@ -79,15 +80,18 @@ export async function GET(req: NextRequest) {
           sent += await sendPushToSubscriptions(subscriptions, {
             title: '💧 Hydration check', body: 'Time for some water!', url: '/dashboard', tag: 'water-reminder',
           })
-          await supabase.from('profiles').update({ last_water_reminder_at: now.toISOString() }).eq('id', p.id)
         }
+        await supabase.from('profiles').update({ last_water_reminder_at: now.toISOString() }).eq('id', p.id)
       }
     }
 
-    // ── Meal ──
+    // ── Meal: one per meal-hour slot ──
     if (meal) {
-      const recent = p.last_meal_reminder_at && now.getTime() - new Date(p.last_meal_reminder_at).getTime() < RECENT_MS
-      if (!recent) {
+      const slot = `${date}-${hour}`
+      const lastSlot = p.last_meal_reminder_at
+        ? `${localParts(tz, new Date(p.last_meal_reminder_at)).date}-${localParts(tz, new Date(p.last_meal_reminder_at)).hour}`
+        : ''
+      if (slot !== lastSlot) {
         const since = new Date(now.getTime() - 6 * 60 * 60 * 1000).toISOString()
         const { count } = await supabase
           .from('food_logs').select('id', { count: 'exact', head: true })
@@ -96,11 +100,11 @@ export async function GET(req: NextRequest) {
           sent += await sendPushToSubscriptions(subscriptions, {
             title: '🍽️ Meal time', body: `Don't forget to log your ${meal.label}.`, url: '/log', tag: 'meal-reminder',
           })
-          await supabase.from('profiles').update({ last_meal_reminder_at: now.toISOString() }).eq('id', p.id)
         }
+        await supabase.from('profiles').update({ last_meal_reminder_at: now.toISOString() }).eq('id', p.id)
       }
     }
   }
 
-  return NextResponse.json({ ok: true, sent })
+  return NextResponse.json({ ok: true, candidates, sent })
 }

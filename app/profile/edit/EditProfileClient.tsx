@@ -45,6 +45,18 @@ export default function EditProfileClient({ profile }: Props) {
   )
   const [waterBottleMl, setWaterBottleMl] = useState(profile.water_bottle_ml ?? ozToMl(24))
   const [waterTargetMl, setWaterTargetMl] = useState(profile.water_daily_target_ml ?? ozToMl(80))
+  const [bottleOzDraft, setBottleOzDraft] = useState(String(mlToOz(profile.water_bottle_ml ?? ozToMl(24))))
+  const [targetOzDraft, setTargetOzDraft] = useState(String(mlToOz(profile.water_daily_target_ml ?? ozToMl(80))))
+  function setBottleOz(raw: string) {
+    setBottleOzDraft(raw)
+    const n = Number(raw)
+    if (raw !== '' && Number.isFinite(n) && n > 0) setWaterBottleMl(ozToMl(n))
+  }
+  function setTargetOz(raw: string) {
+    setTargetOzDraft(raw)
+    const n = Number(raw)
+    if (raw !== '' && Number.isFinite(n) && n > 0) setWaterTargetMl(ozToMl(n))
+  }
   const [targetWeightLbs, setTargetWeightLbs] = useState(
     profile.target_weight_kg ? String(kgToLbs(profile.target_weight_kg)) : ''
   )
@@ -297,31 +309,47 @@ export default function EditProfileClient({ profile }: Props) {
           <div className="space-y-3">
             <div>
               <label className="text-stone-400 text-xs mb-2 block">Bottle / glass size</label>
-              <div className="grid grid-cols-4 gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 {BOTTLE_OZ_PRESETS.map(oz => (
                   <button
                     key={oz}
-                    onClick={() => setWaterBottleMl(ozToMl(oz))}
-                    className={`py-2.5 rounded-xl text-sm font-medium transition-colors ${mlToOz(waterBottleMl) === oz ? 'bg-sky-700 text-white' : 'bg-stone-800 text-stone-400 hover:text-white'}`}
+                    onClick={() => { setWaterBottleMl(ozToMl(oz)); setBottleOzDraft(String(oz)) }}
+                    className={`py-2.5 rounded-xl text-sm font-medium transition-colors ${mlToOz(waterBottleMl) === oz && bottleOzDraft !== '' ? 'bg-sky-700 text-white' : 'bg-stone-800 text-stone-400 hover:text-white'}`}
                   >
                     {oz} oz
                   </button>
                 ))}
               </div>
+              <input
+                type="number"
+                inputMode="numeric"
+                value={bottleOzDraft}
+                onChange={e => setBottleOz(e.target.value)}
+                placeholder="Custom (oz)"
+                className={inputCls + ' mt-2'}
+              />
             </div>
             <div>
               <label className="text-stone-400 text-xs mb-2 block">Daily target</label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 gap-2">
                 {TARGET_OZ_PRESETS.map(oz => (
                   <button
                     key={oz}
-                    onClick={() => setWaterTargetMl(ozToMl(oz))}
-                    className={`py-2.5 rounded-xl text-sm font-medium transition-colors ${mlToOz(waterTargetMl) === oz ? 'bg-sky-700 text-white' : 'bg-stone-800 text-stone-400 hover:text-white'}`}
+                    onClick={() => { setWaterTargetMl(ozToMl(oz)); setTargetOzDraft(String(oz)) }}
+                    className={`py-2.5 rounded-xl text-sm font-medium transition-colors ${mlToOz(waterTargetMl) === oz && targetOzDraft !== '' ? 'bg-sky-700 text-white' : 'bg-stone-800 text-stone-400 hover:text-white'}`}
                   >
                     {oz} oz
                   </button>
                 ))}
               </div>
+              <input
+                type="number"
+                inputMode="numeric"
+                value={targetOzDraft}
+                onChange={e => setTargetOz(e.target.value)}
+                placeholder="Custom (oz)"
+                className={inputCls + ' mt-2'}
+              />
             </div>
             <div className="bg-sky-950/50 border border-sky-800/40 rounded-xl px-4 py-2.5 flex items-center justify-between">
               <span className="text-sky-300 text-sm">

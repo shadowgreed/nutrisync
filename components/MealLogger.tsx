@@ -4,6 +4,7 @@ import { useState, useRef } from 'react'
 import { Camera, X, Loader2, CheckCircle, MessageSquarePlus, Pencil, ScanLine } from 'lucide-react'
 import FoodSearchBar from './FoodSearchBar'
 import BarcodeScanner from './BarcodeScanner'
+import { createClient } from '@/lib/supabase/client'
 import { NUTRIENT_KEYS } from '@/lib/nutrients'
 import { MACRO_KEYS } from '@/lib/macros'
 import type { FoodEntry, MealType } from '@/types'
@@ -41,7 +42,8 @@ interface Props { onLogged?: () => void }
 export default function MealLogger({ onLogged }: Props) {
   const [mealType, setMealType] = useState<MealType>(smartDefaultMeal)
   const [foods, setFoods] = useState<FoodEntry[]>([])
-  const [photoUrl, setPhotoUrl] = useState<string | null>(null)
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null)  // local blob: URL, preview only
+  const [photoFile, setPhotoFile] = useState<File | null>(null)  // the real file, uploaded on save
   const [caption, setCaption] = useState('')
   const [analyzing, setAnalyzing] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -83,6 +85,7 @@ export default function MealLogger({ onLogged }: Props) {
       const data = await res.json()
       if (data.error) throw new Error(data.error)
       setFoods(prev => [...prev, ...data.foods])
+      setPhotoFile(file)
       setPhotoUrl(URL.createObjectURL(file))
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Photo analysis failed')
@@ -102,17 +105,36 @@ export default function MealLogger({ onLogged }: Props) {
     setSaving(true)
     setError('')
     try {
+      // Upload the photo to Supabase Storage so it persists and is visible to the
+      // whole group (a local blob: URL only works in the uploader's session).
+      let storedPhotoUrl: string | null = null
+      if (photoFile) {
+        const supabase = createClient()
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+          const ext = (photoFile.name.split('.').pop() || 'jpg').toLowerCase()
+          const path = `${user.id}/${Date.now()}.${ext}`
+          const { error: upErr } = await supabase.storage
+            .from('meal-photos')
+            .upload(path, photoFile, { contentType: photoFile.type || 'image/jpeg', upsert: false })
+          if (upErr) throw new Error(`Photo upload failed: ${upErr.message}`)
+          storedPhotoUrl = supabase.storage.from('meal-photos').getPublicUrl(path).data.publicUrl
+        }
+      }
+
       const res = await fetch('/api/log-meal', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ meal_type: mealType, foods, photo_url: photoUrl, caption }),
+        body: JSON.stringify({ meal_type: mealType, foods, photo_url: storedPhotoUrl, caption }),
       })
       const data = await res.json()
       if (data.error) throw new Error(data.error)
       setSaved(true)
       setTimeout(() => {
         setFoods([])
+        if (photoUrl) URL.revokeObjectURL(photoUrl)
         setPhotoUrl(null)
+        setPhotoFile(null)
         setCaption('')
         setSaved(false)
         onLogged?.()
@@ -159,7 +181,7 @@ export default function MealLogger({ onLogged }: Props) {
             <div className="relative rounded-xl overflow-hidden">
               <img src={photoUrl} alt="Meal" className="w-full aspect-[4/3] object-cover" />
               <button
-                onClick={() => { setPhotoUrl(null); setFoods([]); setCaption('') }}
+                onClick={() => { if (photoUrl) URL.revokeObjectURL(photoUrl); setPhotoUrl(null); setPhotoFile(null); setFoods([]); setCaption('') }}
                 className="absolute top-2 right-2 bg-black/60 hover:bg-black/80 rounded-full p-1.5 text-white transition-colors"
               >
                 <X size={14} />

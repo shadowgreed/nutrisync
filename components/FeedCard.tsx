@@ -5,6 +5,7 @@ import { MessageCircle, Send, X, Trash2 } from 'lucide-react'
 import type { FeedEntry, NutrientKey, MacroTotals } from '@/types'
 import { NUTRIENT_META, NUTRIENT_KEYS } from '@/lib/nutrients'
 import { MACRO_KEYS, MACRO_META, emptyMacros } from '@/lib/macros'
+import MiniProfileModal from '@/components/MiniProfileModal'
 
 const REACTION_EMOJIS = ['🍽️', '🔥', '🌿', '❓', '❤️']
 const REACTION_NAMES: Record<string, string> = {
@@ -43,6 +44,7 @@ export default function FeedCard({ entry, currentUserId, onReact, onComment, onD
   const [lightbox, setLightbox] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [showProfile, setShowProfile] = useState(false)
 
   async function handleDelete() {
     if (!onDelete) return
@@ -87,15 +89,22 @@ export default function FeedCard({ entry, currentUserId, onReact, onComment, onD
       <div className="bg-stone-900 border border-stone-800 rounded-2xl overflow-hidden">
         {/* Header */}
         <div className="flex items-center gap-3 px-4 pt-4 pb-3">
-          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-emerald-700 to-emerald-900 flex items-center justify-center text-sm font-bold text-white shrink-0">
-            {entry.profile.display_name[0].toUpperCase()}
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-white font-semibold text-sm">{entry.profile.display_name}</p>
-            <p className="text-stone-400 text-xs">
-              {MEAL_EMOJI[entry.meal_type] ?? ''} {entry.meal_type} · {time}
-            </p>
-          </div>
+          <button
+            onClick={() => !isOwnLog && setShowProfile(true)}
+            disabled={isOwnLog}
+            aria-label={isOwnLog ? undefined : `View ${entry.profile.display_name}'s profile`}
+            className={`flex items-center gap-3 flex-1 min-w-0 text-left ${isOwnLog ? '' : 'group'}`}
+          >
+            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-emerald-700 to-emerald-900 flex items-center justify-center text-sm font-bold text-white shrink-0">
+              {entry.profile.display_name[0].toUpperCase()}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className={`text-white font-semibold text-sm truncate ${isOwnLog ? '' : 'group-hover:text-emerald-300 transition-colors'}`}>{entry.profile.display_name}</p>
+              <p className="text-stone-400 text-xs">
+                {MEAL_EMOJI[entry.meal_type] ?? ''} {entry.meal_type} · {time}
+              </p>
+            </div>
+          </button>
           {isOwnLog && (
             <div className="flex items-center gap-2 shrink-0">
               <span className="bg-stone-800 text-stone-400 text-xs px-2 py-0.5 rounded-full">you</span>
@@ -350,6 +359,10 @@ export default function FeedCard({ entry, currentUserId, onReact, onComment, onD
             </p>
           )}
         </div>
+      )}
+
+      {showProfile && (
+        <MiniProfileModal userId={entry.user_id} name={entry.profile.display_name} onClose={() => setShowProfile(false)} />
       )}
     </>
   )
