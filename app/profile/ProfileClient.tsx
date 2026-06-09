@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Settings, Flame, Utensils, TrendingUp, Users, Copy, Check, LogOut, Trash2 } from 'lucide-react'
+import { Settings, Flame, Utensils, TrendingUp, Users, Copy, Check, LogOut } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { BottomNav } from '../dashboard/DashboardClient'
 import {
@@ -45,35 +45,8 @@ export default function ProfileClient({ profile, email, logs, activities, group 
   const [copied, setCopied] = useState(false)
   const [confirmLeave, setConfirmLeave] = useState(false)
   const [leaving, setLeaving] = useState(false)
-  const [confirmDelete, setConfirmDelete] = useState(false)
-  const [deleting, setDeleting] = useState(false)
-  const [deleteError, setDeleteError] = useState('')
   const router = useRouter()
   useEffect(() => { setOrigin(window.location.origin) }, [])
-
-  async function signOut() {
-    const supabase = createClient()
-    await supabase.auth.signOut()
-    router.push('/login')
-    router.refresh()
-  }
-
-  async function deleteAccount() {
-    setDeleting(true)
-    setDeleteError('')
-    try {
-      const res = await fetch('/api/delete-account', { method: 'POST' })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data.error || 'Could not delete account')
-      // Make sure any local session is cleared too, then leave.
-      await createClient().auth.signOut().catch(() => {})
-      router.push('/login')
-      router.refresh()
-    } catch (err) {
-      setDeleteError(err instanceof Error ? err.message : 'Could not delete account')
-      setDeleting(false)
-    }
-  }
 
   const inviteUrl = group ? `${origin}/group/join/${group.invite_code}` : ''
   function copyInvite() {
@@ -348,12 +321,6 @@ export default function ProfileClient({ profile, email, logs, activities, group 
           {profile.activity_level && (
             <StatRow label="Activity level" value={profile.activity_level.replace('_', ' ')} />
           )}
-          <Link
-            href="/profile/edit"
-            className="block text-center text-stone-400 text-sm mt-4 hover:text-emerald-400 transition-colors"
-          >
-            Edit profile →
-          </Link>
         </div>
       )}
 
@@ -374,54 +341,6 @@ export default function ProfileClient({ profile, email, logs, activities, group 
           )}
         </div>
       )}
-
-      {/* Account section */}
-      <div className="px-4 mt-8">
-        <p className="text-stone-400 text-xs uppercase tracking-wider mb-3">Account</p>
-        <div className="bg-stone-900 border border-stone-800 rounded-2xl divide-y divide-stone-800">
-          <button
-            onClick={signOut}
-            className="w-full flex items-center gap-2.5 px-4 py-3.5 text-stone-300 hover:text-white text-sm font-medium transition-colors"
-          >
-            <LogOut size={16} aria-hidden="true" /> Sign out
-          </button>
-
-          {confirmDelete ? (
-            <div className="px-4 py-3.5 space-y-3">
-              <p className="text-stone-300 text-sm">
-                Delete your account? This permanently erases your profile, meals, water, activity, and group membership. This cannot be undone.
-              </p>
-              {deleteError && <p className="text-red-400 text-xs">{deleteError}</p>}
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={deleteAccount}
-                  disabled={deleting}
-                  className="bg-red-900/70 hover:bg-red-900 text-red-100 text-sm font-semibold px-3 py-2 rounded-lg transition-colors disabled:opacity-50"
-                >
-                  {deleting ? 'Deleting…' : 'Delete everything'}
-                </button>
-                <button
-                  onClick={() => { setConfirmDelete(false); setDeleteError('') }}
-                  disabled={deleting}
-                  className="text-stone-300 hover:text-white text-sm px-2 py-2 transition-colors disabled:opacity-50"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          ) : (
-            <button
-              onClick={() => setConfirmDelete(true)}
-              className="w-full flex items-center gap-2.5 px-4 py-3.5 text-stone-400 hover:text-red-300 text-sm font-medium transition-colors"
-            >
-              <Trash2 size={16} aria-hidden="true" /> Delete account
-            </button>
-          )}
-        </div>
-        <p className="text-stone-600 text-[11px] mt-2 px-1">
-          To remove the app from your device, also uninstall it from your home screen.
-        </p>
-      </div>
 
       <BottomNav active="profile" />
     </div>
