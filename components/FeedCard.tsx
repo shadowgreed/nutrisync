@@ -60,7 +60,11 @@ export default function FeedCard({ entry, currentUserId, onReact, onComment, onD
   const effectivePrivacy = entry.privacy_override ?? entry.profile.privacy_mode
   const myReaction = entry.reactions.find(r => r.user_id === currentUserId)
   const time = new Date(entry.logged_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-  const showPhoto = !!entry.photo_url && effectivePrivacy !== 'dark'
+  // Older posts saved a blob: URL that only existed in the author's browser
+  // session — those are permanently dead, so skip them instead of rendering a
+  // broken-image icon. New posts store a real Supabase Storage URL.
+  const hasUsablePhoto = !!entry.photo_url && !entry.photo_url.startsWith('blob:')
+  const showPhoto = hasUsablePhoto && effectivePrivacy !== 'dark'
 
   // Build per-meal nutrient data
   const nutrientData = NUTRIENT_KEYS.map(k => {

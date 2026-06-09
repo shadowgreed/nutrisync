@@ -21,19 +21,16 @@ export default async function DashboardPage() {
     redirect('/onboarding')
   }
 
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const todayISO = today.toISOString()
+  // "Today" depends on the viewer's local timezone, which the server (UTC on
+  // Vercel) doesn't know. So fetch a 48h window and let the client filter to its
+  // own local day — otherwise the dashboard empties out every evening once UTC
+  // rolls past midnight while it's still "today" for the user.
+  const since48ISO = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString()
 
   // Look back ~60 days for the logging-streak calculation
-  const streakWindow = new Date(today)
-  streakWindow.setDate(streakWindow.getDate() - 60)
-  const streakWindowISO = streakWindow.toISOString()
-
+  const streakWindowISO = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString()
   // Last 7 days for weekly micronutrient coaching
-  const weekWindow = new Date(today)
-  weekWindow.setDate(weekWindow.getDate() - 6)
-  const weekWindowISO = weekWindow.toISOString()
+  const weekWindowISO = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
 
   const [{ data: logs }, { data: activities }, { data: waterLogs }, { data: streakRows }, { data: weekLogs }] = await Promise.all([
     // select('*') so a missing macro_totals column (pre-migration-007) doesn't break the read
@@ -41,18 +38,18 @@ export default async function DashboardPage() {
       .from('food_logs')
       .select('*')
       .eq('user_id', user.id)
-      .gte('logged_at', todayISO)
+      .gte('logged_at', since48ISO)
       .order('logged_at', { ascending: true }),
     supabase
       .from('activity_logs')
-      .select('calories_burned')
+      .select('calories_burned, logged_at')
       .eq('user_id', user.id)
-      .gte('logged_at', todayISO),
+      .gte('logged_at', since48ISO),
     supabase
       .from('water_logs')
-      .select('id, amount_ml')
+      .select('id, amount_ml, logged_at')
       .eq('user_id', user.id)
-      .gte('logged_at', todayISO)
+      .gte('logged_at', since48ISO)
       .order('logged_at', { ascending: true }),
     supabase
       .from('food_logs')
@@ -66,8 +63,6 @@ export default async function DashboardPage() {
       .gte('logged_at', weekWindowISO),
   ])
 
-  const caloriesBurnedToday = (activities ?? []).reduce((s, a) => s + (a.calories_burned || 0), 0)
-  const waterTodayMl = (waterLogs ?? []).reduce((s, w) => s + (w.amount_ml || 0), 0)
   const streak = computeStreak((streakRows ?? []).map(r => r.logged_at as string))
   const coaching = weeklyCoaching(buildDailySeries(weekLogs ?? [], 7))
 
@@ -81,13 +76,12 @@ export default async function DashboardPage() {
   return (
     <DashboardClient
       logs={logs ?? []}
+      activities={activities ?? []}
       displayName={profile?.display_name ?? 'there'}
       calorieTarget={profile?.calorie_target ?? null}
-      caloriesBurnedToday={caloriesBurnedToday}
       streak={streak}
       coaching={coaching}
       macroTargets={macroTargets}
-      waterTodayMl={waterTodayMl}
       waterTargetMl={profile?.water_daily_target_ml ?? 2500}
       waterBottleMl={profile?.water_bottle_ml ?? 500}
       initialWaterLogs={waterLogs ?? []}

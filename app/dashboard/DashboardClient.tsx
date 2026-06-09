@@ -25,29 +25,41 @@ interface LogRow {
   id: string
 }
 
-interface WaterLog { id: string; amount_ml: number }
+interface WaterLog { id: string; amount_ml: number; logged_at?: string }
+interface ActivityRow { calories_burned: number; logged_at: string }
 
 interface Props {
   logs: LogRow[]
+  activities: ActivityRow[]
   displayName: string
   calorieTarget: number | null
-  caloriesBurnedToday: number
   streak: number
   coaching: CoachingInsight[]
   macroTargets: MacroTargets
-  waterTodayMl: number
   waterTargetMl: number
   waterBottleMl: number
   initialWaterLogs: WaterLog[]
 }
 
+// Is this timestamp on the viewer's *local* calendar day? The server sends a 48h
+// window because it (UTC on Vercel) can't know the user's timezone; we narrow to
+// "today" here, where the browser knows the real local date.
+const localDayKey = (ts: string | number | Date) => new Date(ts).toLocaleDateString('en-CA')
+
 export default function DashboardClient({
-  logs, displayName, calorieTarget, caloriesBurnedToday, streak, coaching, macroTargets,
-  waterTodayMl, waterTargetMl, waterBottleMl, initialWaterLogs,
+  logs: allLogs, activities, displayName, calorieTarget, streak, coaching, macroTargets,
+  waterTargetMl, waterBottleMl, initialWaterLogs,
 }: Props) {
   const router = useRouter()
+  const todayKey = localDayKey(Date.now())
+  const logs = allLogs.filter(l => localDayKey(l.logged_at) === todayKey)
+  const caloriesBurnedToday = activities
+    .filter(a => localDayKey(a.logged_at) === todayKey)
+    .reduce((s, a) => s + (a.calories_burned || 0), 0)
   const [activeGap, setActiveGap] = useState<GapCorrection | null>(null)
-  const [waterLogs, setWaterLogs] = useState<WaterLog[]>(initialWaterLogs)
+  const [waterLogs, setWaterLogs] = useState<WaterLog[]>(
+    initialWaterLogs.filter(w => !w.logged_at || localDayKey(w.logged_at) === todayKey),
+  )
   const [addingWater, setAddingWater] = useState(false)
   const [backfilling, setBackfilling] = useState(false)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
