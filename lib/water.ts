@@ -18,4 +18,4 @@ export function formatOz(ml: number): string {
 // Common US bottle/glass sizes (oz) and daily targets (oz). A custom input covers
 // anything outside these presets.
 export const BOTTLE_OZ_PRESETS = [16, 24, 32]
-export const TARGET_OZ_PRESETS = [64, 80]
+export const TARGET_OZ_PRESETS = [32, 40, 60, 64]

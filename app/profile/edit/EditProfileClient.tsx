@@ -44,9 +44,9 @@ export default function EditProfileClient({ profile }: Props) {
     (profile.activity_level as ActivityLevel) ?? 'moderate'
   )
   const [waterBottleMl, setWaterBottleMl] = useState(profile.water_bottle_ml ?? ozToMl(24))
-  const [waterTargetMl, setWaterTargetMl] = useState(profile.water_daily_target_ml ?? ozToMl(80))
+  const [waterTargetMl, setWaterTargetMl] = useState(profile.water_daily_target_ml ?? ozToMl(64))
   const [bottleOzDraft, setBottleOzDraft] = useState(String(mlToOz(profile.water_bottle_ml ?? ozToMl(24))))
-  const [targetOzDraft, setTargetOzDraft] = useState(String(mlToOz(profile.water_daily_target_ml ?? ozToMl(80))))
+  const [targetOzDraft, setTargetOzDraft] = useState(String(mlToOz(profile.water_daily_target_ml ?? ozToMl(64))))
   function setBottleOz(raw: string) {
     setBottleOzDraft(raw)
     const n = Number(raw)

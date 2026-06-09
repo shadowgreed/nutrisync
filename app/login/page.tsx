@@ -7,6 +7,25 @@ import { createClient } from '@/lib/supabase/client'
 // NOTE: Magic-link sign-in is temporarily hidden (Supabase's built-in email is
 // rate-limited during development). Re-enable it before public sharing — the old
 // signInWithOtp flow lived here and can be restored from git history.
+
+// Turn raw Supabase auth errors into something a non-technical friend understands.
+function friendlyAuthError(message: string): string {
+  const m = message.toLowerCase()
+  if (m.includes('already registered') || m.includes('already been registered')) {
+    return 'That email already has an account — try signing in instead.'
+  }
+  if (m.includes('invalid login credentials')) {
+    return 'Email or password is incorrect.'
+  }
+  if (m.includes('rate limit') || m.includes('too many') || m.includes('for security purposes')) {
+    return 'Too many attempts right now — please wait a minute and try again.'
+  }
+  if (m.includes('password')) {
+    return 'Password must be at least 6 characters.'
+  }
+  return message
+}
+
 export default function LoginPage() {
   const router = useRouter()
   const supabase = createClient()
@@ -23,23 +42,32 @@ export default function LoginPage() {
     setError('')
     setNotice('')
 
-    if (mode === 'signup') {
-      const { data, error } = await supabase.auth.signUp({ email, password })
-      if (error) { setError(error.message); setLoading(false); return }
-      if (!data.session) {
-        // Email confirmation is still enabled — no instant session.
-        setNotice('Account created. Turn off "Confirm email" in Supabase → Authentication → Email to sign in without verification.')
-        setLoading(false)
-        return
+    try {
+      if (mode === 'signup') {
+        const { data, error } = await supabase.auth.signUp({ email, password })
+        if (error) { setError(friendlyAuthError(error.message)); return }
+        if (!data.session) {
+          // No instant session means email confirmation is on — the user must
+          // click the link we just emailed before they can sign in.
+          setNotice('Account created! Check your email for a confirmation link, then come back and sign in.')
+          setMode('signin')
+          return
+        }
+      } else {
+        const { error } = await supabase.auth.signInWithPassword({ email, password })
+        if (error) { setError(friendlyAuthError(error.message)); return }
       }
-    } else {
-      const { error } = await supabase.auth.signInWithPassword({ email, password })
-      if (error) { setError(error.message); setLoading(false); return }
-    }
 
-    const next = new URLSearchParams(window.location.search).get('next') || '/dashboard'
-    router.push(next)
-    router.refresh()
+      const next = new URLSearchParams(window.location.search).get('next') || '/dashboard'
+      router.push(next)
+      router.refresh()
+    } catch {
+      // Network failure, CORS, etc. — without this the button would spin forever.
+      setError('Something went wrong. Check your connection and try again.')
+    } finally {
+      // Always clear the spinner so the screen can never get stuck on "Please wait…".
+      setLoading(false)
+    }
   }
 
   return (

@@ -45,10 +45,10 @@ export default function OnboardingPage() {
   const [goals, setGoals] = useState<Goal[]>([])
   const [activityLevel, setActivityLevel] = useState<ActivityLevel>('moderate')
   const [waterBottleMl, setWaterBottleMl] = useState(ozToMl(24))   // 24 oz bottle
-  const [waterTargetMl, setWaterTargetMl] = useState(ozToMl(80))   // 80 oz/day
+  const [waterTargetMl, setWaterTargetMl] = useState(ozToMl(64))   // 64 oz/day
   // Draft strings for the custom oz inputs so they can be cleared without snapping to 0
   const [bottleOzDraft, setBottleOzDraft] = useState(String(mlToOz(ozToMl(24))))
-  const [targetOzDraft, setTargetOzDraft] = useState(String(mlToOz(ozToMl(80))))
+  const [targetOzDraft, setTargetOzDraft] = useState(String(mlToOz(ozToMl(64))))
 
   function setBottleOz(raw: string) {
     setBottleOzDraft(raw)
