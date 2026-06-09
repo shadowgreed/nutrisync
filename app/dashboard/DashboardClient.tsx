@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { Flame, Utensils, Droplets, RefreshCw, Trash2, ChevronDown } from 'lucide-react'
 import NutrientBar from '@/components/NutrientBar'
 import NutrientGapPanel from '@/components/NutrientGapPanel'
+import MacroDetailModal from '@/components/MacroDetailModal'
 import InfoTip from '@/components/InfoTip'
 import NotificationBell from '@/components/NotificationBell'
 import InstallPrompt from '@/components/InstallPrompt'
@@ -13,7 +14,7 @@ import { formatOz } from '@/lib/water'
 import { sumTotals, emptyTotals, buildGapCorrections } from '@/lib/nutrients'
 import { sumMacros, emptyMacros, MACRO_KEYS, MACRO_META, macroPct } from '@/lib/macros'
 import type { CoachingInsight } from '@/lib/coaching'
-import type { NutrientKey, NutrientTotals, MacroTotals, MacroTargets, GapCorrection } from '@/types'
+import type { NutrientKey, NutrientTotals, MacroTotals, MacroTargets, MacroKey, GapCorrection } from '@/types'
 
 interface LogRow {
   nutrient_totals: NutrientTotals
@@ -21,7 +22,7 @@ interface LogRow {
   total_calories: number
   meal_type: string
   logged_at: string
-  foods: Array<{ name: string }>
+  foods: Array<{ name: string; macros?: MacroTotals; servingSizeG?: number }>
   id: string
 }
 
@@ -57,6 +58,10 @@ export default function DashboardClient({
     .filter(a => localDayKey(a.logged_at) === todayKey)
     .reduce((s, a) => s + (a.calories_burned || 0), 0)
   const [activeGap, setActiveGap] = useState<GapCorrection | null>(null)
+  const [activeMacro, setActiveMacro] = useState<MacroKey | null>(null)
+  // Flatten today's foods (with their macros) so the macro popup can show which
+  // foods contributed each macro.
+  const todayFoods = logs.flatMap(l => (l.foods ?? []).map(f => ({ ...f, meal_type: l.meal_type })))
   const [waterLogs, setWaterLogs] = useState<WaterLog[]>(
     initialWaterLogs.filter(w => !w.logged_at || localDayKey(w.logged_at) === todayKey),
   )
@@ -93,6 +98,9 @@ export default function DashboardClient({
 
   const totalWater = waterLogs.reduce((s, w) => s + w.amount_ml, 0)
   const waterPct = waterTargetMl > 0 ? Math.min(100, Math.round((totalWater / waterTargetMl) * 100)) : 0
+  const waterSurpassed = waterTargetMl > 0 && totalWater > waterTargetMl
+  // Extra full bottles logged beyond the daily target (shown as bonus pips).
+  const bonusBottles = waterSurpassed ? Math.floor((totalWater - waterTargetMl) / waterBottleMl) : 0
 
   const totals = logs.reduce(
     (acc, log) => sumTotals(acc, log.nutrient_totals as NutrientTotals),
@@ -281,7 +289,7 @@ export default function DashboardClient({
       <div className="mx-4 mb-4 bg-stone-900 border border-stone-800 rounded-2xl p-4">
         <div className="flex items-center justify-between mb-4">
           <p className="text-white font-semibold text-sm">Macros today</p>
-          <span className="text-stone-400 text-xs">vs daily target</span>
+          <span className="text-stone-400 text-xs">tap for details</span>
         </div>
         <div className="grid grid-cols-4 gap-3">
           {MACRO_KEYS.map(key => {
@@ -290,7 +298,12 @@ export default function DashboardClient({
             const target = macroTargets[key] ?? 0
             const pct = macroPct(current, target)
             return (
-              <div key={key} className="flex flex-col items-center">
+              <button
+                key={key}
+                onClick={() => setActiveMacro(key)}
+                aria-label={`See which foods provided ${meta.label} today`}
+                className="flex flex-col items-center rounded-xl -mx-1 px-1 py-1 hover:bg-stone-800/70 transition-colors"
+              >
                 <div className="relative w-full h-2.5 rounded-full bg-stone-700 overflow-hidden mb-2">
                   <div className={`h-full rounded-full ${meta.color} transition-all`} style={{ width: `${Math.max(current > 0 ? 3 : 0, pct)}%` }} />
                 </div>
@@ -298,7 +311,7 @@ export default function DashboardClient({
                 <span className="text-white text-sm font-bold leading-none tabular-nums">{current}<span className="text-stone-400 text-xs font-normal">g</span></span>
                 <span className="text-stone-400 text-[11px] mt-0.5">{meta.label}</span>
                 <span className="text-stone-400 text-[11px] tabular-nums">/ {target}g · {pct}%</span>
-              </div>
+              </button>
             )
           })}
         </div>
@@ -311,18 +324,22 @@ export default function DashboardClient({
             <Droplets size={16} className="text-sky-400" />
             <p className="text-white font-semibold text-sm">Hydration today</p>
           </div>
-          <span className="text-sky-400 font-bold text-sm">{waterLabel(totalWater)} / {waterLabel(waterTargetMl)}</span>
+          <span className={`font-bold text-sm transition-colors ${waterSurpassed ? 'text-cyan-300' : 'text-sky-400'}`}>
+            {waterLabel(totalWater)} / {waterLabel(waterTargetMl)}
+          </span>
         </div>
 
-        {/* Water progress bar */}
+        {/* Water progress bar — shifts to a brighter cyan once the goal is passed */}
         <div className="h-3 rounded-full bg-stone-700 mb-3 overflow-hidden">
           <div
-            className="h-full rounded-full bg-gradient-to-r from-sky-600 to-sky-400 transition-all duration-500"
+            className={`h-full rounded-full transition-all duration-500 bg-gradient-to-r ${
+              waterSurpassed ? 'from-sky-400 to-cyan-300' : 'from-sky-600 to-sky-400'
+            }`}
             style={{ width: `${waterPct}%` }}
           />
         </div>
 
-        {/* Bottle icons */}
+        {/* Bottle icons (+ bonus pips for water logged past the target) */}
         <div className="flex gap-1 mb-3">
           {Array.from({ length: Math.ceil(waterTargetMl / waterBottleMl) }).map((_, i) => {
             const bottleFilled = totalWater >= (i + 1) * waterBottleMl
@@ -331,11 +348,14 @@ export default function DashboardClient({
               <div
                 key={i}
                 className={`flex-1 h-2 rounded-full transition-colors ${
-                  bottleFilled ? 'bg-sky-500' : bottlePartial ? 'bg-sky-700' : 'bg-stone-700'
+                  bottleFilled ? (waterSurpassed ? 'bg-cyan-400' : 'bg-sky-500') : bottlePartial ? 'bg-sky-700' : 'bg-stone-700'
                 }`}
               />
             )
           })}
+          {Array.from({ length: bonusBottles }).map((_, i) => (
+            <div key={`bonus-${i}`} className="flex-1 h-2 rounded-full bg-cyan-300/80" />
+          ))}
         </div>
 
         {/* Quick-add buttons — bottle-focused */}
@@ -368,9 +388,11 @@ export default function DashboardClient({
           )}
         </div>
 
-        {waterPct >= 100 && (
+        {waterSurpassed ? (
+          <p className="text-center text-cyan-300 text-xs mt-2 font-medium">Goal surpassed! 🌊 +{waterLabel(totalWater - waterTargetMl)} over</p>
+        ) : waterPct >= 100 ? (
           <p className="text-center text-sky-400 text-xs mt-2 font-medium">Goal reached! 🎉</p>
-        )}
+        ) : null}
       </div>
 
       {/* Micronutrients — de-densified: positive summary + focus 3 + view all */}
@@ -486,6 +508,10 @@ export default function DashboardClient({
 
       {activeGap && (
         <NutrientGapPanel gap={activeGap} onClose={() => setActiveGap(null)} />
+      )}
+
+      {activeMacro && (
+        <MacroDetailModal macroKey={activeMacro} foods={todayFoods} onClose={() => setActiveMacro(null)} />
       )}
 
       <BottomNav active="dashboard" />

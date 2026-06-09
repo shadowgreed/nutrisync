@@ -153,6 +153,8 @@ export default function FeedCard({ entry, currentUserId, onReact, onComment, onD
             <img
               src={entry.photo_url!}
               alt="Meal photo"
+              loading="lazy"
+              decoding="async"
               className="w-full aspect-[4/3] object-cover"
             />
           </button>

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { Camera, X, Loader2, CheckCircle, MessageSquarePlus, Pencil, ScanLine } from 'lucide-react'
+import { Camera, X, Loader2, CheckCircle, MessageSquarePlus, ScanLine } from 'lucide-react'
 import FoodSearchBar from './FoodSearchBar'
 import BarcodeScanner from './BarcodeScanner'
 import { createClient } from '@/lib/supabase/client'
@@ -19,6 +19,24 @@ function rescaleFood(food: FoodEntry, newG: number): FoodEntry {
   const nutrients = { ...food.nutrients }
   for (const k of NUTRIENT_KEYS) nutrients[k] = (food.nutrients[k] ?? 0) * factor
   return { ...food, servingSizeG: newG, calories: food.calories * factor, macros, nutrients }
+}
+
+// Portion presets — a multiple of the food's standard serving.
+const SIZE_OPTIONS: { key: string; label: string; factor: number }[] = [
+  { key: 'S', label: 'Small',  factor: 0.5 },
+  { key: 'M', label: 'Medium', factor: 1 },
+  { key: 'L', label: 'Large',  factor: 1.5 },
+]
+
+// Capture the food's incoming serving as the "1 medium serving" reference so the
+// S/M/L + quantity controls have a stable base to scale from.
+function initFood(f: FoodEntry): FoodEntry {
+  return {
+    ...f,
+    baseServingG: f.baseServingG ?? f.servingSizeG ?? 1,
+    sizeFactor: f.sizeFactor ?? 1,
+    quantity: f.quantity ?? 1,
+  }
 }
 
 const MEAL_META: Record<MealType, { label: string; emoji: string; desc: string }> = {
@@ -56,11 +74,31 @@ export default function MealLogger({ onLogged }: Props) {
 
   const totalCalories = Math.round(foods.reduce((s, f) => s + (f.calories ?? 0), 0))
 
+  // Single entry point for any portion change (size preset, quantity, or exact
+  // grams). Recomputes the food's grams from its base serving and rescales.
+  function setPortion(i: number, opts: { sizeFactor?: number; quantity?: number; grams?: number }) {
+    setFoods(prev => prev.map((f, idx) => {
+      if (idx !== i) return f
+      const base = f.baseServingG || f.servingSizeG || 1
+      const qty = opts.quantity ?? f.quantity ?? 1
+      const sf = opts.sizeFactor ?? f.sizeFactor ?? 1
+      const targetG = opts.grams != null ? opts.grams : Math.max(1, base * sf * qty)
+      const rescaled = rescaleFood(f, targetG)
+      return {
+        ...rescaled,
+        baseServingG: base,
+        quantity: qty,
+        // Typing exact grams implies a custom size factor; keep S/M/L in sync.
+        sizeFactor: opts.grams != null ? targetG / (base * qty) : sf,
+      }
+    }))
+  }
+
   function updateServing(i: number, raw: string) {
     setServingDrafts(d => ({ ...d, [i]: raw }))
     const n = Number(raw)
     if (raw !== '' && Number.isFinite(n) && n > 0 && n <= 3000) {
-      setFoods(prev => prev.map((f, idx) => (idx === i ? rescaleFood(f, n) : f)))
+      setPortion(i, { grams: n })
     }
   }
 
@@ -84,7 +122,7 @@ export default function MealLogger({ onLogged }: Props) {
       const res = await fetch('/api/analyze-photo', { method: 'POST', body: formData })
       const data = await res.json()
       if (data.error) throw new Error(data.error)
-      setFoods(prev => [...prev, ...data.foods])
+      setFoods(prev => [...prev, ...(data.foods as FoodEntry[]).map(initFood)])
       setPhotoFile(file)
       setPhotoUrl(URL.createObjectURL(file))
     } catch (err: unknown) {
@@ -230,7 +268,7 @@ export default function MealLogger({ onLogged }: Props) {
         {/* Manual food search + barcode scan */}
         <div className="flex gap-2">
           <div className="flex-1">
-            <FoodSearchBar onAdd={f => setFoods(prev => [...prev, f])} />
+            <FoodSearchBar onAdd={f => setFoods(prev => [...prev, initFood(f)])} />
           </div>
           <button
             onClick={() => setShowScanner(true)}
@@ -246,42 +284,73 @@ export default function MealLogger({ onLogged }: Props) {
         {foods.length > 0 && (
           <div className="rounded-xl border border-stone-700 overflow-hidden">
             <ul className="divide-y divide-stone-800">
-              {foods.map((f, i) => (
-                <li key={i} className="flex items-center gap-3 px-3 py-2.5 bg-stone-800/40">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-white text-sm truncate">{f.name}</p>
-                    <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                      {/* Editable portion */}
-                      <div className="flex items-center bg-stone-700/70 rounded-md pl-1.5 pr-1 py-0.5 gap-0.5">
-                        <Pencil size={9} className="text-stone-400 shrink-0" />
+              {foods.map((f, i) => {
+                const qty = f.quantity ?? 1
+                const activeFactor = f.sizeFactor ?? 1
+                return (
+                  <li key={i} className="px-3 py-3 bg-stone-800/40 space-y-2">
+                    {/* Name + calories + remove */}
+                    <div className="flex items-center gap-3">
+                      <p className="flex-1 min-w-0 text-white text-sm truncate">{f.name}</p>
+                      {f.calories > 0 && (
+                        <span className="text-emerald-400 text-xs font-semibold shrink-0 tabular-nums">{Math.round(f.calories)} kcal</span>
+                      )}
+                      <button onClick={() => removeFood(i)} aria-label={`Remove ${f.name}`} className="text-stone-400 hover:text-red-400 transition-colors shrink-0">
+                        <X size={14} />
+                      </button>
+                    </div>
+
+                    {/* Portion: Small / Medium / Large + quantity */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <div className="flex rounded-lg bg-stone-700/60 p-0.5" role="group" aria-label={`Portion size for ${f.name}`}>
+                        {SIZE_OPTIONS.map(s => {
+                          const active = Math.abs(activeFactor - s.factor) < 0.05
+                          return (
+                            <button
+                              key={s.key}
+                              onClick={() => setPortion(i, { sizeFactor: s.factor })}
+                              aria-pressed={active}
+                              className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
+                                active ? 'bg-emerald-600 text-white' : 'text-stone-300 hover:text-white'
+                              }`}
+                            >
+                              {s.label}
+                            </button>
+                          )
+                        })}
+                      </div>
+
+                      <div className="flex items-center bg-stone-700/60 rounded-lg" role="group" aria-label={`Servings of ${f.name}`}>
+                        <button onClick={() => setPortion(i, { quantity: Math.max(1, qty - 1) })} aria-label="Fewer servings" className="px-2.5 py-1 text-stone-300 hover:text-white text-sm leading-none">−</button>
+                        <span className="px-1 text-stone-100 text-xs tabular-nums min-w-[2.25rem] text-center">×{qty}</span>
+                        <button onClick={() => setPortion(i, { quantity: Math.min(20, qty + 1) })} aria-label="More servings" className="px-2.5 py-1 text-stone-300 hover:text-white text-sm leading-none">+</button>
+                      </div>
+                    </div>
+
+                    {/* Exact grams (fine-tune) + macro preview */}
+                    <div className="flex items-center gap-2 flex-wrap text-xs text-stone-400">
+                      <span aria-hidden="true">≈</span>
+                      <div className="flex items-center bg-stone-700/40 rounded-md pl-1.5 pr-1 py-0.5 gap-0.5">
                         <input
                           type="number"
                           min={1}
                           max={3000}
                           inputMode="numeric"
-                          value={servingDrafts[i] ?? String(f.servingSizeG)}
+                          value={servingDrafts[i] ?? String(Math.round(f.servingSizeG))}
                           onChange={e => updateServing(i, e.target.value)}
                           onBlur={() => commitServing(i)}
-                          aria-label={`Serving size for ${f.name} in grams`}
-                          className="w-12 bg-transparent text-stone-200 text-xs text-right focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          aria-label={`Exact grams for ${f.name}`}
+                          className="w-12 bg-transparent text-stone-200 text-right focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                         />
-                        <span className="text-stone-400 text-xs">g</span>
+                        <span>g</span>
                       </div>
                       {f.macros && (f.macros.protein_g > 0 || f.macros.carbs_g > 0 || f.macros.fat_g > 0) && (
-                        <span className="text-stone-400 text-xs">
-                          P {Math.round(f.macros.protein_g)} · C {Math.round(f.macros.carbs_g)} · F {Math.round(f.macros.fat_g)}
-                        </span>
+                        <span>P {Math.round(f.macros.protein_g)} · C {Math.round(f.macros.carbs_g)} · F {Math.round(f.macros.fat_g)}</span>
                       )}
                     </div>
-                  </div>
-                  {f.calories > 0 && (
-                    <span className="text-emerald-400 text-xs font-medium shrink-0 tabular-nums">{Math.round(f.calories)} kcal</span>
-                  )}
-                  <button onClick={() => removeFood(i)} aria-label={`Remove ${f.name}`} className="text-stone-400 hover:text-red-400 transition-colors shrink-0">
-                    <X size={14} />
-                  </button>
-                </li>
-              ))}
+                  </li>
+                )
+              })}
             </ul>
             {totalCalories > 0 && (
               <div className="flex items-center justify-between px-3 py-2 bg-stone-800 border-t border-stone-700">
@@ -318,7 +387,7 @@ export default function MealLogger({ onLogged }: Props) {
 
       {showScanner && (
         <BarcodeScanner
-          onAdd={f => setFoods(prev => [...prev, f])}
+          onAdd={f => setFoods(prev => [...prev, initFood(f)])}
           onClose={() => setShowScanner(false)}
         />
       )}

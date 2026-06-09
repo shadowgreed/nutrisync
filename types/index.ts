@@ -35,6 +35,11 @@ export interface FoodEntry {
   calories: number
   macros: MacroTotals
   nutrients: NutrientTotals
+  // Portion model (optional; set when logging). baseServingG is one standard
+  // serving in grams; the logged amount = baseServingG * sizeFactor * quantity.
+  baseServingG?: number
+  sizeFactor?: number   // 0.5 = small, 1 = medium, 1.5 = large
+  quantity?: number     // number of servings
 }
 
 export interface FoodLog {
