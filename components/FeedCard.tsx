@@ -99,8 +99,10 @@ export default function FeedCard({ entry, currentUserId, onReact, onComment, onD
             aria-label={isOwnLog ? undefined : `View ${entry.profile.display_name}'s profile`}
             className={`flex items-center gap-3 flex-1 min-w-0 text-left ${isOwnLog ? '' : 'group'}`}
           >
-            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-emerald-700 to-emerald-900 flex items-center justify-center text-sm font-bold text-white shrink-0">
-              {entry.profile.display_name[0].toUpperCase()}
+            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-emerald-700 to-emerald-900 flex items-center justify-center text-sm font-bold text-white shrink-0 overflow-hidden">
+              {entry.profile.avatar_url
+                ? <img src={entry.profile.avatar_url} alt="" className="w-full h-full object-cover" />
+                : entry.profile.display_name[0].toUpperCase()}
             </div>
             <div className="flex-1 min-w-0">
               <p className={`text-white font-semibold text-sm truncate ${isOwnLog ? '' : 'group-hover:text-emerald-300 transition-colors'}`}>{entry.profile.display_name}</p>
@@ -313,8 +315,10 @@ export default function FeedCard({ entry, currentUserId, onReact, onComment, onD
             )}
             {entry.comments.map(c => (
               <div key={c.id} className="flex gap-2.5 items-start">
-                <div className="w-7 h-7 rounded-full bg-stone-700 flex items-center justify-center text-xs font-bold text-white shrink-0 mt-0.5">
-                  {c.profile?.display_name?.[0]?.toUpperCase() ?? '?'}
+                <div className="w-7 h-7 rounded-full bg-stone-700 flex items-center justify-center text-xs font-bold text-white shrink-0 mt-0.5 overflow-hidden">
+                  {c.profile?.avatar_url
+                    ? <img src={c.profile.avatar_url} alt="" className="w-full h-full object-cover" />
+                    : (c.profile?.display_name?.[0]?.toUpperCase() ?? '?')}
                 </div>
                 <div className="flex-1 bg-stone-800 rounded-xl px-3 py-2">
                   <p className="text-emerald-400 text-xs font-medium mb-0.5">{c.profile?.display_name}</p>

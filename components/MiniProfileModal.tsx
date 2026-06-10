@@ -13,6 +13,7 @@ interface MiniData {
   targetKg: number | null
   streak: number
   daysThisWeek: number
+  avatarUrl: string | null
 }
 
 export default function MiniProfileModal({ userId, name, onClose }: { userId: string; name: string; onClose: () => void }) {
@@ -38,6 +39,7 @@ export default function MiniProfileModal({ userId, name, onClose }: { userId: st
         targetKg: (profile?.target_weight_kg as number) ?? null,
         streak,
         daysThisWeek,
+        avatarUrl: (profile?.avatar_url as string) ?? null,
       })
       setLoading(false)
     })()
@@ -51,8 +53,10 @@ export default function MiniProfileModal({ userId, name, onClose }: { userId: st
     <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4" onClick={onClose}>
       <div className="w-full max-w-xs bg-stone-900 border border-stone-700 rounded-3xl p-5" onClick={e => e.stopPropagation()}>
         <div className="flex items-start gap-3">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-600 to-emerald-800 flex items-center justify-center text-lg font-bold text-white shrink-0">
-            {name[0]?.toUpperCase() ?? '?'}
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-600 to-emerald-800 flex items-center justify-center text-lg font-bold text-white shrink-0 overflow-hidden">
+            {data?.avatarUrl
+              ? <img src={data.avatarUrl} alt="" className="w-full h-full object-cover" />
+              : (name[0]?.toUpperCase() ?? '?')}
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-white font-bold truncate">{name}</p>

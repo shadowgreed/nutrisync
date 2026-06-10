@@ -130,7 +130,7 @@ export interface ActivityLog {
   logged_at: string
 }
 
-export type NotificationType = 'reaction' | 'comment' | 'challenge' | 'group_join' | 'meal'
+export type NotificationType = 'reaction' | 'comment' | 'challenge' | 'group_join' | 'meal' | 'weekly_report'
 
 export interface AppNotification {
   id: string

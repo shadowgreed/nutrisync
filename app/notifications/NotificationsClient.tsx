@@ -15,6 +15,7 @@ const TYPE_META: Record<NotificationType, { emoji: string; href: string }> = {
   challenge:  { emoji: '🏆', href: '/challenges' },
   group_join: { emoji: '👋', href: '/feed' },
   meal:       { emoji: '🍽️', href: '/feed' },
+  weekly_report: { emoji: '📊', href: '/weekly' },
 }
 
 function timeAgo(iso: string): string {
@@ -36,6 +37,7 @@ function message(n: AppNotification): string {
     case 'challenge':  return `${who} started a challenge: ${(n.data?.title as string) ?? ''}`
     case 'group_join': return `${who} joined your group`
     case 'meal':       return `${who} logged ${(n.data?.meal_type as string) ?? 'a meal'}`
+    case 'weekly_report': return 'Your weekly report is ready — see how your week went 📊'
     default:           return `${who} did something`
   }
 }

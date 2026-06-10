@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Flame, Utensils, Droplets, RefreshCw, Trash2, ChevronDown } from 'lucide-react'
@@ -11,9 +11,9 @@ import InfoTip from '@/components/InfoTip'
 import NotificationBell from '@/components/NotificationBell'
 import InstallPrompt from '@/components/InstallPrompt'
 import { formatOz } from '@/lib/water'
+import { WEEKLY_SEEN_KEY, currentWeekKey } from '@/lib/weekly'
 import { sumTotals, emptyTotals, buildGapCorrections } from '@/lib/nutrients'
 import { sumMacros, emptyMacros, MACRO_KEYS, MACRO_META, macroPct } from '@/lib/macros'
-import type { CoachingInsight } from '@/lib/coaching'
 import type { NutrientKey, NutrientTotals, MacroTotals, MacroTargets, MacroKey, GapCorrection } from '@/types'
 
 interface LogRow {
@@ -35,7 +35,6 @@ interface Props {
   displayName: string
   calorieTarget: number | null
   streak: number
-  coaching: CoachingInsight[]
   macroTargets: MacroTargets
   waterTargetMl: number
   waterBottleMl: number
@@ -48,7 +47,7 @@ interface Props {
 const localDayKey = (ts: string | number | Date) => new Date(ts).toLocaleDateString('en-CA')
 
 export default function DashboardClient({
-  logs: allLogs, activities, displayName, calorieTarget, streak, coaching, macroTargets,
+  logs: allLogs, activities, displayName, calorieTarget, streak, macroTargets,
   waterTargetMl, waterBottleMl, initialWaterLogs,
 }: Props) {
   const router = useRouter()
@@ -62,6 +61,15 @@ export default function DashboardClient({
   // Flatten today's foods (with their macros) so the macro popup can show which
   // foods contributed each macro.
   const todayFoods = logs.flatMap(l => (l.foods ?? []).map(f => ({ ...f, meal_type: l.meal_type })))
+
+  // On Sundays, auto-open the weekly report the first time the app is opened that
+  // week (the report is also reachable any day via the notification → /weekly).
+  useEffect(() => {
+    if (new Date().getDay() !== 0) return
+    let seen: string | null = null
+    try { seen = localStorage.getItem(WEEKLY_SEEN_KEY) } catch { /* ignore */ }
+    if (seen !== currentWeekKey()) router.push('/weekly')
+  }, [router])
   const [waterLogs, setWaterLogs] = useState<WaterLog[]>(
     initialWaterLogs.filter(w => !w.logged_at || localDayKey(w.logged_at) === todayKey),
   )
@@ -255,35 +263,6 @@ export default function DashboardClient({
         )}
       </div>
 
-      {/* Weekly micronutrient coaching — raised above the fold (key differentiator) */}
-      {coaching.length > 0 && (
-        <div className="mx-4 mb-4 bg-gradient-to-br from-indigo-950/60 to-stone-900 border border-indigo-800/40 rounded-2xl p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <span className="text-base" aria-hidden="true">🧭</span>
-            <p className="text-white font-semibold text-sm">This week&apos;s focus</p>
-            <span className="text-stone-400 text-xs ml-auto">last 7 days</span>
-          </div>
-          <div className="space-y-3">
-            {coaching.map(c => (
-              <div key={c.key}>
-                <p className="text-stone-200 text-sm">
-                  <span className="mr-1" aria-hidden="true">{c.emoji}</span>
-                  Add more <span className="font-semibold">{c.label}</span> — you reached your target{' '}
-                  <span className="text-indigo-300 font-semibold">{c.daysHit} of {c.daysLogged}</span> logged days.
-                </p>
-                <div className="flex flex-wrap gap-1.5 mt-1.5">
-                  <span className="text-stone-400 text-xs self-center">Try:</span>
-                  {c.foods.map(f => (
-                    <span key={f.name} className="bg-stone-800 border border-stone-600 rounded-full px-2.5 py-1 text-xs text-stone-200">
-                      {f.name} <span className="text-stone-400">· {f.serving}</span>
-                    </span>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* ── Macros section ── */}
       <div className="mx-4 mb-4 bg-stone-900 border border-stone-800 rounded-2xl p-4">

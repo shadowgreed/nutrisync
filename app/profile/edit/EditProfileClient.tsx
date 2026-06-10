@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Save, LogOut, Trash2 } from 'lucide-react'
+import { ArrowLeft, Save, LogOut, Trash2, Camera, Loader2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import {
   GOAL_LABELS, GOAL_EMOJIS, ACTIVITY_LABELS,
@@ -27,6 +27,38 @@ export default function EditProfileClient({ profile }: Props) {
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState('')
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(profile.avatar_url ?? null)
+  const [uploadingAvatar, setUploadingAvatar] = useState(false)
+  const [avatarError, setAvatarError] = useState('')
+  const avatarFileRef = useRef<HTMLInputElement>(null)
+
+  async function handleAvatar(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploadingAvatar(true)
+    setAvatarError('')
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('Not signed in')
+      const ext = (file.name.split('.').pop() || 'jpg').toLowerCase()
+      const path = `${user.id}/avatar.${ext}`
+      const { error: upErr } = await supabase.storage
+        .from('avatars')
+        .upload(path, file, { contentType: file.type || 'image/jpeg', upsert: true })
+      if (upErr) throw new Error(upErr.message)
+      // Cache-bust so the new image replaces the old one immediately everywhere.
+      const publicUrl = `${supabase.storage.from('avatars').getPublicUrl(path).data.publicUrl}?v=${Date.now()}`
+      const { error: updErr } = await supabase.from('profiles').update({ avatar_url: publicUrl }).eq('id', user.id)
+      if (updErr) throw new Error(updErr.message)
+      setAvatarUrl(publicUrl)
+      router.refresh()
+    } catch (err) {
+      setAvatarError(err instanceof Error ? err.message : 'Upload failed')
+    } finally {
+      setUploadingAvatar(false)
+      if (avatarFileRef.current) avatarFileRef.current.value = ''
+    }
+  }
 
   async function signOut() {
     await supabase.auth.signOut()
@@ -156,6 +188,36 @@ export default function EditProfileClient({ profile }: Props) {
       </div>
 
       <div className="px-4 space-y-6">
+
+        {/* Profile picture */}
+        <div className="flex flex-col items-center gap-2">
+          <input ref={avatarFileRef} type="file" accept="image/*" onChange={handleAvatar} className="hidden" />
+          <button
+            type="button"
+            onClick={() => avatarFileRef.current?.click()}
+            disabled={uploadingAvatar}
+            aria-label="Change profile picture"
+            className="relative"
+          >
+            <div className="w-24 h-24 rounded-3xl bg-gradient-to-br from-emerald-600 to-emerald-800 flex items-center justify-center text-3xl font-bold text-white overflow-hidden">
+              {avatarUrl
+                ? <img src={avatarUrl} alt="Your profile" className="w-full h-full object-cover" />
+                : (displayName?.[0]?.toUpperCase() ?? '?')}
+            </div>
+            <div className="absolute -bottom-1 -right-1 bg-stone-800 border border-stone-600 rounded-full p-1.5 text-stone-100">
+              {uploadingAvatar ? <Loader2 size={14} className="animate-spin" /> : <Camera size={14} />}
+            </div>
+          </button>
+          <button
+            type="button"
+            onClick={() => avatarFileRef.current?.click()}
+            disabled={uploadingAvatar}
+            className="text-emerald-400 text-xs font-medium disabled:opacity-50"
+          >
+            {uploadingAvatar ? 'Uploading…' : avatarUrl ? 'Change photo' : 'Add a photo'}
+          </button>
+          {avatarError && <p className="text-red-400 text-xs">{avatarError}</p>}
+        </div>
 
         {/* Display name */}
         <div>

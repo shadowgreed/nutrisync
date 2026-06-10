@@ -127,8 +127,10 @@ export default function ProfileClient({ profile, email, logs, activities, group 
       {/* Header */}
       <div className="px-4 pt-12 pb-6 flex items-start justify-between">
         <div className="flex items-center gap-4">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-600 to-emerald-800 flex items-center justify-center text-2xl font-bold text-white">
-            {profile.display_name?.[0]?.toUpperCase() ?? '?'}
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-600 to-emerald-800 flex items-center justify-center text-2xl font-bold text-white overflow-hidden">
+            {profile.avatar_url
+              ? <img src={profile.avatar_url} alt="Your profile" className="w-full h-full object-cover" />
+              : (profile.display_name?.[0]?.toUpperCase() ?? '?')}
           </div>
           <div>
             <h1 className="text-white text-xl font-bold">{profile.display_name}</h1>
