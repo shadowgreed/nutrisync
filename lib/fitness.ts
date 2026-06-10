@@ -119,3 +119,46 @@ export function estimateCaloriesBurned(
   // Calories = MET × weight(kg) × duration(hours)
   return Math.round(met * weightKg * (durationMinutes / 60))
 }
+
+// ── Distance-based activities ────────────────────────────────────────────────
+// These are logged by distance (and steps, where applicable) instead of duration.
+export const DISTANCE_ACTIVITIES = ['Walking', 'Cycling', 'Hiking'] as const
+// Steps only make sense on foot — cycling has none.
+export const STEP_ACTIVITIES = ['Walking', 'Hiking'] as const
+
+export function isDistanceActivity(name: string): boolean {
+  return (DISTANCE_ACTIVITIES as readonly string[]).includes(name)
+}
+export function activityUsesSteps(name: string): boolean {
+  return (STEP_ACTIVITIES as readonly string[]).includes(name)
+}
+
+// Net energy cost per kg of bodyweight per km travelled. Hiking > walking (terrain),
+// cycling is the most efficient per km.
+const DIST_KCAL_PER_KG_KM: Record<string, number> = {
+  Walking: 0.55,
+  Hiking:  0.72,
+  Cycling: 0.28,
+}
+
+const STEP_LENGTH_M = 0.762 // ~2.5 ft average stride
+const KM_PER_MILE = 1.60934
+
+export function stepsToKm(steps: number): number {
+  return (steps * STEP_LENGTH_M) / 1000
+}
+export function milesToKm(mi: number): number {
+  return mi * KM_PER_MILE
+}
+export function kmToMiles(km: number): number {
+  return km / KM_PER_MILE
+}
+
+export function estimateCaloriesFromDistance(
+  activityName: string,
+  distanceKm: number,
+  weightKg: number,
+): number {
+  const coeff = DIST_KCAL_PER_KG_KM[activityName] ?? 0.5
+  return Math.round(coeff * weightKg * Math.max(0, distanceKm))
+}

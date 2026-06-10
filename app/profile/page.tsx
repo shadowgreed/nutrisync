@@ -24,7 +24,7 @@ export default async function ProfilePage() {
       .order('logged_at', { ascending: true }),
     supabase
       .from('activity_logs')
-      .select('logged_at, calories_burned, activity_name, duration_minutes')
+      .select('logged_at, calories_burned, activity_name, duration_minutes, distance_km, steps')
       .eq('user_id', user.id)
       .gte('logged_at', since)
       .order('logged_at', { ascending: false }),

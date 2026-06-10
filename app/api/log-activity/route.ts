@@ -6,14 +6,22 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { activity_name, duration_minutes, calories_burned } = await req.json()
-  if (!activity_name || !duration_minutes) {
-    return NextResponse.json({ error: 'activity_name and duration_minutes required' }, { status: 400 })
+  const { activity_name, duration_minutes, distance_km, steps, calories_burned } = await req.json()
+  // A log needs either a duration (time-based) or a distance/steps (distance-based).
+  if (!activity_name || (!duration_minutes && !distance_km && !steps)) {
+    return NextResponse.json({ error: 'activity_name and a duration or distance is required' }, { status: 400 })
   }
 
   const { data, error } = await supabase
     .from('activity_logs')
-    .insert({ user_id: user.id, activity_name, duration_minutes, calories_burned: calories_burned ?? 0 })
+    .insert({
+      user_id: user.id,
+      activity_name,
+      duration_minutes: duration_minutes ?? null,
+      distance_km: distance_km ?? null,
+      steps: steps ?? null,
+      calories_burned: calories_burned ?? 0,
+    })
     .select()
     .single()
 

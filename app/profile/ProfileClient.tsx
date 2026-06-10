@@ -9,12 +9,12 @@ import { BottomNav } from '../dashboard/DashboardClient'
 import {
   calculateBMR, calculateTDEE, calculateBMI, bmiCategory,
   GOAL_LABELS, GOAL_EMOJIS, ACTIVITY_LABELS,
-  formatWeight, formatHeight,
+  formatWeight, formatHeight, kmToMiles,
 } from '@/lib/fitness'
 import type { Profile } from '@/types'
 
 interface LogRow { logged_at: string; total_calories: number }
-interface ActivityRow { logged_at: string; calories_burned: number; activity_name: string; duration_minutes: number }
+interface ActivityRow { logged_at: string; calories_burned: number; activity_name: string; duration_minutes: number | null; distance_km?: number | null; steps?: number | null }
 
 interface GroupRow { id: string; name: string; invite_code: string }
 
@@ -24,6 +24,15 @@ interface Props {
   logs: LogRow[]
   activities: ActivityRow[]
   group: GroupRow | null
+}
+
+// Human label for an activity's "amount": distance / steps for distance activities,
+// otherwise duration.
+function activityMetric(a: ActivityRow): string {
+  if (a.distance_km != null) return `${kmToMiles(a.distance_km).toFixed(2)} mi`
+  if (a.steps != null) return `${a.steps.toLocaleString()} steps`
+  if (a.duration_minutes != null) return `${a.duration_minutes} min`
+  return ''
 }
 
 function groupByDay<T extends { logged_at: string }>(items: T[]): Record<string, T[]> {
@@ -331,7 +340,7 @@ export default function ProfileClient({ profile, email, logs, activities, group 
             <div key={a.logged_at + a.activity_name} className="bg-stone-900 border border-stone-800 rounded-xl px-4 py-3 flex items-center justify-between">
               <div>
                 <p className="text-white text-sm font-medium">{a.activity_name}</p>
-                <p className="text-stone-400 text-xs">{a.duration_minutes} min · {new Date(a.logged_at).toLocaleDateString()}</p>
+                <p className="text-stone-400 text-xs">{activityMetric(a)} · {new Date(a.logged_at).toLocaleDateString()}</p>
               </div>
               <span className="text-orange-400 font-bold text-sm">-{a.calories_burned} kcal</span>
             </div>

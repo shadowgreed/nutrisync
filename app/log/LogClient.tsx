@@ -3,38 +3,73 @@
 import { useState } from 'react'
 import { Utensils, Flame, CheckCircle } from 'lucide-react'
 import MealLogger from '@/components/MealLogger'
-import { ACTIVITY_OPTIONS, estimateCaloriesBurned } from '@/lib/fitness'
+import {
+  ACTIVITY_OPTIONS, estimateCaloriesBurned,
+  isDistanceActivity, activityUsesSteps, estimateCaloriesFromDistance,
+  milesToKm, stepsToKm, kmToMiles,
+} from '@/lib/fitness'
 
 export default function LogClient({ weightKg }: { weightKg: number }) {
   const [tab, setTab] = useState<'food' | 'activity'>('food')
   const [activityName, setActivityName] = useState('')
   const [duration, setDuration] = useState('')
+  const [distanceMi, setDistanceMi] = useState('')
+  const [steps, setSteps] = useState('')
   const [caloriesOverride, setCaloriesOverride] = useState('') // user-edited burn (overrides estimate)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
 
-  const estimatedCalories = activityName && duration
-    ? estimateCaloriesBurned(activityName, Number(duration), weightKg)
-    : null
+  const isDist = isDistanceActivity(activityName)
+  const usesSteps = activityUsesSteps(activityName)
+
+  // For distance activities, calories come from distance — derived from miles if
+  // entered, otherwise from steps.
+  const effectiveKm = distanceMi !== ''
+    ? milesToKm(Number(distanceMi) || 0)
+    : (steps !== '' ? stepsToKm(Number(steps) || 0) : 0)
+
+  const estimatedCalories = !activityName
+    ? null
+    : isDist
+      ? (effectiveKm > 0 ? estimateCaloriesFromDistance(activityName, effectiveKm, weightKg) : null)
+      : (duration ? estimateCaloriesBurned(activityName, Number(duration), weightKg) : null)
+
   // What the field shows: the user's edit if they typed one, else the live estimate.
   const shownCalories = caloriesOverride !== '' ? caloriesOverride : (estimatedCalories != null ? String(estimatedCalories) : '')
   const finalCalories = Math.max(0, Math.round(Number(shownCalories) || 0))
   const isEdited = caloriesOverride !== '' && estimatedCalories != null && Number(caloriesOverride) !== estimatedCalories
 
+  const canSave = isDist ? effectiveKm > 0 : !!duration
+
+  function resetActivity() {
+    setActivityName('')
+    setDuration('')
+    setDistanceMi('')
+    setSteps('')
+    setCaloriesOverride('')
+  }
+
   async function logActivity() {
-    if (!activityName || !duration) return
+    if (!activityName || !canSave) return
     setSaving(true)
     setError('')
+
+    const payload: Record<string, unknown> = {
+      activity_name: activityName,
+      calories_burned: finalCalories,
+    }
+    if (isDist) {
+      payload.distance_km = Math.round(effectiveKm * 100) / 100
+      if (usesSteps && steps !== '') payload.steps = Math.round(Number(steps) || 0)
+    } else {
+      payload.duration_minutes = Number(duration)
+    }
 
     const res = await fetch('/api/log-activity', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        activity_name: activityName,
-        duration_minutes: Number(duration),
-        calories_burned: finalCalories,
-      }),
+      body: JSON.stringify(payload),
     })
 
     if (!res.ok) {
@@ -42,9 +77,7 @@ export default function LogClient({ weightKg }: { weightKg: number }) {
       setError(data.error ?? 'Failed to save activity')
     } else {
       setSaved(true)
-      setActivityName('')
-      setDuration('')
-      setCaloriesOverride('')
+      resetActivity()
       setTimeout(() => setSaved(false), 3000)
     }
     setSaving(false)
@@ -97,17 +130,59 @@ export default function LogClient({ weightKg }: { weightKg: number }) {
             </div>
           </div>
 
-          <div>
-            <label className="text-stone-400 text-xs mb-2 block uppercase tracking-wider">Duration (minutes)</label>
-            <input
-              type="number"
-              value={duration}
-              onChange={e => setDuration(e.target.value)}
-              placeholder="30"
-              min="1"
-              className="w-full bg-stone-900 border border-stone-700 rounded-xl px-4 py-3 text-white placeholder-stone-600 focus:outline-none focus:ring-2 focus:ring-orange-500"
-            />
-          </div>
+          {/* Walking / Cycling / Hiking are logged by distance (+ steps on foot),
+              not duration. Everything else uses duration. */}
+          {!activityName ? null : isDist ? (
+            <div className="space-y-4">
+              {usesSteps && (
+                <div>
+                  <label className="text-stone-400 text-xs mb-2 block uppercase tracking-wider">Steps</label>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    value={steps}
+                    onChange={e => setSteps(e.target.value)}
+                    placeholder="e.g. 6000"
+                    min="1"
+                    className="w-full bg-stone-900 border border-stone-700 rounded-xl px-4 py-3 text-white placeholder-stone-600 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  />
+                  {steps !== '' && distanceMi === '' && (
+                    <p className="text-stone-400 text-[11px] mt-1.5">≈ {kmToMiles(stepsToKm(Number(steps) || 0)).toFixed(2)} mi</p>
+                  )}
+                </div>
+              )}
+              <div>
+                <label className="text-stone-400 text-xs mb-2 block uppercase tracking-wider">
+                  Distance (miles){usesSteps ? ' · optional if steps entered' : ''}
+                </label>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  value={distanceMi}
+                  onChange={e => setDistanceMi(e.target.value)}
+                  placeholder="e.g. 3.0"
+                  min="0"
+                  step="0.1"
+                  className="w-full bg-stone-900 border border-stone-700 rounded-xl px-4 py-3 text-white placeholder-stone-600 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                />
+                {usesSteps && distanceMi !== '' && steps !== '' && (
+                  <p className="text-stone-400 text-[11px] mt-1.5">Using the distance you entered for the estimate.</p>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div>
+              <label className="text-stone-400 text-xs mb-2 block uppercase tracking-wider">Duration (minutes)</label>
+              <input
+                type="number"
+                value={duration}
+                onChange={e => setDuration(e.target.value)}
+                placeholder="30"
+                min="1"
+                className="w-full bg-stone-900 border border-stone-700 rounded-xl px-4 py-3 text-white placeholder-stone-600 focus:outline-none focus:ring-2 focus:ring-orange-500"
+              />
+            </div>
+          )}
 
           {estimatedCalories !== null && (
             <div>
@@ -151,7 +226,7 @@ export default function LogClient({ weightKg }: { weightKg: number }) {
 
           <button
             onClick={logActivity}
-            disabled={saving || !activityName || !duration}
+            disabled={saving || !activityName || !canSave}
             className="w-full bg-orange-600 hover:bg-orange-500 disabled:opacity-40 text-white font-semibold py-4 rounded-2xl transition-colors"
           >
             {saving ? 'Saving…' : 'Log activity'}
