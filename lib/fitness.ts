@@ -122,9 +122,9 @@ export function estimateCaloriesBurned(
 
 // ── Distance-based activities ────────────────────────────────────────────────
 // These are logged by distance (and steps, where applicable) instead of duration.
-export const DISTANCE_ACTIVITIES = ['Walking', 'Cycling', 'Hiking'] as const
+export const DISTANCE_ACTIVITIES = ['Walking', 'Running', 'Cycling', 'Hiking'] as const
 // Steps only make sense on foot — cycling has none.
-export const STEP_ACTIVITIES = ['Walking', 'Hiking'] as const
+export const STEP_ACTIVITIES = ['Walking', 'Running', 'Hiking'] as const
 
 export function isDistanceActivity(name: string): boolean {
   return (DISTANCE_ACTIVITIES as readonly string[]).includes(name)
@@ -137,6 +137,7 @@ export function activityUsesSteps(name: string): boolean {
 // cycling is the most efficient per km.
 const DIST_KCAL_PER_KG_KM: Record<string, number> = {
   Walking: 0.55,
+  Running: 1.03,
   Hiking:  0.72,
   Cycling: 0.28,
 }
