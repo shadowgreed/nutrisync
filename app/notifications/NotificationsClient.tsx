@@ -14,6 +14,7 @@ const TYPE_META: Record<NotificationType, { emoji: string; href: string }> = {
   comment:    { emoji: '💬', href: '/feed' },
   challenge:  { emoji: '🏆', href: '/challenges' },
   group_join: { emoji: '👋', href: '/feed' },
+  meal:       { emoji: '🍽️', href: '/feed' },
 }
 
 function timeAgo(iso: string): string {
@@ -34,6 +35,7 @@ function message(n: AppNotification): string {
     case 'comment':    return `${who} commented: “${(n.data?.text as string) ?? ''}”`
     case 'challenge':  return `${who} started a challenge: ${(n.data?.title as string) ?? ''}`
     case 'group_join': return `${who} joined your group`
+    case 'meal':       return `${who} logged ${(n.data?.meal_type as string) ?? 'a meal'}`
     default:           return `${who} did something`
   }
 }
@@ -65,7 +67,7 @@ export default function NotificationsClient({ initial }: { initial: AppNotificat
         <div className="mx-4 text-center py-16 bg-stone-900/50 border border-dashed border-stone-800 rounded-2xl">
           <Bell size={28} className="text-stone-600 mx-auto mb-3" aria-hidden="true" />
           <p className="text-stone-300 font-medium">No notifications yet</p>
-          <p className="text-stone-400 text-sm mt-1">Reactions, comments and challenges from your group will show up here.</p>
+          <p className="text-stone-400 text-sm mt-1">Meals, reactions, comments and challenges from your group will show up here.</p>
         </div>
       ) : (
         <div className="px-4 space-y-2">
