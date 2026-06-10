@@ -15,7 +15,10 @@ export default function LogClient({ weightKg }: { weightKg: number }) {
   const [duration, setDuration] = useState('')
   const [distanceMi, setDistanceMi] = useState('')
   const [steps, setSteps] = useState('')
-  const [caloriesOverride, setCaloriesOverride] = useState('') // user-edited burn (overrides estimate)
+  // null = untouched (show the live estimate); any string (incl. '') = the user's
+  // own value. Using null instead of '' as the sentinel lets the field be cleared
+  // completely — otherwise deleting the last digit snaps back to the estimate.
+  const [caloriesInput, setCaloriesInput] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
@@ -35,10 +38,10 @@ export default function LogClient({ weightKg }: { weightKg: number }) {
       ? (effectiveKm > 0 ? estimateCaloriesFromDistance(activityName, effectiveKm, weightKg) : null)
       : (duration ? estimateCaloriesBurned(activityName, Number(duration), weightKg) : null)
 
-  // What the field shows: the user's edit if they typed one, else the live estimate.
-  const shownCalories = caloriesOverride !== '' ? caloriesOverride : (estimatedCalories != null ? String(estimatedCalories) : '')
+  // What the field shows: the user's edit if they touched it, else the live estimate.
+  const shownCalories = caloriesInput ?? (estimatedCalories != null ? String(estimatedCalories) : '')
   const finalCalories = Math.max(0, Math.round(Number(shownCalories) || 0))
-  const isEdited = caloriesOverride !== '' && estimatedCalories != null && Number(caloriesOverride) !== estimatedCalories
+  const isEdited = caloriesInput != null && estimatedCalories != null && Number(caloriesInput) !== estimatedCalories
 
   const canSave = isDist ? effectiveKm > 0 : !!duration
 
@@ -47,7 +50,7 @@ export default function LogClient({ weightKg }: { weightKg: number }) {
     setDuration('')
     setDistanceMi('')
     setSteps('')
-    setCaloriesOverride('')
+    setCaloriesInput(null)
   }
 
   async function logActivity() {
@@ -194,7 +197,7 @@ export default function LogClient({ weightKg }: { weightKg: number }) {
                   inputMode="numeric"
                   min={0}
                   value={shownCalories}
-                  onChange={e => setCaloriesOverride(e.target.value)}
+                  onChange={e => setCaloriesInput(e.target.value)}
                   aria-label="Calories burned"
                   className="flex-1 min-w-0 bg-transparent text-orange-400 font-bold text-lg focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                 />
@@ -202,7 +205,7 @@ export default function LogClient({ weightKg }: { weightKg: number }) {
                 {isEdited && (
                   <button
                     type="button"
-                    onClick={() => setCaloriesOverride('')}
+                    onClick={() => setCaloriesInput(null)}
                     className="shrink-0 text-stone-400 hover:text-white text-xs underline underline-offset-2"
                   >
                     reset
