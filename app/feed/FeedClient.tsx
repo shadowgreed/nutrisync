@@ -73,7 +73,7 @@ export default function FeedClient({ entries: initial, currentUserId }: Props) {
     const { data, error } = await supabase
       .from('comments')
       .insert({ food_log_id: logId, text, user_id: user.id })
-      .select('id, user_id, food_log_id, text, created_at, profiles:user_id(id, display_name, avatar_url, privacy_mode, dark_mode_until)')
+      .select('id, user_id, food_log_id, text, created_at, profile:user_id(id, display_name, avatar_url, privacy_mode, dark_mode_until)')
       .single()
 
     if (error) {

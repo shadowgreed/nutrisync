@@ -28,6 +28,16 @@ function pctOfDaily(current: number, target: number): number {
   return target > 0 ? Math.round((current / target) * 100) : 0
 }
 
+function shortAgo(iso: string): string {
+  const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000)
+  if (s < 60) return 'now'
+  const m = Math.floor(s / 60)
+  if (m < 60) return `${m}m`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `${h}h`
+  return `${Math.floor(h / 24)}d`
+}
+
 interface Props {
   entry: FeedEntry
   currentUserId: string
@@ -90,7 +100,7 @@ export default function FeedCard({ entry, currentUserId, onReact, onComment, onD
 
   return (
     <>
-      <div className="bg-stone-900 border border-stone-800 rounded-2xl overflow-hidden">
+      <div className="bg-stone-900 border border-stone-800 rounded-3xl overflow-hidden shadow-lg shadow-black/30">
         {/* Header */}
         <div className="flex items-center gap-3 px-4 pt-4 pb-3">
           <button
@@ -145,10 +155,10 @@ export default function FeedCard({ entry, currentUserId, onReact, onComment, onD
           )}
         </div>
 
-        {/* Photo — edge-to-edge, clickable */}
+        {/* Photo — edge-to-edge, clickable, with a meal badge overlay */}
         {showPhoto && (
           <button
-            className="w-full block focus:outline-none"
+            className="relative w-full block focus:outline-none"
             onClick={() => setLightbox(true)}
             aria-label="View full photo"
           >
@@ -159,6 +169,9 @@ export default function FeedCard({ entry, currentUserId, onReact, onComment, onD
               decoding="async"
               className="w-full aspect-[4/3] object-cover"
             />
+            <span className="absolute top-3 left-3 inline-flex items-center gap-1 bg-black/55 backdrop-blur-sm text-white text-xs font-medium px-2.5 py-1 rounded-full capitalize">
+              <span aria-hidden="true">{MEAL_EMOJI[entry.meal_type] ?? ''}</span> {entry.meal_type}
+            </span>
           </button>
         )}
 
@@ -175,8 +188,9 @@ export default function FeedCard({ entry, currentUserId, onReact, onComment, onD
             {/* Calorie + macro summary — always visible if available */}
             {entry.total_calories > 0 && (
               <div className="flex items-center gap-2 flex-wrap mb-2">
-                <span className="text-stone-400 text-xs">
-                  <span className="text-white font-semibold">{entry.total_calories}</span> kcal
+                <span className="inline-flex items-center gap-1 bg-stone-800 rounded-full px-2.5 py-1 text-xs">
+                  <span className="text-white font-bold tabular-nums">{entry.total_calories}</span>
+                  <span className="text-stone-400">kcal</span>
                 </span>
                 {(() => {
                   const m = (entry.macro_totals as MacroTotals) ?? emptyMacros()
@@ -271,7 +285,7 @@ export default function FeedCard({ entry, currentUserId, onReact, onComment, onD
         )}
 
         {/* Reactions */}
-        <div className="px-4 pb-3 flex items-center gap-1.5 flex-wrap">
+        <div className="px-4 py-3 mt-1 border-t border-stone-800/70 flex items-center gap-1.5 flex-wrap">
           {REACTION_EMOJIS.map(emoji => {
             const count = entry.reactions.filter(r => r.emoji === emoji).length
             const mine = myReaction?.emoji === emoji
@@ -307,6 +321,16 @@ export default function FeedCard({ entry, currentUserId, onReact, onComment, onD
           </button>
         </div>
 
+        {/* Collapsed teaser — Instagram style */}
+        {!showComments && entry.comments.length > 0 && (
+          <button
+            onClick={() => setShowComments(true)}
+            className="block w-full text-left px-4 pb-3 -mt-1 text-stone-400 hover:text-stone-200 text-xs transition-colors"
+          >
+            View {entry.comments.length === 1 ? '1 comment' : `all ${entry.comments.length} comments`}
+          </button>
+        )}
+
         {/* Comments */}
         {showComments && (
           <div className="border-t border-stone-800 px-4 py-3 space-y-3">
@@ -315,14 +339,17 @@ export default function FeedCard({ entry, currentUserId, onReact, onComment, onD
             )}
             {entry.comments.map(c => (
               <div key={c.id} className="flex gap-2.5 items-start">
-                <div className="w-7 h-7 rounded-full bg-stone-700 flex items-center justify-center text-xs font-bold text-white shrink-0 mt-0.5 overflow-hidden">
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-700 to-emerald-900 flex items-center justify-center text-xs font-bold text-white shrink-0 overflow-hidden">
                   {c.profile?.avatar_url
                     ? <img src={c.profile.avatar_url} alt="" className="w-full h-full object-cover" />
                     : (c.profile?.display_name?.[0]?.toUpperCase() ?? '?')}
                 </div>
-                <div className="flex-1 bg-stone-800 rounded-xl px-3 py-2">
-                  <p className="text-emerald-400 text-xs font-medium mb-0.5">{c.profile?.display_name}</p>
-                  <p className="text-stone-200 text-sm leading-snug">{c.text}</p>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm leading-snug">
+                    <span className="text-white font-semibold mr-1.5">{c.profile?.display_name ?? 'User'}</span>
+                    <span className="text-stone-200">{c.text}</span>
+                  </p>
+                  <p className="text-stone-500 text-[11px] mt-0.5">{shortAgo(c.created_at)}</p>
                 </div>
               </div>
             ))}
@@ -331,12 +358,12 @@ export default function FeedCard({ entry, currentUserId, onReact, onComment, onD
                 value={commentText}
                 onChange={e => setCommentText(e.target.value.slice(0, 280))}
                 placeholder="Add a comment…"
-                className="flex-1 bg-stone-800 border border-stone-700 rounded-xl px-3 py-2.5 text-white text-sm placeholder-stone-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                className="flex-1 bg-stone-800 border border-stone-700 rounded-full px-4 py-2.5 text-white text-sm placeholder-stone-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
               />
               <button
                 type="submit"
                 disabled={!commentText.trim() || submitting}
-                className="bg-emerald-700 hover:bg-emerald-600 disabled:opacity-40 text-white rounded-xl px-3 transition-colors"
+                className="bg-emerald-700 hover:bg-emerald-600 disabled:opacity-40 text-white rounded-full px-3.5 transition-colors"
               >
                 <Send size={14} />
               </button>

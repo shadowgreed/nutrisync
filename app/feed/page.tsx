@@ -40,7 +40,7 @@ export default async function FeedPage() {
   const logIds = logs?.map(l => l.id) ?? []
   const [{ data: reactions }, { data: comments }] = await Promise.all([
     supabase.from('reactions').select('*').in('food_log_id', logIds),
-    supabase.from('comments').select('*, profiles(id, display_name, avatar_url, privacy_mode, dark_mode_until)').in('food_log_id', logIds),
+    supabase.from('comments').select('*, profile:profiles(id, display_name, avatar_url, privacy_mode, dark_mode_until)').in('food_log_id', logIds),
   ])
 
   // Build profile map
