@@ -117,7 +117,8 @@ export default function FeedCard({ entry, currentUserId, onReact, onComment, onD
             <div className="flex-1 min-w-0">
               <p className={`text-white font-semibold text-sm truncate ${isOwnLog ? '' : 'group-hover:text-emerald-300 transition-colors'}`}>{entry.profile.display_name}</p>
               <p className="text-stone-400 text-xs">
-                {MEAL_EMOJI[entry.meal_type] ?? ''} {entry.meal_type} · {time}
+                {/* Meal type lives on the photo badge; only repeat it here when there's no photo */}
+                {showPhoto ? time : `${MEAL_EMOJI[entry.meal_type] ?? ''} ${entry.meal_type} · ${time}`}
               </p>
             </div>
           </button>
