@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { Trophy } from 'lucide-react'
+import { Trophy, Users } from 'lucide-react'
 import FeedCard from '@/components/FeedCard'
 import ActivityCard from '@/components/ActivityCard'
 import NotificationBell from '@/components/NotificationBell'
@@ -13,9 +13,22 @@ interface Props {
   entries: FeedEntry[]
   activities: FeedActivityEntry[]
   currentUserId: string
+  nameMap: Record<string, string>
+  headerGroup: { name: string; photo_url: string | null; count: number } | null
 }
 
-export default function FeedClient({ entries: initial, activities, currentUserId }: Props) {
+// "Today" / "Yesterday" / "Mon, Jun 9" for the day separators.
+function dayLabel(iso: string): string {
+  const d = new Date(iso)
+  const today = new Date()
+  const key = (x: Date) => x.toLocaleDateString('en-CA')
+  const yest = new Date(today); yest.setDate(today.getDate() - 1)
+  if (key(d) === key(today)) return 'Today'
+  if (key(d) === key(yest)) return 'Yesterday'
+  return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+}
+
+export default function FeedClient({ entries: initial, activities, currentUserId, nameMap, headerGroup }: Props) {
   const [entries, setEntries] = useState<FeedEntry[]>(initial)
 
   // Fire-and-forget push to the meal owner (in-app notification is created by a DB trigger)
@@ -117,47 +130,76 @@ export default function FeedClient({ entries: initial, activities, currentUserId
     ...entries.map(e => ({ kind: 'meal' as const, id: `m-${e.id}`, logged_at: e.logged_at, meal: e })),
     ...activities.map(a => ({ kind: 'activity' as const, id: `a-${a.id}`, logged_at: a.logged_at, activity: a })),
   ].sort((x, y) => y.logged_at.localeCompare(x.logged_at))
+  const isEmpty = timeline.length === 0
+
+  // Track the day boundary so we can drop a separator between days.
+  let lastDay = ''
 
   return (
     <div className="min-h-screen bg-stone-950 pb-24">
-      <div className="px-4 pt-12 pb-4 flex items-center justify-between">
-        <div>
-          <p className="text-stone-400 text-sm">Last 36 hours</p>
-          <h1 className="text-white text-2xl font-bold mt-0.5">Group feed</h1>
+      <div className="px-4 pt-12 pb-4 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-emerald-700 to-emerald-900 flex items-center justify-center overflow-hidden shrink-0">
+            {headerGroup?.photo_url
+              ? <img src={headerGroup.photo_url} alt="" className="w-full h-full object-cover" />
+              : <Users size={20} className="text-emerald-300" aria-hidden="true" />}
+          </div>
+          <div className="min-w-0">
+            <h1 className="text-white text-xl font-bold truncate">{headerGroup?.name ?? 'Group feed'}</h1>
+            <p className="text-stone-400 text-xs">{headerGroup && headerGroup.count > 1 ? `${headerGroup.count} groups` : 'This week'}</p>
+          </div>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 shrink-0">
           <Link
             href="/challenges"
-            className="flex items-center gap-1.5 bg-amber-900/40 hover:bg-amber-800/50 border border-amber-700/40 text-amber-300 text-sm font-semibold px-3 py-2 rounded-xl transition-colors"
+            aria-label="Challenges"
+            className="flex items-center justify-center w-11 h-11 bg-amber-900/40 hover:bg-amber-800/50 border border-amber-700/40 text-amber-300 rounded-xl transition-colors"
           >
-            <Trophy size={15} aria-hidden="true" /> Challenges
+            <Trophy size={18} aria-hidden="true" />
           </Link>
           <NotificationBell />
         </div>
       </div>
 
       <div className="px-4 space-y-3">
-        {entries.length === 0 && activities.length === 0 && (
-          <div className="text-center py-16 text-stone-400">
-            <p className="text-3xl mb-3">🌿</p>
-            <p className="font-medium">Nothing logged yet</p>
-            <p className="text-sm mt-1">Be the first to share a meal or workout</p>
+        {isEmpty ? (
+          <div className="text-center py-16 px-6 bg-stone-900/40 border border-dashed border-stone-800 rounded-3xl">
+            <p className="text-4xl mb-3">🥗</p>
+            <p className="text-white font-semibold">Nothing logged this week</p>
+            <p className="text-stone-400 text-sm mt-1 mb-5">Share a meal or a workout to kick off your group.</p>
+            <Link
+              href="/log"
+              className="inline-block bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-6 py-3 rounded-2xl transition-colors"
+            >
+              Log your first post
+            </Link>
           </div>
-        )}
-        {timeline.map(item =>
-          item.kind === 'meal' ? (
-            <FeedCard
-              key={item.id}
-              entry={item.meal}
-              currentUserId={currentUserId}
-              onReact={handleReact}
-              onComment={handleComment}
-              onDelete={handleDelete}
-              onEdit={handleEdit}
-            />
-          ) : (
-            <ActivityCard key={item.id} entry={item.activity} currentUserId={currentUserId} />
-          ),
+        ) : (
+          timeline.map(item => {
+            const label = dayLabel(item.logged_at)
+            const showSep = label !== lastDay
+            lastDay = label
+            return (
+              <div key={item.id} className="space-y-3">
+                {showSep && (
+                  <p className="text-stone-400 text-xs font-semibold uppercase tracking-wider pt-2 px-1">{label}</p>
+                )}
+                {item.kind === 'meal' ? (
+                  <FeedCard
+                    entry={item.meal}
+                    currentUserId={currentUserId}
+                    onReact={handleReact}
+                    onComment={handleComment}
+                    onDelete={handleDelete}
+                    onEdit={handleEdit}
+                    nameMap={nameMap}
+                  />
+                ) : (
+                  <ActivityCard entry={item.activity} currentUserId={currentUserId} />
+                )}
+              </div>
+            )
+          })
         )}
       </div>
       <BottomNav active="feed" />

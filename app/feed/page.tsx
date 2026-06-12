@@ -19,6 +19,15 @@ export default async function FeedPage() {
 
   const groupIds = memberships.map(m => m.group_id)
 
+  // Group header info (name + photo). Show the first group's identity.
+  const { data: myGroups } = await supabase
+    .from('groups')
+    .select('id, name, photo_url')
+    .in('id', groupIds)
+  const headerGroup = myGroups?.[0]
+    ? { name: myGroups[0].name as string, photo_url: (myGroups[0].photo_url as string | null) ?? null, count: myGroups.length }
+    : null
+
   // Get group member user IDs
   const { data: allMembers } = await supabase
     .from('group_members')
@@ -27,8 +36,8 @@ export default async function FeedPage() {
 
   const memberUserIds = [...new Set(allMembers?.map(m => m.user_id) ?? [])]
 
-  // Today's + yesterday's feed (last 36 hours)
-  const since = new Date(Date.now() - 36 * 60 * 60 * 1000).toISOString()
+  // A week of feed, so small groups don't open to a ghost town.
+  const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
   const { data: logs } = await supabase
     .from('food_logs')
     .select('*')
@@ -73,5 +82,17 @@ export default async function FeedPage() {
     profile: fallbackProfile(a.user_id),
   }))
 
-  return <FeedClient entries={feedEntries} activities={activityEntries} currentUserId={user.id} />
+  // userId -> name, for the "Liked by …" line.
+  const nameMap: Record<string, string> = {}
+  for (const [uid, p] of Object.entries(profileMap)) nameMap[uid] = p.display_name
+
+  return (
+    <FeedClient
+      entries={feedEntries}
+      activities={activityEntries}
+      currentUserId={user.id}
+      nameMap={nameMap}
+      headerGroup={headerGroup}
+    />
+  )
 }

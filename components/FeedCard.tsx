@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { Heart, MessageCircle, Send, X, Trash2, Pencil, MoreHorizontal, ChevronLeft, ChevronRight } from 'lucide-react'
+import { useState, useRef } from 'react'
+import { Heart, MessageCircle, Send, X, Trash2, Pencil, MoreHorizontal, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react'
 import type { FeedEntry, NutrientKey, MacroTotals } from '@/types'
 import { NUTRIENT_META, NUTRIENT_KEYS } from '@/lib/nutrients'
 import { MACRO_KEYS, MACRO_META, emptyMacros } from '@/lib/macros'
@@ -18,6 +18,13 @@ const MEAL_OPTIONS: { key: string; label: string }[] = [
   { key: 'dinner', label: 'Dinner' },
   { key: 'snack', label: 'Snack' },
 ]
+// Per-meal gradient for posts without a photo, so text-only logs still have a face.
+const MEAL_GRADIENT: Record<string, string> = {
+  breakfast: 'from-amber-900/50 to-stone-900',
+  lunch: 'from-sky-900/50 to-stone-900',
+  dinner: 'from-indigo-900/50 to-stone-900',
+  snack: 'from-emerald-900/50 to-stone-900',
+}
 
 // Per-meal thresholds — a single meal covering 25%+ of a daily target is "good"
 function mealNutrientStatus(current: number, target: number): 'great' | 'good' | 'low' {
@@ -48,9 +55,10 @@ interface Props {
   onComment: (logId: string, text: string) => Promise<void>
   onDelete?: (logId: string) => Promise<void>
   onEdit?: (logId: string, patch: { caption?: string; meal_type?: string }) => Promise<void>
+  nameMap?: Record<string, string>
 }
 
-export default function FeedCard({ entry, currentUserId, onReact, onComment, onDelete, onEdit }: Props) {
+export default function FeedCard({ entry, currentUserId, onReact, onComment, onDelete, onEdit, nameMap = {} }: Props) {
   const [showComments, setShowComments] = useState(false)
   const [showNutrients, setShowNutrients] = useState(false)
   const [commentText, setCommentText] = useState('')
@@ -65,6 +73,29 @@ export default function FeedCard({ entry, currentUserId, onReact, onComment, onD
   const [editCaption, setEditCaption] = useState(entry.caption ?? '')
   const [editMeal, setEditMeal] = useState<string>(entry.meal_type)
   const [savingEdit, setSavingEdit] = useState(false)
+  const [photoIndex, setPhotoIndex] = useState(0)
+  const [heartBurst, setHeartBurst] = useState(false)
+  const tapTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Double-tap a photo to like (never unlike — Instagram behavior); single tap
+  // opens the lightbox. We delay the single-tap slightly to detect the double.
+  function likeWithBurst() {
+    if (!liked) onReact(entry.id, HEART)
+    setHeartBurst(true)
+    setTimeout(() => setHeartBurst(false), 750)
+  }
+  function onPhotoTap(i: number) {
+    if (tapTimer.current) {
+      clearTimeout(tapTimer.current)
+      tapTimer.current = null
+      likeWithBurst()
+    } else {
+      tapTimer.current = setTimeout(() => {
+        tapTimer.current = null
+        setLightboxIndex(i)
+      }, 240)
+    }
+  }
 
   async function handleDelete() {
     if (!onDelete) return
@@ -114,7 +145,23 @@ export default function FeedCard({ entry, currentUserId, onReact, onComment, onD
   // Single heart reaction: any reaction row counts as a like.
   const liked = entry.reactions.some(r => r.user_id === currentUserId)
   const likeCount = entry.reactions.length
-  const time = new Date(entry.logged_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+
+  // "Liked by Maria and 2 others" — your own like reads as "You", listed first.
+  function likedByLabel() {
+    if (likeCount === 0) return null
+    const names = entry.reactions
+      .map(r => (r.user_id === currentUserId ? 'You' : nameMap[r.user_id] ?? 'Someone'))
+      .sort((a, b) => (a === 'You' ? -1 : b === 'You' ? 1 : 0))
+    const first = names[0]
+    const rest = names.length - 1
+    return (
+      <>
+        Liked by <span className="text-white font-semibold">{first}</span>
+        {rest === 1 && <> and <span className="text-white font-semibold">{names[1]}</span></>}
+        {rest > 1 && <> and {rest} others</>}
+      </>
+    )
+  }
   // Older posts saved blob: URLs that only existed in the author's browser session —
   // those are permanently dead, so skip them. Newer posts may have multiple photos.
   const photos = (entry.photo_urls?.length ? entry.photo_urls : entry.photo_url ? [entry.photo_url] : [])
@@ -161,10 +208,8 @@ export default function FeedCard({ entry, currentUserId, onReact, onComment, onD
             </div>
             <div className="flex-1 min-w-0">
               <p className={`text-white font-semibold text-sm truncate ${isOwnLog ? '' : 'group-hover:text-emerald-300 transition-colors'}`}>{entry.profile.display_name}</p>
-              <p className="text-stone-400 text-xs">
-                {/* Meal type lives on the photo badge; only repeat it here when there's no photo */}
-                {showPhoto ? time : `${MEAL_EMOJI[entry.meal_type] ?? ''} ${entry.meal_type} · ${time}`}
-              </p>
+              {/* Meal type lives on the photo badge / hero; the header just timestamps */}
+              <p className="text-stone-400 text-xs">{shortAgo(entry.logged_at)}</p>
             </div>
           </button>
           {isOwnLog && onDelete && (
@@ -271,17 +316,24 @@ export default function FeedCard({ entry, currentUserId, onReact, onComment, onD
           </div>
         )}
 
-        {/* Photo(s) — single image or a swipeable carousel, with a meal badge */}
+        {/* Photo(s) — single image or a swipeable carousel. Double-tap to like. */}
         {showPhoto && (
           <div className="relative">
-            <div className="flex w-full overflow-x-auto snap-x snap-mandatory scrollbar-hide">
+            <div
+              className="flex w-full overflow-x-auto snap-x snap-mandatory scrollbar-hide"
+              onScroll={e => {
+                const el = e.currentTarget
+                const idx = Math.round(el.scrollLeft / el.clientWidth)
+                if (idx !== photoIndex) setPhotoIndex(idx)
+              }}
+            >
               {photos.map((url, i) => (
                 <button
                   key={i}
                   type="button"
                   className="relative w-full shrink-0 snap-center block focus:outline-none"
-                  onClick={() => setLightboxIndex(i)}
-                  aria-label={`View photo ${i + 1} of ${photos.length}`}
+                  onClick={() => onPhotoTap(i)}
+                  aria-label={`Photo ${i + 1} of ${photos.length} — double-tap to like, tap to enlarge`}
                 >
                   <img
                     src={url}
@@ -293,14 +345,42 @@ export default function FeedCard({ entry, currentUserId, onReact, onComment, onD
                 </button>
               ))}
             </div>
+
+            {/* Double-tap heart burst */}
+            {heartBurst && (
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <Heart size={96} className="fill-white/90 text-white/90 drop-shadow-lg animate-heart-pop" aria-hidden="true" />
+              </div>
+            )}
+
             <span className="absolute top-3 left-3 inline-flex items-center gap-1 bg-black/55 backdrop-blur-sm text-white text-xs font-medium px-2.5 py-1 rounded-full capitalize pointer-events-none">
               <span aria-hidden="true">{MEAL_EMOJI[entry.meal_type] ?? ''}</span> {entry.meal_type}
             </span>
             {photos.length > 1 && (
-              <span className="absolute top-3 right-3 bg-black/55 backdrop-blur-sm text-white text-xs font-medium px-2 py-1 rounded-full pointer-events-none">
-                1/{photos.length}
-              </span>
+              <>
+                <span className="absolute top-3 right-3 bg-black/55 backdrop-blur-sm text-white text-xs font-medium px-2 py-1 rounded-full pointer-events-none tabular-nums">
+                  {photoIndex + 1}/{photos.length}
+                </span>
+                <div className="absolute bottom-2.5 left-0 right-0 flex justify-center gap-1.5 pointer-events-none">
+                  {photos.map((_, i) => (
+                    <span key={i} className={`h-1.5 rounded-full transition-all ${i === photoIndex ? 'w-4 bg-white' : 'w-1.5 bg-white/50'}`} />
+                  ))}
+                </div>
+              </>
             )}
+          </div>
+        )}
+
+        {/* Photo-less posts get a meal-colored hero so the feed isn't grey bricks */}
+        {!showPhoto && effectivePrivacy !== 'dark' && (
+          <div className={`bg-gradient-to-br ${MEAL_GRADIENT[entry.meal_type] ?? 'from-stone-800 to-stone-900'} px-4 py-5 flex items-center gap-3`}>
+            <span className="text-4xl shrink-0" aria-hidden="true">{MEAL_EMOJI[entry.meal_type] ?? '🍽️'}</span>
+            <div className="min-w-0">
+              <p className="text-white font-semibold capitalize">{entry.meal_type}</p>
+              {entry.foods?.length > 0 && (
+                <p className="text-stone-300 text-xs truncate">{entry.foods.map(f => f.name).slice(0, 3).join(', ')}</p>
+              )}
+            </div>
           </div>
         )}
 
@@ -311,72 +391,46 @@ export default function FeedCard({ entry, currentUserId, onReact, onComment, onD
           </p>
         )}
 
-        {/* Calories + nutrient section — shown unless dark mode */}
-        {effectivePrivacy !== 'dark' && (
+        {/* Nutrition — one glanceable line that expands to the full breakdown */}
+        {effectivePrivacy !== 'dark' && (entry.total_calories > 0 || hasNutrientData) && (
           <div className="px-4 pt-3">
-            {/* Calorie + macro summary — always visible if available */}
-            {entry.total_calories > 0 && (
-              <div className="flex items-center gap-2 flex-wrap mb-2">
-                <span className="inline-flex items-center gap-1 bg-stone-800 rounded-full px-2.5 py-1 text-xs">
-                  <span className="text-white font-bold tabular-nums">{entry.total_calories}</span>
-                  <span className="text-stone-400">kcal</span>
+            <button
+              onClick={() => setShowNutrients(v => !v)}
+              aria-expanded={showNutrients}
+              className="w-full flex items-center gap-2 text-left min-h-[28px]"
+            >
+              {entry.total_calories > 0 && (
+                <span className="text-white font-semibold text-sm whitespace-nowrap">🔥 {entry.total_calories} kcal</span>
+              )}
+              {richIn.length > 0 && (
+                <span className="text-stone-400 text-sm truncate">
+                  {entry.total_calories > 0 ? '· ' : ''}Rich in {richIn.slice(0, 2).map(n => n.meta.label).join(' & ')}
                 </span>
+              )}
+              <ChevronDown size={16} className={`ml-auto shrink-0 text-stone-400 transition-transform ${showNutrients ? 'rotate-180' : ''}`} aria-hidden="true" />
+            </button>
+
+            {showNutrients && (
+              <div className="mt-3 space-y-3">
+                {/* Macros */}
                 {(() => {
                   const m = (entry.macro_totals as MacroTotals) ?? emptyMacros()
-                  const hasMacros = MACRO_KEYS.some(k => (m[k] ?? 0) > 0)
-                  if (!hasMacros) return null
-                  return MACRO_KEYS.map(k => (
-                    <span key={k} className="text-stone-400 text-xs flex items-center gap-0.5">
-                      <span className={`inline-block w-1.5 h-1.5 rounded-full ${MACRO_META[k].color}`} />
-                      {Math.round(m[k] ?? 0)}{MACRO_META[k].unit} {MACRO_META[k].label}
-                    </span>
-                  ))
-                })()}
-              </div>
-            )}
-
-            {!hasNutrientData ? (
-              /* No nutrient data — logged before tracking was enabled */
-              <p className="text-stone-700 text-xs mb-3">Nutrient breakdown not available for this meal</p>
-            ) : (
-              <>
-                {/* "Rich in" highlights — top nutrients this meal provides */}
-                {richIn.length > 0 ? (
-                  <div className="flex flex-wrap gap-1.5 mb-2">
-                    {richIn.map(n => (
-                      <span
-                        key={n.key}
-                        className={`inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full font-medium ${
-                          n.status === 'great'
-                            ? 'bg-emerald-900/60 text-emerald-300 border border-emerald-700/50'
-                            : 'bg-yellow-900/50 text-yellow-300 border border-yellow-700/40'
-                        }`}
-                      >
-                        {n.meta.emoji} {n.meta.label}
-                        <span className={`${n.status === 'great' ? 'text-emerald-500' : 'text-yellow-500'} font-bold`}>
-                          {n.pct}%
+                  if (!MACRO_KEYS.some(k => (m[k] ?? 0) > 0)) return null
+                  return (
+                    <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+                      {MACRO_KEYS.map(k => (
+                        <span key={k} className="text-stone-300 text-xs flex items-center gap-1">
+                          <span className={`inline-block w-2 h-2 rounded-full ${MACRO_META[k].color}`} />
+                          {Math.round(m[k] ?? 0)}{MACRO_META[k].unit} {MACRO_META[k].label}
                         </span>
-                      </span>
-                    ))}
-                    <button
-                      onClick={() => setShowNutrients(v => !v)}
-                      className="text-stone-400 hover:text-stone-400 text-xs underline underline-offset-2 transition-colors ml-1"
-                    >
-                      {showNutrients ? 'less' : `all ${NUTRIENT_KEYS.length}`}
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => setShowNutrients(v => !v)}
-                    className="text-stone-400 hover:text-stone-400 text-xs mb-2 transition-colors"
-                  >
-                    {showNutrients ? '▲ hide nutrients' : '▼ show nutrients'}
-                  </button>
-                )}
+                      ))}
+                    </div>
+                  )
+                })()}
 
-                {/* Full nutrient breakdown — expandable */}
-                {showNutrients && (
-                  <div className="bg-stone-800/50 rounded-xl p-3 mb-3 space-y-2">
+                {/* Micronutrient bars */}
+                {hasNutrientData ? (
+                  <div className="bg-stone-800/50 rounded-xl p-3 space-y-2">
                     {nutrientData.map(n => (
                       <div key={n.key} className="flex items-center gap-2">
                         <span className="text-base w-5 text-center shrink-0">{n.meta.emoji}</span>
@@ -407,22 +461,24 @@ export default function FeedCard({ entry, currentUserId, onReact, onComment, onD
                     ))}
                     <p className="text-stone-400 text-xs text-right pt-1">% of daily target per serving</p>
                   </div>
+                ) : (
+                  <p className="text-stone-400 text-xs">Nutrient breakdown not available for this meal.</p>
                 )}
-              </>
+              </div>
             )}
           </div>
         )}
 
-        {/* Actions — heart · comment · share */}
-        <div className="px-4 py-3 mt-1 border-t border-stone-800/70 flex items-center gap-4">
+        {/* Actions — heart · comment · share (44px touch targets) */}
+        <div className="px-2.5 py-1.5 mt-1 border-t border-stone-800/70 flex items-center gap-1">
           <button
             onClick={() => onReact(entry.id, HEART)}
             aria-pressed={liked}
             aria-label={`Like${likeCount > 0 ? `, ${likeCount}` : ''}`}
-            className="flex items-center gap-1.5 transition-colors group/like"
+            className="flex items-center gap-1.5 min-h-[44px] px-2 rounded-lg transition-colors group/like"
           >
             <Heart
-              size={22}
+              size={24}
               className={`transition-all ${liked ? 'fill-rose-500 text-rose-500 scale-110' : 'text-stone-300 group-hover/like:text-rose-400'}`}
               aria-hidden="true"
             />
@@ -433,21 +489,26 @@ export default function FeedCard({ entry, currentUserId, onReact, onComment, onD
             onClick={() => setShowComments(v => !v)}
             aria-expanded={showComments}
             aria-label={`Comments${entry.comments.length > 0 ? `, ${entry.comments.length}` : ''}`}
-            className={`flex items-center gap-1.5 transition-colors ${showComments ? 'text-emerald-400' : 'text-stone-300 hover:text-white'}`}
+            className={`flex items-center gap-1.5 min-h-[44px] px-2 rounded-lg transition-colors ${showComments ? 'text-emerald-400' : 'text-stone-300 hover:text-white'}`}
           >
-            <MessageCircle size={21} aria-hidden="true" />
+            <MessageCircle size={22} aria-hidden="true" />
             {entry.comments.length > 0 && <span className="text-sm">{entry.comments.length}</span>}
           </button>
 
           <button
             onClick={handleShare}
             aria-label="Share"
-            className="flex items-center gap-1.5 text-stone-300 hover:text-white transition-colors"
+            className="flex items-center gap-1.5 min-h-[44px] px-2 rounded-lg text-stone-300 hover:text-white transition-colors"
           >
-            <Send size={20} aria-hidden="true" />
+            <Send size={21} aria-hidden="true" />
             {shareNote && <span className="text-emerald-400 text-xs">{shareNote}</span>}
           </button>
         </div>
+
+        {/* Liked by … */}
+        {likeCount > 0 && (
+          <p className="px-4 -mt-1 pb-2 text-stone-300 text-xs">{likedByLabel()}</p>
+        )}
 
         {/* Collapsed teaser — Instagram style */}
         {!showComments && entry.comments.length > 0 && (
@@ -477,7 +538,7 @@ export default function FeedCard({ entry, currentUserId, onReact, onComment, onD
                     <span className="text-white font-semibold mr-1.5">{c.profile?.display_name ?? 'User'}</span>
                     <span className="text-stone-200">{c.text}</span>
                   </p>
-                  <p className="text-stone-500 text-[11px] mt-0.5">{shortAgo(c.created_at)}</p>
+                  <p className="text-stone-400 text-xs mt-0.5">{shortAgo(c.created_at)}</p>
                 </div>
               </div>
             ))}

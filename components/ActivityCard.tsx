@@ -1,10 +1,20 @@
 'use client'
 
 import { useState } from 'react'
-import { Flame } from 'lucide-react'
+import { Flame, PartyPopper } from 'lucide-react'
 import { kmToMiles } from '@/lib/fitness'
 import MiniProfileModal from '@/components/MiniProfileModal'
 import type { FeedActivityEntry } from '@/types'
+
+function shortAgo(iso: string): string {
+  const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000)
+  if (s < 60) return 'now'
+  const m = Math.floor(s / 60)
+  if (m < 60) return `${m}m`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `${h}h`
+  return `${Math.floor(h / 24)}d`
+}
 
 const ACTIVITY_EMOJI: Record<string, string> = {
   Walking: '🚶', Running: '🏃', Cycling: '🚴', Hiking: '🥾', Swimming: '🏊',
@@ -21,9 +31,24 @@ function metric(a: FeedActivityEntry): string {
 
 export default function ActivityCard({ entry, currentUserId }: { entry: FeedActivityEntry; currentUserId: string }) {
   const [showProfile, setShowProfile] = useState(false)
-  const time = new Date(entry.logged_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  const [cheer, setCheer] = useState<'idle' | 'sending' | 'sent'>('idle')
   const emoji = ACTIVITY_EMOJI[entry.activity_name] ?? '💪'
   const isOwn = entry.user_id === currentUserId
+
+  async function sendCheer() {
+    if (cheer !== 'idle') return
+    setCheer('sending')
+    try {
+      const res = await fetch('/api/cheer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: entry.user_id }),
+      })
+      setCheer(res.ok ? 'sent' : 'idle')
+    } catch {
+      setCheer('idle')
+    }
+  }
 
   return (
     <div className="bg-stone-900 border border-stone-800 rounded-3xl overflow-hidden shadow-lg shadow-black/30">
@@ -42,9 +67,23 @@ export default function ActivityCard({ entry, currentUserId }: { entry: FeedActi
           </div>
           <div className="flex-1 min-w-0">
             <p className={`text-white font-semibold text-sm truncate ${isOwn ? '' : 'group-hover:text-orange-300 transition-colors'}`}>{entry.profile.display_name}</p>
-            <p className="text-stone-400 text-xs">completed a workout · {time}</p>
+            <p className="text-stone-400 text-xs">completed a workout · {shortAgo(entry.logged_at)}</p>
           </div>
         </button>
+        {!isOwn && (
+          <button
+            onClick={sendCheer}
+            disabled={cheer !== 'idle'}
+            aria-label={`Cheer ${entry.profile.display_name}`}
+            className={`shrink-0 flex items-center gap-1.5 min-h-[40px] px-3 rounded-xl text-sm font-semibold transition-colors ${
+              cheer === 'sent'
+                ? 'bg-emerald-900/60 text-emerald-300 border border-emerald-700/50'
+                : 'bg-stone-800 hover:bg-stone-700 text-stone-200'
+            }`}
+          >
+            {cheer === 'sent' ? <><PartyPopper size={15} aria-hidden="true" /> Cheered</> : <>👏 Cheer</>}
+          </button>
+        )}
       </div>
 
       {/* Activity card body */}
