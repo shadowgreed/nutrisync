@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { Camera, X, Loader2, CheckCircle, MessageSquarePlus, ScanLine } from 'lucide-react'
+import { Camera, X, Loader2, CheckCircle, MessageSquarePlus, ScanLine, Users } from 'lucide-react'
 import FoodSearchBar from './FoodSearchBar'
 import BarcodeScanner from './BarcodeScanner'
 import { createClient } from '@/lib/supabase/client'
@@ -60,9 +60,10 @@ interface Props { onLogged?: () => void }
 export default function MealLogger({ onLogged }: Props) {
   const [mealType, setMealType] = useState<MealType>(smartDefaultMeal)
   const [foods, setFoods] = useState<FoodEntry[]>([])
-  const [photoUrl, setPhotoUrl] = useState<string | null>(null)  // local blob: URL, preview only
-  const [photoFile, setPhotoFile] = useState<File | null>(null)  // the real file, uploaded on save
+  const [photoPreviews, setPhotoPreviews] = useState<string[]>([]) // blob: URLs, preview only
+  const [photoFiles, setPhotoFiles] = useState<File[]>([])         // real files, uploaded on save
   const [caption, setCaption] = useState('')
+  const [shareToFeed, setShareToFeed] = useState(true)
   const [analyzing, setAnalyzing] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -112,25 +113,41 @@ export default function MealLogger({ onLogged }: Props) {
   }
 
   async function handlePhoto(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
+    const files = Array.from(e.target.files ?? [])
+    if (!files.length) return
     setAnalyzing(true)
     setError('')
-    const formData = new FormData()
-    formData.append('photo', file)
     try {
-      const res = await fetch('/api/analyze-photo', { method: 'POST', body: formData })
-      const data = await res.json()
-      if (data.error) throw new Error(data.error)
-      setFoods(prev => [...prev, ...(data.foods as FoodEntry[]).map(initFood)])
-      setPhotoFile(file)
-      setPhotoUrl(URL.createObjectURL(file))
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Photo analysis failed')
+      // Analyze every selected photo at once; each contributes its detected foods.
+      const settled = await Promise.allSettled(files.map(async (file) => {
+        const fd = new FormData()
+        fd.append('photo', file)
+        const res = await fetch('/api/analyze-photo', { method: 'POST', body: fd })
+        const data = await res.json()
+        if (data.error) throw new Error(data.error)
+        return { file, foods: (data.foods as FoodEntry[]).map(initFood) }
+      }))
+      const ok = settled.filter((s): s is PromiseFulfilledResult<{ file: File; foods: FoodEntry[] }> => s.status === 'fulfilled').map(s => s.value)
+      if (ok.length) {
+        setFoods(prev => [...prev, ...ok.flatMap(r => r.foods)])
+        setPhotoFiles(prev => [...prev, ...ok.map(r => r.file)])
+        setPhotoPreviews(prev => [...prev, ...ok.map(r => URL.createObjectURL(r.file))])
+      }
+      const failed = settled.length - ok.length
+      if (failed) setError(`${failed} photo${failed > 1 ? "s couldn't" : " couldn't"} be analyzed — try a clearer shot.`)
     } finally {
       setAnalyzing(false)
       if (fileRef.current) fileRef.current.value = ''
     }
+  }
+
+  function removePhoto(i: number) {
+    setPhotoPreviews(prev => {
+      const url = prev[i]
+      if (url) URL.revokeObjectURL(url)
+      return prev.filter((_, idx) => idx !== i)
+    })
+    setPhotoFiles(prev => prev.filter((_, idx) => idx !== i))
   }
 
   function removeFood(i: number) {
@@ -143,37 +160,47 @@ export default function MealLogger({ onLogged }: Props) {
     setSaving(true)
     setError('')
     try {
-      // Upload the photo to Supabase Storage so it persists and is visible to the
-      // whole group (a local blob: URL only works in the uploader's session).
-      let storedPhotoUrl: string | null = null
-      if (photoFile) {
+      // Upload every photo to Supabase Storage so they persist and are visible to
+      // the group (a local blob: URL only works in the uploader's session).
+      let storedUrls: string[] = []
+      if (photoFiles.length) {
         const supabase = createClient()
         const { data: { user } } = await supabase.auth.getUser()
         if (user) {
-          const ext = (photoFile.name.split('.').pop() || 'jpg').toLowerCase()
-          const path = `${user.id}/${Date.now()}.${ext}`
-          const { error: upErr } = await supabase.storage
-            .from('meal-photos')
-            .upload(path, photoFile, { contentType: photoFile.type || 'image/jpeg', upsert: false })
-          if (upErr) throw new Error(`Photo upload failed: ${upErr.message}`)
-          storedPhotoUrl = supabase.storage.from('meal-photos').getPublicUrl(path).data.publicUrl
+          storedUrls = await Promise.all(photoFiles.map(async (pf, idx) => {
+            const ext = (pf.name.split('.').pop() || 'jpg').toLowerCase()
+            const path = `${user.id}/${Date.now()}-${idx}.${ext}`
+            const { error: upErr } = await supabase.storage
+              .from('meal-photos')
+              .upload(path, pf, { contentType: pf.type || 'image/jpeg', upsert: false })
+            if (upErr) throw new Error(`Photo upload failed: ${upErr.message}`)
+            return supabase.storage.from('meal-photos').getPublicUrl(path).data.publicUrl
+          }))
         }
       }
 
       const res = await fetch('/api/log-meal', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ meal_type: mealType, foods, photo_url: storedPhotoUrl, caption }),
+        body: JSON.stringify({
+          meal_type: mealType,
+          foods,
+          photo_url: storedUrls[0] ?? null,
+          photo_urls: storedUrls,
+          caption,
+          shared_to_feed: shareToFeed,
+        }),
       })
       const data = await res.json()
       if (data.error) throw new Error(data.error)
       setSaved(true)
       setTimeout(() => {
         setFoods([])
-        if (photoUrl) URL.revokeObjectURL(photoUrl)
-        setPhotoUrl(null)
-        setPhotoFile(null)
+        photoPreviews.forEach(u => URL.revokeObjectURL(u))
+        setPhotoPreviews([])
+        setPhotoFiles([])
         setCaption('')
+        setShareToFeed(true)
         setSaved(false)
         onLogged?.()
       }, 1400)
@@ -211,24 +238,37 @@ export default function MealLogger({ onLogged }: Props) {
       </div>
 
       <div className="p-4 space-y-4">
-        {/* Photo upload */}
+        {/* Photo upload — one or many; each photo is analyzed */}
         <div>
-          <input ref={fileRef} type="file" accept="image/*" onChange={handlePhoto} className="hidden" />
+          <input ref={fileRef} type="file" accept="image/*" multiple onChange={handlePhoto} className="hidden" />
 
-          {photoUrl ? (
-            <div className="relative rounded-xl overflow-hidden">
-              <img src={photoUrl} alt="Meal" className="w-full aspect-[4/3] object-cover" />
-              <button
-                onClick={() => { if (photoUrl) URL.revokeObjectURL(photoUrl); setPhotoUrl(null); setPhotoFile(null); setFoods([]); setCaption('') }}
-                className="absolute top-2 right-2 bg-black/60 hover:bg-black/80 rounded-full p-1.5 text-white transition-colors"
-              >
-                <X size={14} />
-              </button>
-              <div className="absolute bottom-2 left-2">
-                <span className="bg-black/60 text-white text-xs px-2 py-1 rounded-full">
-                  {foods.length} item{foods.length !== 1 ? 's' : ''} detected
-                </span>
+          {photoPreviews.length > 0 ? (
+            <div className="space-y-2">
+              <div className="grid grid-cols-3 gap-2">
+                {photoPreviews.map((url, i) => (
+                  <div key={i} className="relative aspect-square rounded-xl overflow-hidden">
+                    <img src={url} alt={`Meal photo ${i + 1}`} className="w-full h-full object-cover" />
+                    <button
+                      onClick={() => removePhoto(i)}
+                      aria-label={`Remove photo ${i + 1}`}
+                      className="absolute top-1 right-1 bg-black/60 hover:bg-black/80 rounded-full p-1 text-white transition-colors"
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+                ))}
+                <button
+                  onClick={() => fileRef.current?.click()}
+                  disabled={analyzing}
+                  aria-label="Add more photos"
+                  className="aspect-square rounded-xl border border-dashed border-stone-600 flex items-center justify-center text-stone-400 hover:text-white transition-colors disabled:opacity-50"
+                >
+                  {analyzing ? <Loader2 size={18} className="animate-spin" /> : <Camera size={18} />}
+                </button>
               </div>
+              <p className="text-stone-400 text-xs">
+                {foods.length} item{foods.length !== 1 ? 's' : ''} detected · tap + to add more photos
+              </p>
             </div>
           ) : (
             <button
@@ -237,16 +277,16 @@ export default function MealLogger({ onLogged }: Props) {
               className="w-full flex items-center justify-center gap-2 bg-stone-800 hover:bg-stone-700 border border-dashed border-stone-600 rounded-xl py-4 text-stone-400 hover:text-white transition-colors disabled:opacity-50 text-sm"
             >
               {analyzing ? (
-                <><Loader2 size={15} className="animate-spin" /> Analyzing photo…</>
+                <><Loader2 size={15} className="animate-spin" /> Analyzing photos…</>
               ) : (
-                <><Camera size={15} /> Scan meal</>
+                <><Camera size={15} /> Scan meal — add one or more photos</>
               )}
             </button>
           )}
         </div>
 
         {/* Caption input — shown as soon as there's a photo */}
-        {photoUrl && (
+        {photoPreviews.length > 0 && (
           <div>
             <div className="flex items-center gap-2 mb-1.5">
               <MessageSquarePlus size={13} className="text-stone-400" />
@@ -362,6 +402,25 @@ export default function MealLogger({ onLogged }: Props) {
         )}
 
         {error && <p className="text-red-400 text-sm">{error}</p>}
+
+        {/* Share to group feed toggle */}
+        <button
+          type="button"
+          onClick={() => setShareToFeed(v => !v)}
+          aria-pressed={shareToFeed}
+          className="w-full flex items-center justify-between gap-3 bg-stone-800/60 rounded-xl px-3.5 py-3 text-left"
+        >
+          <div className="flex items-center gap-2 min-w-0">
+            <Users size={15} className={shareToFeed ? 'text-emerald-400 shrink-0' : 'text-stone-500 shrink-0'} aria-hidden="true" />
+            <div className="min-w-0">
+              <p className="text-white text-sm font-medium">Share to group feed</p>
+              <p className="text-stone-400 text-xs truncate">{shareToFeed ? 'Your group will see this meal' : 'Kept private to you'}</p>
+            </div>
+          </div>
+          <span className={`relative inline-flex h-6 w-10 shrink-0 rounded-full transition-colors ${shareToFeed ? 'bg-emerald-600' : 'bg-stone-600'}`}>
+            <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all ${shareToFeed ? 'left-[1.125rem]' : 'left-0.5'}`} />
+          </span>
+        </button>
 
         {/* Save button */}
         <button

@@ -30,14 +30,31 @@ export default async function ProfilePage() {
       .order('logged_at', { ascending: false }),
     supabase
       .from('group_members')
-      .select('group_id, groups(name, invite_code)')
+      .select('group_id, groups(id, name, invite_code, created_by, photo_url)')
       .eq('user_id', user.id)
       .limit(1)
       .single(),
   ])
 
-  const groupRow = (membership?.groups as unknown as { name: string; invite_code: string } | null) ?? null
+  const groupRow = (membership?.groups as unknown as
+    { id: string; name: string; invite_code: string; created_by: string | null; photo_url: string | null } | null) ?? null
   const group = groupRow ? { ...groupRow, id: membership!.group_id as string } : null
+  const isOwner = !!group && group.created_by === user.id
+
+  // The founder also gets the list of pending join requests to approve/deny.
+  let pendingRequests: { id: string; user_id: string; display_name: string; avatar_url: string | null }[] = []
+  if (isOwner && group) {
+    const { data: reqs } = await supabase
+      .from('group_join_requests')
+      .select('id, user_id, profile:user_id(display_name, avatar_url)')
+      .eq('group_id', group.id)
+      .eq('status', 'pending')
+      .order('created_at', { ascending: true })
+    pendingRequests = (reqs ?? []).map(r => {
+      const p = r.profile as unknown as { display_name: string; avatar_url: string | null } | null
+      return { id: r.id as string, user_id: r.user_id as string, display_name: p?.display_name ?? 'Someone', avatar_url: p?.avatar_url ?? null }
+    })
+  }
 
   return (
     <ProfileClient
@@ -46,6 +63,8 @@ export default async function ProfilePage() {
       logs={logs ?? []}
       activities={activities ?? []}
       group={group}
+      isOwner={isOwner}
+      pendingRequests={pendingRequests}
     />
   )
 }

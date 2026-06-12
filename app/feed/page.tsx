@@ -33,6 +33,7 @@ export default async function FeedPage() {
     .from('food_logs')
     .select('*')
     .in('user_id', memberUserIds)
+    .eq('shared_to_feed', true)
     .gte('logged_at', since)
     .order('logged_at', { ascending: false })
 

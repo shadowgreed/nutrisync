@@ -48,6 +48,7 @@ export interface FoodLog {
   meal_type: MealType
   logged_at: string
   photo_url: string | null
+  photo_urls?: string[] | null
   foods: FoodEntry[]
   nutrient_totals: NutrientTotals
   macro_totals: MacroTotals
@@ -130,7 +131,7 @@ export interface ActivityLog {
   logged_at: string
 }
 
-export type NotificationType = 'reaction' | 'comment' | 'challenge' | 'group_join' | 'meal' | 'weekly_report' | 'cheer'
+export type NotificationType = 'reaction' | 'comment' | 'challenge' | 'group_join' | 'meal' | 'weekly_report' | 'cheer' | 'join_request'
 
 export interface AppNotification {
   id: string

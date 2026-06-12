@@ -30,12 +30,14 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await req.json()
-  const { meal_type, foods, photo_url, privacy_override, caption } = body as {
+  const { meal_type, foods, photo_url, photo_urls, privacy_override, caption, shared_to_feed } = body as {
     meal_type: string
     foods: FoodEntry[]
     photo_url?: string
+    photo_urls?: string[]
     privacy_override?: string
     caption?: string
+    shared_to_feed?: boolean
   }
 
   if (!meal_type || !foods?.length) {
@@ -65,17 +67,24 @@ export async function POST(req: NextRequest) {
     caption: caption?.trim() || null,
   }
 
-  // Try inserting with macro_totals; if migration 007 hasn't been applied yet,
-  // Postgres/PostgREST reports the missing column (code PGRST204) — retry without it
-  // so logging still works (calories + micros persist).
+  const extendedRow = {
+    ...baseRow,
+    macro_totals,
+    photo_urls: photo_urls && photo_urls.length ? photo_urls : null,
+    shared_to_feed: shared_to_feed ?? true,
+  }
+
+  // Try inserting the full row; if newer columns (migrations 007/022) aren't
+  // applied yet, PostgREST reports the missing column (PGRST204) — retry with
+  // only the long-standing columns so logging still works.
   let { data, error } = await supabase
     .from('food_logs')
-    .insert({ ...baseRow, macro_totals })
+    .insert(extendedRow)
     .select()
     .single()
 
-  if (error && (error.code === 'PGRST204' || /macro_totals/.test(error.message))) {
-    console.warn('macro_totals column missing — apply migration 007. Logging without macros for now.')
+  if (error && (error.code === 'PGRST204' || /macro_totals|photo_urls|shared_to_feed/.test(error.message))) {
+    console.warn('Newer food_logs columns missing — apply migrations 007/022. Logging with base columns for now.')
     ;({ data, error } = await supabase
       .from('food_logs')
       .insert(baseRow)

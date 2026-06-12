@@ -1,10 +1,11 @@
 'use client'
 
 import Link from 'next/link'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { Settings, Flame, Utensils, TrendingUp, Users, Copy, Check, LogOut } from 'lucide-react'
+import { Settings, Flame, Utensils, TrendingUp, Users, Copy, Check, LogOut, Camera, Loader2, UserPlus, X } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import AvatarUpload from '@/components/AvatarUpload'
 import { BottomNav } from '../dashboard/DashboardClient'
 import {
   calculateBMR, calculateTDEE, calculateBMI, bmiCategory,
@@ -16,7 +17,8 @@ import type { Profile } from '@/types'
 interface LogRow { logged_at: string; total_calories: number }
 interface ActivityRow { logged_at: string; calories_burned: number; activity_name: string; duration_minutes: number | null; distance_km?: number | null; steps?: number | null }
 
-interface GroupRow { id: string; name: string; invite_code: string }
+interface GroupRow { id: string; name: string; invite_code: string; created_by: string | null; photo_url: string | null }
+interface PendingRequest { id: string; user_id: string; display_name: string; avatar_url: string | null }
 
 interface Props {
   profile: Profile
@@ -24,6 +26,8 @@ interface Props {
   logs: LogRow[]
   activities: ActivityRow[]
   group: GroupRow | null
+  isOwner: boolean
+  pendingRequests: PendingRequest[]
 }
 
 // Human label for an activity's "amount": distance / steps for distance activities,
@@ -45,24 +49,72 @@ function groupByDay<T extends { logged_at: string }>(items: T[]): Record<string,
   return map
 }
 
-export default function ProfileClient({ profile, email, logs, activities, group }: Props) {
+export default function ProfileClient({ profile, email, logs, activities, group, isOwner, pendingRequests }: Props) {
   const [tab, setTab] = useState<'stats' | 'history'>('stats')
   const [useMetric, setUseMetric] = useState(true)
   // Origin is only known on the client — set after mount so SSR and first client
   // render match (avoids a hydration mismatch on the invite link).
   const [origin, setOrigin] = useState('')
-  const [copied, setCopied] = useState(false)
+  const [copied, setCopied] = useState<'code' | 'invite' | null>(null)
   const [confirmLeave, setConfirmLeave] = useState(false)
   const [leaving, setLeaving] = useState(false)
+  const [requests, setRequests] = useState<PendingRequest[]>(pendingRequests)
+  const [resolving, setResolving] = useState<string | null>(null)
+  const [groupPhoto, setGroupPhoto] = useState<string | null>(group?.photo_url ?? null)
+  const [uploadingGroupPhoto, setUploadingGroupPhoto] = useState(false)
+  const groupPhotoRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
   useEffect(() => { setOrigin(window.location.origin) }, [])
 
+  // The creator's private direct-join link (founder only).
   const inviteUrl = group ? `${origin}/group/join/${group.invite_code}` : ''
-  function copyInvite() {
-    if (!inviteUrl) return
-    navigator.clipboard.writeText(inviteUrl)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 1800)
+  // The shareable "request to join" link any member can send to friends.
+  const requestUrl = group ? `${origin}/group/request/${group.id}` : ''
+
+  function copy(which: 'code' | 'invite', text: string) {
+    navigator.clipboard.writeText(text)
+    setCopied(which)
+    setTimeout(() => setCopied(null), 1800)
+  }
+
+  async function resolveRequest(id: string, approve: boolean) {
+    setResolving(id)
+    try {
+      const res = await fetch('/api/group/resolve-request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requestId: id, approve }),
+      })
+      if (res.ok) {
+        setRequests(prev => prev.filter(r => r.id !== id))
+        router.refresh()
+      }
+    } finally {
+      setResolving(null)
+    }
+  }
+
+  async function handleGroupPhoto(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file || !group) return
+    setUploadingGroupPhoto(true)
+    const supabase = createClient()
+    try {
+      const ext = (file.name.split('.').pop() || 'jpg').toLowerCase()
+      const path = `${group.id}/${Date.now()}.${ext}`
+      const { error: upErr } = await supabase.storage
+        .from('group-photos')
+        .upload(path, file, { contentType: file.type || 'image/jpeg', upsert: false })
+      if (!upErr) {
+        const publicUrl = supabase.storage.from('group-photos').getPublicUrl(path).data.publicUrl
+        await supabase.from('groups').update({ photo_url: publicUrl }).eq('id', group.id)
+        setGroupPhoto(publicUrl)
+        router.refresh()
+      }
+    } finally {
+      setUploadingGroupPhoto(false)
+      if (groupPhotoRef.current) groupPhotoRef.current.value = ''
+    }
   }
 
   async function leaveGroup() {
@@ -127,11 +179,7 @@ export default function ProfileClient({ profile, email, logs, activities, group 
       {/* Header */}
       <div className="px-4 pt-12 pb-6 flex items-start justify-between">
         <div className="flex items-center gap-4">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-600 to-emerald-800 flex items-center justify-center text-2xl font-bold text-white overflow-hidden">
-            {profile.avatar_url
-              ? <img src={profile.avatar_url} alt="Your profile" className="w-full h-full object-cover" />
-              : (profile.display_name?.[0]?.toUpperCase() ?? '?')}
-          </div>
+          <AvatarUpload initialUrl={profile.avatar_url} name={profile.display_name} size="md" />
           <div>
             <h1 className="text-white text-xl font-bold">{profile.display_name}</h1>
             <p className="text-stone-400 text-sm">{email}</p>
@@ -203,31 +251,100 @@ export default function ProfileClient({ profile, email, logs, activities, group 
         <p className="text-stone-400 text-xs uppercase tracking-wider mb-3">Group</p>
         {group ? (
           <div className="bg-stone-900 border border-stone-800 rounded-2xl p-4 space-y-3">
+            {/* Group header — founder can set the cover photo */}
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-emerald-900/50 border border-emerald-800/50 flex items-center justify-center">
-                <Users size={18} className="text-emerald-400" />
-              </div>
-              <div className="flex-1">
-                <p className="text-white font-semibold">{group.name}</p>
+              <input ref={groupPhotoRef} type="file" accept="image/*" onChange={handleGroupPhoto} className="hidden" />
+              {isOwner ? (
+                <button
+                  onClick={() => groupPhotoRef.current?.click()}
+                  disabled={uploadingGroupPhoto}
+                  aria-label="Change group photo"
+                  className="relative w-12 h-12 rounded-xl bg-emerald-900/50 border border-emerald-800/50 flex items-center justify-center overflow-hidden shrink-0"
+                >
+                  {groupPhoto
+                    ? <img src={groupPhoto} alt="" className="w-full h-full object-cover" />
+                    : <Users size={20} className="text-emerald-400" />}
+                  <span className="absolute -bottom-1 -right-1 bg-stone-800 border border-stone-600 rounded-full p-1 text-stone-100">
+                    {uploadingGroupPhoto ? <Loader2 size={11} className="animate-spin" /> : <Camera size={11} />}
+                  </span>
+                </button>
+              ) : (
+                <div className="w-12 h-12 rounded-xl bg-emerald-900/50 border border-emerald-800/50 flex items-center justify-center overflow-hidden shrink-0">
+                  {groupPhoto
+                    ? <img src={groupPhoto} alt="" className="w-full h-full object-cover" />
+                    : <Users size={20} className="text-emerald-400" />}
+                </div>
+              )}
+              <div className="flex-1 min-w-0">
+                <p className="text-white font-semibold truncate">{group.name}</p>
                 <Link href="/feed" className="text-emerald-400 text-xs hover:underline">View group feed →</Link>
               </div>
             </div>
-            <div>
-              <p className="text-stone-400 text-xs mb-1.5">Invite friends with this code</p>
-              <div className="flex items-center gap-2">
-                <code className="flex-1 bg-stone-800 rounded-xl px-3 py-2.5 text-emerald-300 text-base font-mono font-semibold tracking-wider text-center">
-                  {group.invite_code}
-                </code>
-                <button
-                  onClick={copyInvite}
-                  disabled={!inviteUrl}
-                  aria-label="Copy invite link"
-                  className="shrink-0 flex items-center gap-1.5 bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-white text-sm font-semibold px-3 py-2.5 rounded-xl transition-colors"
-                >
-                  {copied ? <Check size={15} aria-hidden="true" /> : <Copy size={15} aria-hidden="true" />}
-                  {copied ? 'Copied' : 'Copy link'}
-                </button>
+
+            {/* Pending join requests — founder only */}
+            {isOwner && requests.length > 0 && (
+              <div className="bg-stone-800/60 rounded-xl p-3 space-y-2">
+                <p className="text-stone-300 text-xs font-semibold">{requests.length} request{requests.length > 1 ? 's' : ''} to join</p>
+                {requests.map(r => (
+                  <div key={r.id} className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-full bg-gradient-to-br from-emerald-700 to-emerald-900 flex items-center justify-center text-xs font-bold text-white shrink-0 overflow-hidden">
+                      {r.avatar_url ? <img src={r.avatar_url} alt="" className="w-full h-full object-cover" /> : r.display_name[0]?.toUpperCase()}
+                    </div>
+                    <span className="flex-1 min-w-0 text-stone-200 text-sm truncate">{r.display_name}</span>
+                    <button
+                      onClick={() => resolveRequest(r.id, true)}
+                      disabled={resolving === r.id}
+                      className="shrink-0 bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-semibold px-2.5 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+                    >
+                      {resolving === r.id ? '…' : 'Approve'}
+                    </button>
+                    <button
+                      onClick={() => resolveRequest(r.id, false)}
+                      disabled={resolving === r.id}
+                      aria-label={`Deny ${r.display_name}`}
+                      className="shrink-0 text-stone-400 hover:text-red-300 p-1.5 transition-colors disabled:opacity-50"
+                    >
+                      <X size={15} />
+                    </button>
+                  </div>
+                ))}
               </div>
+            )}
+
+            {/* Invite code — founder only (private direct-join link) */}
+            {isOwner && (
+              <div>
+                <p className="text-stone-400 text-xs mb-1.5">Your private invite code (instant join)</p>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 bg-stone-800 rounded-xl px-3 py-2.5 text-emerald-300 text-base font-mono font-semibold tracking-wider text-center">
+                    {group.invite_code}
+                  </code>
+                  <button
+                    onClick={() => copy('code', inviteUrl)}
+                    disabled={!inviteUrl}
+                    aria-label="Copy invite link"
+                    className="shrink-0 flex items-center gap-1.5 bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-white text-sm font-semibold px-3 py-2.5 rounded-xl transition-colors"
+                  >
+                    {copied === 'code' ? <Check size={15} aria-hidden="true" /> : <Copy size={15} aria-hidden="true" />}
+                    {copied === 'code' ? 'Copied' : 'Copy'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Invite a friend — anyone; creates a request the founder approves */}
+            <div>
+              <p className="text-stone-400 text-xs mb-1.5">
+                {isOwner ? 'Or share an approval link' : 'Invite a friend (the founder approves new members)'}
+              </p>
+              <button
+                onClick={() => copy('invite', requestUrl)}
+                disabled={!requestUrl}
+                className="w-full flex items-center justify-center gap-1.5 bg-stone-800 hover:bg-stone-700 disabled:opacity-50 text-stone-100 text-sm font-semibold py-2.5 rounded-xl transition-colors"
+              >
+                {copied === 'invite' ? <Check size={15} aria-hidden="true" /> : <UserPlus size={15} aria-hidden="true" />}
+                {copied === 'invite' ? 'Invite link copied!' : 'Copy invite link'}
+              </button>
             </div>
 
             {/* Leave group */}

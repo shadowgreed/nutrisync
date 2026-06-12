@@ -1,16 +1,13 @@
 'use client'
 
 import { useState } from 'react'
-import { MessageCircle, Send, X, Trash2 } from 'lucide-react'
+import { Heart, MessageCircle, Send, X, Trash2, MoreVertical, ChevronLeft, ChevronRight } from 'lucide-react'
 import type { FeedEntry, NutrientKey, MacroTotals } from '@/types'
 import { NUTRIENT_META, NUTRIENT_KEYS } from '@/lib/nutrients'
 import { MACRO_KEYS, MACRO_META, emptyMacros } from '@/lib/macros'
 import MiniProfileModal from '@/components/MiniProfileModal'
 
-const REACTION_EMOJIS = ['🍽️', '🔥', '🌿', '❓', '❤️']
-const REACTION_NAMES: Record<string, string> = {
-  '🍽️': 'tasty', '🔥': 'fire', '🌿': 'healthy', '❓': 'curious', '❤️': 'love',
-}
+const HEART = '❤️'
 
 const MEAL_EMOJI: Record<string, string> = {
   breakfast: '🌅', lunch: '☀️', dinner: '🌙', snack: '🍎',
@@ -51,10 +48,12 @@ export default function FeedCard({ entry, currentUserId, onReact, onComment, onD
   const [showNutrients, setShowNutrients] = useState(false)
   const [commentText, setCommentText] = useState('')
   const [submitting, setSubmitting] = useState(false)
-  const [lightbox, setLightbox] = useState(false)
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [showProfile, setShowProfile] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [shareNote, setShareNote] = useState('')
 
   async function handleDelete() {
     if (!onDelete) return
@@ -66,15 +65,32 @@ export default function FeedCard({ entry, currentUserId, onReact, onComment, onD
     }
   }
 
+  async function handleShare() {
+    const origin = typeof window !== 'undefined' ? window.location.origin : ''
+    const shareUrl = photos[0] ?? `${origin}/feed`
+    const text = entry.caption || `${entry.profile.display_name}'s ${entry.meal_type} on NutriSync 🌿`
+    try {
+      if (typeof navigator !== 'undefined' && navigator.share) {
+        await navigator.share({ title: 'NutriSync', text, url: shareUrl })
+      } else if (typeof navigator !== 'undefined' && navigator.clipboard) {
+        await navigator.clipboard.writeText(shareUrl)
+        setShareNote('Link copied!')
+        setTimeout(() => setShareNote(''), 1800)
+      }
+    } catch { /* user cancelled the share sheet */ }
+  }
+
   const isOwnLog = entry.user_id === currentUserId
   const effectivePrivacy = entry.privacy_override ?? entry.profile.privacy_mode
-  const myReaction = entry.reactions.find(r => r.user_id === currentUserId)
+  // Single heart reaction: any reaction row counts as a like.
+  const liked = entry.reactions.some(r => r.user_id === currentUserId)
+  const likeCount = entry.reactions.length
   const time = new Date(entry.logged_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-  // Older posts saved a blob: URL that only existed in the author's browser
-  // session — those are permanently dead, so skip them instead of rendering a
-  // broken-image icon. New posts store a real Supabase Storage URL.
-  const hasUsablePhoto = !!entry.photo_url && !entry.photo_url.startsWith('blob:')
-  const showPhoto = hasUsablePhoto && effectivePrivacy !== 'dark'
+  // Older posts saved blob: URLs that only existed in the author's browser session —
+  // those are permanently dead, so skip them. Newer posts may have multiple photos.
+  const photos = (entry.photo_urls?.length ? entry.photo_urls : entry.photo_url ? [entry.photo_url] : [])
+    .filter(u => !!u && !u.startsWith('blob:'))
+  const showPhoto = photos.length > 0 && effectivePrivacy !== 'dark'
 
   // Build per-meal nutrient data
   const nutrientData = NUTRIENT_KEYS.map(k => {
@@ -122,58 +138,85 @@ export default function FeedCard({ entry, currentUserId, onReact, onComment, onD
               </p>
             </div>
           </button>
-          {isOwnLog && (
-            <div className="flex items-center gap-2 shrink-0">
-              <span className="bg-stone-800 text-stone-400 text-xs px-2 py-0.5 rounded-full">you</span>
-              {onDelete && (
-                confirmDelete ? (
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={handleDelete}
-                      disabled={deleting}
-                      className="text-red-400 hover:text-red-300 text-xs font-semibold px-2 py-0.5 rounded-md bg-red-950/60 transition-colors disabled:opacity-50"
-                    >
-                      {deleting ? '…' : 'Delete'}
-                    </button>
-                    <button
-                      onClick={() => setConfirmDelete(false)}
-                      className="text-stone-400 hover:text-stone-300 text-xs px-1 py-0.5 transition-colors"
-                    >
-                      Cancel
-                    </button>
+          {isOwnLog && onDelete && (
+            <div className="relative shrink-0">
+              <button
+                onClick={() => setMenuOpen(v => !v)}
+                aria-label="Post options"
+                aria-expanded={menuOpen}
+                className="text-stone-400 hover:text-white transition-colors p-1.5 -mr-1.5"
+              >
+                <MoreVertical size={18} aria-hidden="true" />
+              </button>
+              {menuOpen && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => { setMenuOpen(false); setConfirmDelete(false) }} />
+                  <div className="absolute right-0 top-9 z-20 w-44 bg-stone-800 border border-stone-700 rounded-xl shadow-xl overflow-hidden">
+                    {confirmDelete ? (
+                      <div className="p-2.5">
+                        <p className="text-stone-300 text-xs px-1 pb-2">Delete this post? This can&apos;t be undone.</p>
+                        <div className="flex gap-1.5">
+                          <button
+                            onClick={handleDelete}
+                            disabled={deleting}
+                            className="flex-1 bg-red-900/70 hover:bg-red-900 text-red-100 text-xs font-semibold py-1.5 rounded-lg transition-colors disabled:opacity-50"
+                          >
+                            {deleting ? '…' : 'Delete'}
+                          </button>
+                          <button
+                            onClick={() => { setConfirmDelete(false); setMenuOpen(false) }}
+                            className="flex-1 text-stone-300 hover:text-white text-xs py-1.5 transition-colors"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setConfirmDelete(true)}
+                        className="w-full flex items-center gap-2 px-3.5 py-3 text-red-300 hover:bg-stone-700 text-sm text-left transition-colors"
+                      >
+                        <Trash2 size={15} aria-hidden="true" /> Delete post
+                      </button>
+                    )}
                   </div>
-                ) : (
-                  <button
-                    onClick={() => setConfirmDelete(true)}
-                    aria-label="Delete post"
-                    className="text-stone-400 hover:text-red-400 transition-colors p-0.5"
-                  >
-                    <Trash2 size={15} />
-                  </button>
-                )
+                </>
               )}
             </div>
           )}
         </div>
 
-        {/* Photo — edge-to-edge, clickable, with a meal badge overlay */}
+        {/* Photo(s) — single image or a swipeable carousel, with a meal badge */}
         {showPhoto && (
-          <button
-            className="relative w-full block focus:outline-none"
-            onClick={() => setLightbox(true)}
-            aria-label="View full photo"
-          >
-            <img
-              src={entry.photo_url!}
-              alt="Meal photo"
-              loading="lazy"
-              decoding="async"
-              className="w-full aspect-[4/3] object-cover"
-            />
-            <span className="absolute top-3 left-3 inline-flex items-center gap-1 bg-black/55 backdrop-blur-sm text-white text-xs font-medium px-2.5 py-1 rounded-full capitalize">
+          <div className="relative">
+            <div className="flex w-full overflow-x-auto snap-x snap-mandatory scrollbar-hide">
+              {photos.map((url, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  className="relative w-full shrink-0 snap-center block focus:outline-none"
+                  onClick={() => setLightboxIndex(i)}
+                  aria-label={`View photo ${i + 1} of ${photos.length}`}
+                >
+                  <img
+                    src={url}
+                    alt={`Meal photo ${i + 1}`}
+                    loading="lazy"
+                    decoding="async"
+                    className="w-full aspect-[4/3] object-cover"
+                  />
+                </button>
+              ))}
+            </div>
+            <span className="absolute top-3 left-3 inline-flex items-center gap-1 bg-black/55 backdrop-blur-sm text-white text-xs font-medium px-2.5 py-1 rounded-full capitalize pointer-events-none">
               <span aria-hidden="true">{MEAL_EMOJI[entry.meal_type] ?? ''}</span> {entry.meal_type}
             </span>
-          </button>
+            {photos.length > 1 && (
+              <span className="absolute top-3 right-3 bg-black/55 backdrop-blur-sm text-white text-xs font-medium px-2 py-1 rounded-full pointer-events-none">
+                1/{photos.length}
+              </span>
+            )}
+          </div>
         )}
 
         {/* Caption */}
@@ -285,40 +328,39 @@ export default function FeedCard({ entry, currentUserId, onReact, onComment, onD
           </div>
         )}
 
-        {/* Reactions */}
-        <div className="px-4 py-3 mt-1 border-t border-stone-800/70 flex items-center gap-1.5 flex-wrap">
-          {REACTION_EMOJIS.map(emoji => {
-            const count = entry.reactions.filter(r => r.emoji === emoji).length
-            const mine = myReaction?.emoji === emoji
-            return (
-              <button
-                key={emoji}
-                onClick={() => onReact(entry.id, emoji)}
-                aria-pressed={mine}
-                aria-label={`React ${REACTION_NAMES[emoji] ?? ''}${count > 0 ? `, ${count}` : ''}`}
-                className={`flex items-center gap-1 px-3 py-2 rounded-full text-sm transition-colors ${
-                  mine
-                    ? 'bg-emerald-800/60 border border-emerald-600'
-                    : 'bg-stone-800 border border-stone-700 hover:border-stone-500'
-                }`}
-              >
-                <span aria-hidden="true">{emoji}</span>
-                {count > 0 && <span className="text-stone-300 text-xs">{count}</span>}
-              </button>
-            )
-          })}
+        {/* Actions — heart · comment · share */}
+        <div className="px-4 py-3 mt-1 border-t border-stone-800/70 flex items-center gap-4">
+          <button
+            onClick={() => onReact(entry.id, HEART)}
+            aria-pressed={liked}
+            aria-label={`Like${likeCount > 0 ? `, ${likeCount}` : ''}`}
+            className="flex items-center gap-1.5 transition-colors group/like"
+          >
+            <Heart
+              size={22}
+              className={`transition-all ${liked ? 'fill-rose-500 text-rose-500 scale-110' : 'text-stone-300 group-hover/like:text-rose-400'}`}
+              aria-hidden="true"
+            />
+            {likeCount > 0 && <span className={`text-sm ${liked ? 'text-rose-300' : 'text-stone-300'}`}>{likeCount}</span>}
+          </button>
+
           <button
             onClick={() => setShowComments(v => !v)}
             aria-expanded={showComments}
             aria-label={`Comments${entry.comments.length > 0 ? `, ${entry.comments.length}` : ''}`}
-            className={`ml-auto flex items-center gap-1.5 transition-colors text-sm px-2 py-2 ${
-              showComments ? 'text-emerald-400' : 'text-stone-300 hover:text-white'
-            }`}
+            className={`flex items-center gap-1.5 transition-colors ${showComments ? 'text-emerald-400' : 'text-stone-300 hover:text-white'}`}
           >
-            <MessageCircle size={15} aria-hidden="true" />
-            {entry.comments.length > 0 && (
-              <span className="text-xs">{entry.comments.length}</span>
-            )}
+            <MessageCircle size={21} aria-hidden="true" />
+            {entry.comments.length > 0 && <span className="text-sm">{entry.comments.length}</span>}
+          </button>
+
+          <button
+            onClick={handleShare}
+            aria-label="Share"
+            className="flex items-center gap-1.5 text-stone-300 hover:text-white transition-colors"
+          >
+            <Send size={20} aria-hidden="true" />
+            {shareNote && <span className="text-emerald-400 text-xs">{shareNote}</span>}
           </button>
         </div>
 
@@ -374,19 +416,39 @@ export default function FeedCard({ entry, currentUserId, onReact, onComment, onD
       </div>
 
       {/* Lightbox */}
-      {lightbox && entry.photo_url && (
+      {lightboxIndex !== null && photos[lightboxIndex] && (
         <div
           className="fixed inset-0 z-50 bg-black/92 flex items-center justify-center p-4"
-          onClick={() => setLightbox(false)}
+          onClick={() => setLightboxIndex(null)}
         >
           <button
-            className="absolute top-5 right-5 text-white/60 hover:text-white transition-colors"
-            onClick={() => setLightbox(false)}
+            className="absolute top-5 right-5 text-white/60 hover:text-white transition-colors z-10"
+            onClick={() => setLightboxIndex(null)}
+            aria-label="Close"
           >
             <X size={28} />
           </button>
+          {photos.length > 1 && (
+            <>
+              <button
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-white/70 hover:text-white bg-black/40 rounded-full p-2 z-10"
+                onClick={e => { e.stopPropagation(); setLightboxIndex((lightboxIndex - 1 + photos.length) % photos.length) }}
+                aria-label="Previous photo"
+              >
+                <ChevronLeft size={24} />
+              </button>
+              <button
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-white/70 hover:text-white bg-black/40 rounded-full p-2 z-10"
+                onClick={e => { e.stopPropagation(); setLightboxIndex((lightboxIndex + 1) % photos.length) }}
+                aria-label="Next photo"
+              >
+                <ChevronRight size={24} />
+              </button>
+              <span className="absolute top-5 left-5 text-white/80 text-sm">{lightboxIndex + 1} / {photos.length}</span>
+            </>
+          )}
           <img
-            src={entry.photo_url}
+            src={photos[lightboxIndex]}
             alt="Meal photo"
             className="max-w-full max-h-[85vh] rounded-2xl object-contain shadow-2xl"
             onClick={e => e.stopPropagation()}
