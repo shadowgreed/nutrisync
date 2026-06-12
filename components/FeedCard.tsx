@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Heart, MessageCircle, Send, X, Trash2, MoreVertical, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Heart, MessageCircle, Send, X, Trash2, Pencil, MoreHorizontal, ChevronLeft, ChevronRight } from 'lucide-react'
 import type { FeedEntry, NutrientKey, MacroTotals } from '@/types'
 import { NUTRIENT_META, NUTRIENT_KEYS } from '@/lib/nutrients'
 import { MACRO_KEYS, MACRO_META, emptyMacros } from '@/lib/macros'
@@ -12,6 +12,12 @@ const HEART = '❤️'
 const MEAL_EMOJI: Record<string, string> = {
   breakfast: '🌅', lunch: '☀️', dinner: '🌙', snack: '🍎',
 }
+const MEAL_OPTIONS: { key: string; label: string }[] = [
+  { key: 'breakfast', label: 'Breakfast' },
+  { key: 'lunch', label: 'Lunch' },
+  { key: 'dinner', label: 'Dinner' },
+  { key: 'snack', label: 'Snack' },
+]
 
 // Per-meal thresholds — a single meal covering 25%+ of a daily target is "good"
 function mealNutrientStatus(current: number, target: number): 'great' | 'good' | 'low' {
@@ -41,9 +47,10 @@ interface Props {
   onReact: (logId: string, emoji: string) => Promise<void>
   onComment: (logId: string, text: string) => Promise<void>
   onDelete?: (logId: string) => Promise<void>
+  onEdit?: (logId: string, patch: { caption?: string; meal_type?: string }) => Promise<void>
 }
 
-export default function FeedCard({ entry, currentUserId, onReact, onComment, onDelete }: Props) {
+export default function FeedCard({ entry, currentUserId, onReact, onComment, onDelete, onEdit }: Props) {
   const [showComments, setShowComments] = useState(false)
   const [showNutrients, setShowNutrients] = useState(false)
   const [commentText, setCommentText] = useState('')
@@ -54,6 +61,10 @@ export default function FeedCard({ entry, currentUserId, onReact, onComment, onD
   const [showProfile, setShowProfile] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [shareNote, setShareNote] = useState('')
+  const [editing, setEditing] = useState(false)
+  const [editCaption, setEditCaption] = useState(entry.caption ?? '')
+  const [editMeal, setEditMeal] = useState<string>(entry.meal_type)
+  const [savingEdit, setSavingEdit] = useState(false)
 
   async function handleDelete() {
     if (!onDelete) return
@@ -62,6 +73,24 @@ export default function FeedCard({ entry, currentUserId, onReact, onComment, onD
       await onDelete(entry.id)
     } finally {
       setDeleting(false)
+    }
+  }
+
+  function openEdit() {
+    setEditCaption(entry.caption ?? '')
+    setEditMeal(entry.meal_type)
+    setEditing(true)
+    setMenuOpen(false)
+  }
+
+  async function saveEdit() {
+    if (!onEdit) return
+    setSavingEdit(true)
+    try {
+      await onEdit(entry.id, { caption: editCaption, meal_type: editMeal })
+      setEditing(false)
+    } finally {
+      setSavingEdit(false)
     }
   }
 
@@ -146,12 +175,20 @@ export default function FeedCard({ entry, currentUserId, onReact, onComment, onD
                 aria-expanded={menuOpen}
                 className="text-stone-400 hover:text-white transition-colors p-1.5 -mr-1.5"
               >
-                <MoreVertical size={18} aria-hidden="true" />
+                <MoreHorizontal size={18} aria-hidden="true" />
               </button>
               {menuOpen && (
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => { setMenuOpen(false); setConfirmDelete(false) }} />
                   <div className="absolute right-0 top-9 z-20 w-44 bg-stone-800 border border-stone-700 rounded-xl shadow-xl overflow-hidden">
+                    {!confirmDelete && onEdit && (
+                      <button
+                        onClick={openEdit}
+                        className="w-full flex items-center gap-2 px-3.5 py-3 text-stone-100 hover:bg-stone-700 text-sm text-left transition-colors border-b border-stone-700/60"
+                      >
+                        <Pencil size={15} aria-hidden="true" /> Edit post
+                      </button>
+                    )}
                     {confirmDelete ? (
                       <div className="p-2.5">
                         <p className="text-stone-300 text-xs px-1 pb-2">Delete this post? This can&apos;t be undone.</p>
@@ -185,6 +222,54 @@ export default function FeedCard({ entry, currentUserId, onReact, onComment, onD
             </div>
           )}
         </div>
+
+        {/* Inline editor — change the meal tag and caption */}
+        {editing && (
+          <div className="px-4 pb-3 space-y-3 border-b border-stone-800">
+            <div>
+              <p className="text-stone-400 text-xs mb-1.5">Meal tag</p>
+              <div className="grid grid-cols-4 gap-1.5">
+                {MEAL_OPTIONS.map(m => (
+                  <button
+                    key={m.key}
+                    onClick={() => setEditMeal(m.key)}
+                    className={`py-2 rounded-lg text-xs font-medium transition-colors ${
+                      editMeal === m.key ? 'bg-emerald-600 text-white' : 'bg-stone-800 text-stone-300 hover:text-white'
+                    }`}
+                  >
+                    <span aria-hidden="true">{MEAL_EMOJI[m.key]}</span> {m.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <p className="text-stone-400 text-xs mb-1.5">Caption</p>
+              <textarea
+                value={editCaption}
+                onChange={e => setEditCaption(e.target.value.slice(0, 200))}
+                rows={2}
+                placeholder="Add a caption…"
+                className="w-full bg-stone-800 border border-stone-700 rounded-xl px-3 py-2.5 text-white text-sm placeholder-stone-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 resize-none"
+              />
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={saveEdit}
+                disabled={savingEdit}
+                className="flex-1 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-sm font-semibold py-2 rounded-xl transition-colors"
+              >
+                {savingEdit ? 'Saving…' : 'Save changes'}
+              </button>
+              <button
+                onClick={() => setEditing(false)}
+                disabled={savingEdit}
+                className="px-4 text-stone-300 hover:text-white text-sm py-2 transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Photo(s) — single image or a swipeable carousel, with a meal badge */}
         {showPhoto && (

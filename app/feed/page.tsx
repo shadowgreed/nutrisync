@@ -37,11 +37,17 @@ export default async function FeedPage() {
     .gte('logged_at', since)
     .order('logged_at', { ascending: false })
 
-  // Reactions and comments for those logs
+  // Reactions and comments for those logs, plus group members' activity logs.
   const logIds = logs?.map(l => l.id) ?? []
-  const [{ data: reactions }, { data: comments }] = await Promise.all([
+  const [{ data: reactions }, { data: comments }, { data: activityLogs }] = await Promise.all([
     supabase.from('reactions').select('*').in('food_log_id', logIds),
     supabase.from('comments').select('*, profile:profiles(id, display_name, avatar_url, privacy_mode, dark_mode_until)').in('food_log_id', logIds),
+    supabase
+      .from('activity_logs')
+      .select('id, user_id, activity_name, duration_minutes, distance_km, steps, calories_burned, logged_at')
+      .in('user_id', memberUserIds)
+      .gte('logged_at', since)
+      .order('logged_at', { ascending: false }),
   ])
 
   // Build profile map
@@ -52,13 +58,20 @@ export default async function FeedPage() {
     }
   }
 
+  const fallbackProfile = (uid: string) => profileMap[uid] ?? { id: uid, display_name: 'User', avatar_url: null, privacy_mode: 'summary', dark_mode_until: null }
+
   // Assemble feed entries
   const feedEntries = (logs ?? []).map(log => ({
     ...log,
-    profile: profileMap[log.user_id] ?? { id: log.user_id, display_name: 'User', avatar_url: null, privacy_mode: 'summary', dark_mode_until: null },
+    profile: fallbackProfile(log.user_id),
     reactions: (reactions ?? []).filter(r => r.food_log_id === log.id),
     comments: (comments ?? []).filter(c => c.food_log_id === log.id),
   }))
 
-  return <FeedClient entries={feedEntries} currentUserId={user.id} />
+  const activityEntries = (activityLogs ?? []).map(a => ({
+    ...a,
+    profile: fallbackProfile(a.user_id),
+  }))
+
+  return <FeedClient entries={feedEntries} activities={activityEntries} currentUserId={user.id} />
 }

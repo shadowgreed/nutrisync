@@ -24,6 +24,34 @@ export async function DELETE(req: NextRequest) {
   return NextResponse.json({ ok: true })
 }
 
+const MEAL_TYPES = ['breakfast', 'lunch', 'dinner', 'snack']
+
+// Edit a post's caption and/or meal tag (own logs only).
+export async function PATCH(req: NextRequest) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const { id, caption, meal_type } = await req.json() as { id?: string; caption?: string; meal_type?: string }
+  if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 })
+
+  const update: { caption?: string | null; meal_type?: string } = {}
+  if (typeof caption === 'string') update.caption = caption.trim() || null
+  if (meal_type && MEAL_TYPES.includes(meal_type)) update.meal_type = meal_type
+  if (!Object.keys(update).length) return NextResponse.json({ error: 'Nothing to update' }, { status: 400 })
+
+  const { data, error } = await supabase
+    .from('food_logs')
+    .update(update)
+    .eq('id', id)
+    .eq('user_id', user.id)
+    .select()
+    .single()
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ log: data })
+}
+
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()

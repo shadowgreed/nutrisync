@@ -122,6 +122,18 @@ export interface FeedEntry extends FoodLog {
   comments: Comment[]
 }
 
+export interface FeedActivityEntry {
+  id: string
+  user_id: string
+  activity_name: string
+  duration_minutes: number | null
+  distance_km: number | null
+  steps: number | null
+  calories_burned: number
+  logged_at: string
+  profile: { id: string; display_name: string; avatar_url: string | null; privacy_mode: string; dark_mode_until: string | null }
+}
+
 export interface ActivityLog {
   id: string
   user_id: string
