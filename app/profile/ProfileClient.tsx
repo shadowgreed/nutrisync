@@ -117,8 +117,15 @@ export default function ProfileClient({ profile, email, logs, activities, group,
         .upload(path, file, { contentType: file.type || 'image/jpeg', upsert: false })
       if (upErr) throw new Error(`Upload failed: ${upErr.message}`)
       const publicUrl = supabase.storage.from('avatars').getPublicUrl(path).data.publicUrl
-      const { error: updErr } = await supabase.from('groups').update({ photo_url: publicUrl }).eq('id', group.id)
-      if (updErr) throw new Error(`Couldn't save photo: ${updErr.message}`)
+      // Save via the founder-verified server route — a direct client update can
+      // silently no-op (0 rows) if the groups RLS update policy is missing.
+      const res = await fetch('/api/group/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ groupId: group.id, photo_url: publicUrl }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(body.error ?? "Couldn't save photo")
       setGroupPhoto(publicUrl)
       router.refresh()
     } catch (err) {
@@ -134,10 +141,13 @@ export default function ProfileClient({ profile, email, logs, activities, group,
     const next = nameDraft.trim()
     if (!next || next === groupName) { setEditingName(false); return }
     setSavingName(true)
-    const supabase = createClient()
     try {
-      const { error } = await supabase.from('groups').update({ name: next }).eq('id', group.id)
-      if (!error) {
+      const res = await fetch('/api/group/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ groupId: group.id, name: next }),
+      })
+      if (res.ok) {
         setGroupName(next)
         setEditingName(false)
         router.refresh()
