@@ -21,38 +21,36 @@ export default function SplashScreen() {
   return (
     <div
       aria-hidden="true"
-      className={`fixed inset-0 z-[100] bg-stone-950 flex flex-col items-center justify-center gap-5 transition-opacity duration-500 ${
+      className={`fixed inset-0 z-[100] flex flex-col items-center justify-center gap-5 transition-opacity duration-500 ${
         phase === 'fading' ? 'opacity-0' : 'opacity-100'
       }`}
+      style={{ backgroundColor: '#059669' }}
     >
-      {/* Exact logo leaf (Lucide "leaf") — empty outline that fills emerald
-          diagonally from bottom-left to top-right. */}
-      <svg width="128" height="128" viewBox="0 0 24 24" fill="none" className="splash-leaf">
+      {/* Exact logo: the white Lucide "leaf" on the brand green. It starts
+          transparent and fills in (white) from bottom-left to top-right. */}
+      <svg width="132" height="132" viewBox="0 0 24 24" fill="none" className="splash-leaf">
         <defs>
-          <linearGradient id="ns-leaf-fill" x1="0" y1="1" x2="1" y2="0">
-            <stop offset="0" stopColor="#10b981">
+          {/* userSpaceOnUse so the sweep is unified across the leaf + stem,
+              not per-path. Edge moves from bottom-left (2,22) to top-right (22,2). */}
+          <linearGradient id="ns-leaf-reveal" gradientUnits="userSpaceOnUse" x1="2" y1="22" x2="22" y2="2">
+            <stop offset="0" stopColor="#ffffff" stopOpacity="1">
               <animate attributeName="offset" values="0;1.05" dur="1.2s" begin="0.2s" fill="freeze"
                 calcMode="spline" keyTimes="0;1" keySplines="0.4 0 0.2 1" />
             </stop>
-            <stop offset="0" stopColor="#10b981" stopOpacity="0">
+            <stop offset="0" stopColor="#ffffff" stopOpacity="0">
               <animate attributeName="offset" values="0;1.05" dur="1.2s" begin="0.2s" fill="freeze"
                 calcMode="spline" keyTimes="0;1" keySplines="0.4 0 0.2 1" />
             </stop>
           </linearGradient>
         </defs>
 
-        {/* Emerald fill sweeping into the leaf body */}
-        <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z" fill="url(#ns-leaf-fill)" />
-        {/* The logo, exactly: white outline + stem/vein on top */}
-        <g fill="none" stroke="#ffffff" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+        <g fill="none" stroke="url(#ns-leaf-reveal)" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
           <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z" />
           <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12" />
         </g>
       </svg>
 
-      <p className="splash-word text-white text-2xl font-bold tracking-tight">
-        Nutri<span className="text-emerald-400">Sync</span>
-      </p>
+      <p className="splash-word text-white text-2xl font-bold tracking-tight">NutriSync</p>
     </div>
   )
 }
