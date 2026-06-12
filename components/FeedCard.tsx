@@ -75,6 +75,7 @@ export default function FeedCard({ entry, currentUserId, onReact, onComment, onD
   const [savingEdit, setSavingEdit] = useState(false)
   const [photoIndex, setPhotoIndex] = useState(0)
   const [heartBurst, setHeartBurst] = useState(false)
+  const [broken, setBroken] = useState<Record<string, boolean>>({})
   const tapTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Double-tap a photo to like (never unlike — Instagram behavior); single tap
@@ -164,8 +165,10 @@ export default function FeedCard({ entry, currentUserId, onReact, onComment, onD
   }
   // Older posts saved blob: URLs that only existed in the author's browser session —
   // those are permanently dead, so skip them. Newer posts may have multiple photos.
+  // Drop any that fail to load at runtime too (dead/blocked URLs) so the card falls
+  // back to the meal hero instead of showing a blank/broken image.
   const photos = (entry.photo_urls?.length ? entry.photo_urls : entry.photo_url ? [entry.photo_url] : [])
-    .filter(u => !!u && !u.startsWith('blob:'))
+    .filter(u => !!u && !u.startsWith('blob:') && !broken[u])
   const showPhoto = photos.length > 0 && effectivePrivacy !== 'dark'
 
   // Build per-meal nutrient data
@@ -340,6 +343,7 @@ export default function FeedCard({ entry, currentUserId, onReact, onComment, onD
                     alt={`Meal photo ${i + 1}`}
                     loading="lazy"
                     decoding="async"
+                    onError={() => setBroken(prev => ({ ...prev, [url]: true }))}
                     className="w-full aspect-[4/3] object-cover"
                   />
                 </button>

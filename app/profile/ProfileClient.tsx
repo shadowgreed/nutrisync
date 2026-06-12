@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { Settings, Flame, Utensils, TrendingUp, Users, Copy, Check, LogOut, Camera, Loader2, UserPlus, X } from 'lucide-react'
+import { Settings, Flame, Utensils, TrendingUp, Users, Copy, Check, LogOut, Camera, Loader2, UserPlus, X, Pencil } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import AvatarUpload from '@/components/AvatarUpload'
 import { BottomNav } from '../dashboard/DashboardClient'
@@ -62,7 +62,12 @@ export default function ProfileClient({ profile, email, logs, activities, group,
   const [resolving, setResolving] = useState<string | null>(null)
   const [groupPhoto, setGroupPhoto] = useState<string | null>(group?.photo_url ?? null)
   const [uploadingGroupPhoto, setUploadingGroupPhoto] = useState(false)
+  const [groupPhotoError, setGroupPhotoError] = useState('')
   const groupPhotoRef = useRef<HTMLInputElement>(null)
+  const [editingName, setEditingName] = useState(false)
+  const [groupName, setGroupName] = useState(group?.name ?? '')
+  const [nameDraft, setNameDraft] = useState(group?.name ?? '')
+  const [savingName, setSavingName] = useState(false)
   const router = useRouter()
   useEffect(() => { setOrigin(window.location.origin) }, [])
 
@@ -98,6 +103,7 @@ export default function ProfileClient({ profile, email, logs, activities, group,
     const file = e.target.files?.[0]
     if (!file || !group) return
     setUploadingGroupPhoto(true)
+    setGroupPhotoError('')
     const supabase = createClient()
     try {
       const ext = (file.name.split('.').pop() || 'jpg').toLowerCase()
@@ -105,15 +111,35 @@ export default function ProfileClient({ profile, email, logs, activities, group,
       const { error: upErr } = await supabase.storage
         .from('group-photos')
         .upload(path, file, { contentType: file.type || 'image/jpeg', upsert: false })
-      if (!upErr) {
-        const publicUrl = supabase.storage.from('group-photos').getPublicUrl(path).data.publicUrl
-        await supabase.from('groups').update({ photo_url: publicUrl }).eq('id', group.id)
-        setGroupPhoto(publicUrl)
-        router.refresh()
-      }
+      if (upErr) throw new Error(`Upload failed: ${upErr.message}`)
+      const publicUrl = supabase.storage.from('group-photos').getPublicUrl(path).data.publicUrl
+      const { error: updErr } = await supabase.from('groups').update({ photo_url: publicUrl }).eq('id', group.id)
+      if (updErr) throw new Error(`Couldn't save photo: ${updErr.message}`)
+      setGroupPhoto(publicUrl)
+      router.refresh()
+    } catch (err) {
+      setGroupPhotoError(err instanceof Error ? err.message : 'Could not update group photo')
     } finally {
       setUploadingGroupPhoto(false)
       if (groupPhotoRef.current) groupPhotoRef.current.value = ''
+    }
+  }
+
+  async function saveGroupName() {
+    if (!group) return
+    const next = nameDraft.trim()
+    if (!next || next === groupName) { setEditingName(false); return }
+    setSavingName(true)
+    const supabase = createClient()
+    try {
+      const { error } = await supabase.from('groups').update({ name: next }).eq('id', group.id)
+      if (!error) {
+        setGroupName(next)
+        setEditingName(false)
+        router.refresh()
+      }
+    } finally {
+      setSavingName(false)
     }
   }
 
@@ -276,10 +302,36 @@ export default function ProfileClient({ profile, email, logs, activities, group,
                 </div>
               )}
               <div className="flex-1 min-w-0">
-                <p className="text-white font-semibold truncate">{group.name}</p>
+                {editingName ? (
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      value={nameDraft}
+                      onChange={e => setNameDraft(e.target.value.slice(0, 40))}
+                      autoFocus
+                      onKeyDown={e => { if (e.key === 'Enter') saveGroupName(); if (e.key === 'Escape') setEditingName(false) }}
+                      className="flex-1 min-w-0 bg-stone-800 border border-stone-600 rounded-lg px-2 py-1 text-white text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                    />
+                    <button onClick={saveGroupName} disabled={savingName} aria-label="Save name" className="shrink-0 text-emerald-400 hover:text-emerald-300 p-1 disabled:opacity-50">
+                      <Check size={16} />
+                    </button>
+                    <button onClick={() => { setEditingName(false); setNameDraft(groupName) }} aria-label="Cancel" className="shrink-0 text-stone-400 hover:text-white p-1">
+                      <X size={16} />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-white font-semibold truncate">{groupName}</p>
+                    {isOwner && (
+                      <button onClick={() => { setNameDraft(groupName); setEditingName(true) }} aria-label="Edit group name" className="shrink-0 text-stone-400 hover:text-white p-0.5">
+                        <Pencil size={13} />
+                      </button>
+                    )}
+                  </div>
+                )}
                 <Link href="/feed" className="text-emerald-400 text-xs hover:underline">View group feed →</Link>
               </div>
             </div>
+            {groupPhotoError && <p className="text-red-400 text-xs -mt-1">{groupPhotoError}</p>}
 
             {/* Pending join requests — founder only */}
             {isOwner && requests.length > 0 && (
