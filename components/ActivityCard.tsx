@@ -1,7 +1,9 @@
 'use client'
 
+import { useState } from 'react'
 import { Flame } from 'lucide-react'
 import { kmToMiles } from '@/lib/fitness'
+import MiniProfileModal from '@/components/MiniProfileModal'
 import type { FeedActivityEntry } from '@/types'
 
 const ACTIVITY_EMOJI: Record<string, string> = {
@@ -17,23 +19,32 @@ function metric(a: FeedActivityEntry): string {
   return ''
 }
 
-export default function ActivityCard({ entry }: { entry: FeedActivityEntry }) {
+export default function ActivityCard({ entry, currentUserId }: { entry: FeedActivityEntry; currentUserId: string }) {
+  const [showProfile, setShowProfile] = useState(false)
   const time = new Date(entry.logged_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
   const emoji = ACTIVITY_EMOJI[entry.activity_name] ?? '💪'
+  const isOwn = entry.user_id === currentUserId
 
   return (
     <div className="bg-stone-900 border border-stone-800 rounded-3xl overflow-hidden shadow-lg shadow-black/30">
-      {/* Header */}
+      {/* Header — tap name/avatar to open the member's profile */}
       <div className="flex items-center gap-3 px-4 pt-4 pb-3">
-        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-orange-700 to-orange-900 flex items-center justify-center text-sm font-bold text-white shrink-0 overflow-hidden">
-          {entry.profile.avatar_url
-            ? <img src={entry.profile.avatar_url} alt="" className="w-full h-full object-cover" />
-            : entry.profile.display_name[0]?.toUpperCase()}
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-white font-semibold text-sm truncate">{entry.profile.display_name}</p>
-          <p className="text-stone-400 text-xs">completed a workout · {time}</p>
-        </div>
+        <button
+          onClick={() => !isOwn && setShowProfile(true)}
+          disabled={isOwn}
+          aria-label={isOwn ? undefined : `View ${entry.profile.display_name}'s profile`}
+          className={`flex items-center gap-3 flex-1 min-w-0 text-left ${isOwn ? '' : 'group'}`}
+        >
+          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-orange-700 to-orange-900 flex items-center justify-center text-sm font-bold text-white shrink-0 overflow-hidden">
+            {entry.profile.avatar_url
+              ? <img src={entry.profile.avatar_url} alt="" className="w-full h-full object-cover" />
+              : entry.profile.display_name[0]?.toUpperCase()}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className={`text-white font-semibold text-sm truncate ${isOwn ? '' : 'group-hover:text-orange-300 transition-colors'}`}>{entry.profile.display_name}</p>
+            <p className="text-stone-400 text-xs">completed a workout · {time}</p>
+          </div>
+        </button>
       </div>
 
       {/* Activity card body */}
@@ -56,6 +67,10 @@ export default function ActivityCard({ entry }: { entry: FeedActivityEntry }) {
           )}
         </div>
       </div>
+
+      {showProfile && (
+        <MiniProfileModal userId={entry.user_id} name={entry.profile.display_name} onClose={() => setShowProfile(false)} />
+      )}
     </div>
   )
 }

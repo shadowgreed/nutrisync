@@ -156,7 +156,7 @@ export default function FeedClient({ entries: initial, activities, currentUserId
               onEdit={handleEdit}
             />
           ) : (
-            <ActivityCard key={item.id} entry={item.activity} />
+            <ActivityCard key={item.id} entry={item.activity} currentUserId={currentUserId} />
           ),
         )}
       </div>
