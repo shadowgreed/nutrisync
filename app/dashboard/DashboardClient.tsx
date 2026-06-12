@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Flame, Utensils, Droplets, RefreshCw, Trash2, ChevronDown } from 'lucide-react'
+import { Flame, Utensils, Droplets, RefreshCw, Trash2, ChevronDown, Target, Plus } from 'lucide-react'
 import NutrientBar from '@/components/NutrientBar'
 import NutrientGapPanel from '@/components/NutrientGapPanel'
 import MacroDetailModal from '@/components/MacroDetailModal'
@@ -121,8 +121,14 @@ export default function DashboardClient({
   )
 
   const caloriesIn = logs.reduce((s, l) => s + (l.total_calories || 0), 0)
-  const netCalories = caloriesIn - caloriesBurnedToday
-  const calorieProgress = calorieTarget ? Math.min(100, Math.round((caloriesIn / calorieTarget) * 100)) : null
+  // Budget framing: Goal + Exercise − Food = what's left (the number people want).
+  const baseTarget = calorieTarget ?? 2000
+  const budget = baseTarget + caloriesBurnedToday
+  const remaining = budget - caloriesIn
+  const over = remaining < 0
+  const ringPct = budget > 0 ? Math.min(100, (caloriesIn / budget) * 100) : 0
+  const RING_R = 52
+  const RING_C = 2 * Math.PI * RING_R
 
   const gaps = buildGapCorrections(totals) // sorted lowest-first
   const greenCount = gaps.filter(g => g.status === 'green').length
@@ -196,8 +202,8 @@ export default function DashboardClient({
       {logsWithNoData.length > 0 && (
         <div className="mx-4 mb-4 bg-amber-950/50 border border-amber-700/50 rounded-2xl px-4 py-3 flex items-center gap-3">
           <div className="flex-1">
-            <p className="text-amber-300 text-sm font-semibold">Nutrition data missing</p>
-            <p className="text-amber-500 text-xs mt-0.5">{logsWithNoData.length} meal{logsWithNoData.length > 1 ? 's' : ''} logged without calorie/nutrient data</p>
+            <p className="text-amber-300 text-sm font-semibold">Finish a few meals</p>
+            <p className="text-amber-500 text-xs mt-0.5">Tap to fill in nutrition for {logsWithNoData.length} meal{logsWithNoData.length > 1 ? 's' : ''}</p>
           </div>
           <button
             onClick={fixNutritionData}
@@ -210,57 +216,58 @@ export default function DashboardClient({
         </div>
       )}
 
-      {/* Calorie balance hero card */}
+      {/* Calorie budget hero — the page's anchor: how much you have left today */}
       <div className="mx-4 mb-4 bg-stone-900 border border-stone-800 rounded-3xl p-5">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-1">
-            <p className="text-stone-300 text-sm font-medium">Calorie balance</p>
-            <InfoTip label="Net calories" text="What you ate minus what you burned through activity. Lower than your target means a deficit." />
-          </div>
-          <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
-            netCalories > (calorieTarget ?? 2000)
-              ? 'bg-red-900/50 text-red-300'
-              : netCalories < 0
-              ? 'bg-emerald-900/50 text-emerald-300'
-              : 'bg-stone-800 text-stone-300'
-          }`}>
-            {netCalories > 0 ? '+' : ''}{netCalories} net kcal
-          </span>
+        <div className="flex items-center gap-1 mb-4">
+          <p className="text-stone-300 text-sm font-medium">Calorie budget</p>
+          <InfoTip label="Calories left" text="Your daily goal, plus any calories you burned through activity, minus what you've eaten." />
         </div>
 
-        <div className="grid grid-cols-2 gap-3 mb-4">
-          <div className="bg-stone-800/60 rounded-2xl p-3">
-            <div className="flex items-center gap-2 mb-1">
-              <Utensils size={13} className="text-emerald-400" />
-              <span className="text-stone-400 text-xs">Eaten</span>
-            </div>
-            <p className="text-white text-2xl font-bold">{caloriesIn}</p>
-            <p className="text-stone-400 text-xs">kcal</p>
-          </div>
-          <div className="bg-stone-800/60 rounded-2xl p-3">
-            <div className="flex items-center gap-2 mb-1">
-              <Flame size={13} className="text-orange-400" />
-              <span className="text-stone-400 text-xs">Burned</span>
-            </div>
-            <p className="text-white text-2xl font-bold">{caloriesBurnedToday}</p>
-            <p className="text-stone-400 text-xs">kcal</p>
-          </div>
-        </div>
-
-        {calorieTarget && (
-          <div>
-            <div className="flex justify-between text-xs mb-1.5">
-              <span className="text-stone-400">Progress to target</span>
-              <span className="text-stone-400">{caloriesIn} / {calorieTarget} kcal</span>
-            </div>
-            <div className="h-2 rounded-full bg-stone-700">
-              <div
-                className={`h-full rounded-full transition-all ${calorieProgress! > 100 ? 'bg-red-500' : 'bg-emerald-500'}`}
-                style={{ width: `${calorieProgress}%` }}
+        <div className="flex items-center gap-5">
+          {/* Progress ring with "left / over" in the center */}
+          <div className="relative shrink-0" style={{ width: 124, height: 124 }}>
+            <svg width="124" height="124" viewBox="0 0 124 124" className="-rotate-90">
+              <circle cx="62" cy="62" r={RING_R} fill="none" stroke="rgb(41 37 36)" strokeWidth="10" />
+              <circle
+                cx="62" cy="62" r={RING_R} fill="none"
+                stroke={over ? 'rgb(248 113 113)' : 'rgb(16 185 129)'}
+                strokeWidth="10" strokeLinecap="round"
+                strokeDasharray={RING_C}
+                strokeDashoffset={RING_C * (1 - ringPct / 100)}
+                className="transition-all duration-700"
               />
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <span className="text-white text-3xl font-extrabold tabular-nums leading-none">{Math.abs(remaining).toLocaleString()}</span>
+              <span className={`text-xs font-medium mt-1 ${over ? 'text-red-300' : 'text-stone-400'}`}>{over ? 'kcal over' : 'kcal left'}</span>
             </div>
           </div>
-        )}
+
+          {/* Goal − Food + Exercise breakdown */}
+          <div className="flex-1 min-w-0 space-y-3">
+            <div className="flex items-center gap-2.5">
+              <span className="w-7 h-7 rounded-lg bg-stone-800 flex items-center justify-center shrink-0"><Target size={14} className="text-stone-300" aria-hidden="true" /></span>
+              <div className="min-w-0">
+                <p className="text-stone-400 text-xs leading-none">Goal</p>
+                <p className="text-white text-base font-bold tabular-nums leading-tight">{baseTarget.toLocaleString()}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2.5">
+              <span className="w-7 h-7 rounded-lg bg-emerald-950/60 flex items-center justify-center shrink-0"><Utensils size={14} className="text-emerald-400" aria-hidden="true" /></span>
+              <div className="min-w-0">
+                <p className="text-stone-400 text-xs leading-none">Eaten</p>
+                <p className="text-white text-base font-bold tabular-nums leading-tight">{caloriesIn.toLocaleString()}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2.5">
+              <span className="w-7 h-7 rounded-lg bg-orange-950/60 flex items-center justify-center shrink-0"><Flame size={14} className="text-orange-400" aria-hidden="true" /></span>
+              <div className="min-w-0">
+                <p className="text-stone-400 text-xs leading-none">Burned</p>
+                <p className="text-white text-base font-bold tabular-nums leading-tight">{caloriesBurnedToday.toLocaleString()}</p>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
 
@@ -288,8 +295,8 @@ export default function DashboardClient({
                 </div>
                 <span className="text-base leading-none mb-1" aria-hidden="true">{meta.emoji}</span>
                 <span className="text-white text-sm font-bold leading-none tabular-nums">{current}<span className="text-stone-400 text-xs font-normal">g</span></span>
-                <span className="text-stone-400 text-[11px] mt-0.5">{meta.label}</span>
-                <span className="text-stone-400 text-[11px] tabular-nums">/ {target}g · {pct}%</span>
+                <span className="text-stone-400 text-xs mt-0.5">{meta.label}</span>
+                <span className="text-stone-400 text-xs tabular-nums">/ {target}g · {pct}%</span>
               </button>
             )
           })}
@@ -480,10 +487,22 @@ export default function DashboardClient({
       {logs.length === 0 && (
         <div className="mx-4 text-center py-10 bg-stone-900/50 border border-dashed border-stone-800 rounded-2xl">
           <p className="text-3xl mb-2">🥗</p>
-          <p className="text-stone-400 text-sm font-medium">No meals logged yet</p>
-          <p className="text-stone-400 text-xs mt-1">Tap Log to add your first meal</p>
+          <p className="text-white text-sm font-semibold">No meals logged yet</p>
+          <p className="text-stone-400 text-xs mt-1 mb-4">Add your first meal to start today&apos;s tracking.</p>
+          <Link href="/log" className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition-colors">
+            <Plus size={16} aria-hidden="true" /> Log a meal
+          </Link>
         </div>
       )}
+
+      {/* Always-visible primary action */}
+      <Link
+        href="/log"
+        aria-label="Log a meal or activity"
+        className="fixed bottom-[4.75rem] right-4 z-30 flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-semibold pl-4 pr-5 py-3.5 rounded-full shadow-lg shadow-emerald-900/40 transition-all"
+      >
+        <Plus size={20} aria-hidden="true" /> Log
+      </Link>
 
       {activeGap && (
         <NutrientGapPanel gap={activeGap} onClose={() => setActiveGap(null)} />

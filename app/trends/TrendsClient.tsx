@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Scale, TrendingUp, Plus } from 'lucide-react'
+import { Scale, TrendingUp, Plus, ArrowUp, ArrowDown } from 'lucide-react'
 import { BottomNav } from '../dashboard/DashboardClient'
 import { summarize, microConsistency, type DayTotal } from '@/lib/trends'
 import { MACRO_KEYS, MACRO_META } from '@/lib/macros'
@@ -34,6 +34,19 @@ export default function TrendsClient({ series30, calorieTarget, macroTargets, we
   const maxCal = Math.max(calorieTarget ?? 0, ...series.map(d => d.calories), 1)
   const targetPct = calorieTarget ? (calorieTarget / maxCal) * 100 : null
 
+  // Calorie delta vs the previous equal-length window (only when we have the
+  // history for it — i.e. the 7-day view, where days -14..-7 exist).
+  const prevSeries = range === 7 ? series30.slice(-14, -7) : []
+  const prevSummary = prevSeries.length ? summarize(prevSeries) : null
+  const calorieDelta = (prevSummary && prevSummary.avgCalories > 0 && summary.avgCalories > 0)
+    ? summary.avgCalories - prevSummary.avgCalories
+    : null
+
+  // Scope the weight chart to the selected range (it used to always show all).
+  const rangeFloor = Date.now() - range * 86400000
+  const weightInRange = weightLogs.filter(w => new Date(w.logged_at).getTime() >= rangeFloor)
+  const fmtDate = (iso: string) => new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+
   async function logWeight(e: React.FormEvent) {
     e.preventDefault()
     const lbs = Number(weightInput)
@@ -55,23 +68,24 @@ export default function TrendsClient({ series30, calorieTarget, macroTargets, we
     }
   }
 
-  // Weight chart geometry
+  // Weight chart geometry — scoped to the selected range
   const W = 320, H = 110, pad = 10
-  const vals = weightLogs.map(w => w.weight_kg)
-  const minW = vals.length ? Math.min(...vals) : 0
-  const maxW = vals.length ? Math.max(...vals) : 0
+  const cVals = weightInRange.map(w => w.weight_kg)
+  const minW = cVals.length ? Math.min(...cVals) : 0
+  const maxW = cVals.length ? Math.max(...cVals) : 0
   const span = maxW - minW || 1
-  const pts = weightLogs.map((w, i) => {
-    const x = pad + (weightLogs.length === 1 ? 0.5 : i / (weightLogs.length - 1)) * (W - 2 * pad)
+  const pts = weightInRange.map((w, i) => {
+    const x = pad + (weightInRange.length === 1 ? 0.5 : i / (weightInRange.length - 1)) * (W - 2 * pad)
     const y = pad + (1 - (w.weight_kg - minW) / span) * (H - 2 * pad)
     return { x, y, w: w.weight_kg }
   })
   const polyline = pts.map(p => `${p.x},${p.y}`).join(' ')
-  const weightDelta = vals.length >= 2 ? vals[vals.length - 1] - vals[0] : 0
+  const weightDelta = cVals.length >= 2 ? cVals[cVals.length - 1] - cVals[0] : 0
 
-  // ── Goal-weight progress (in 25% milestones) ──
-  const startKg = vals.length ? vals[0] : currentWeightKg
-  const nowKg = vals.length ? vals[vals.length - 1] : currentWeightKg
+  // ── Goal-weight progress (in 25% milestones) — uses full history, not range ──
+  const allVals = weightLogs.map(w => w.weight_kg)
+  const startKg = allVals.length ? allVals[0] : currentWeightKg
+  const nowKg = allVals.length ? allVals[allVals.length - 1] : currentWeightKg
   let goal: null | { pct: number; remainingLbs: number; milestone: number; reached: boolean; targetLbs: number } = null
   if (targetWeightKg != null && startKg != null && nowKg != null && Math.abs(startKg - targetWeightKg) > 0.05) {
     const total = Math.abs(startKg - targetWeightKg)
@@ -118,14 +132,39 @@ export default function TrendsClient({ series30, calorieTarget, macroTargets, we
         </div>
       </div>
 
+      {/* Insight summary — the "am I on track?" answer in one line */}
+      <div className="mx-4 mb-4 bg-gradient-to-br from-emerald-950/40 to-stone-900 border border-emerald-900/40 rounded-2xl px-4 py-3">
+        {summary.loggedDays === 0 ? (
+          <p className="text-stone-300 text-sm">Log a few days of meals to see your trends here.</p>
+        ) : (
+          <p className="text-stone-200 text-sm leading-relaxed">
+            <span className="font-semibold text-white">{range === 7 ? 'This week' : 'Last 30 days'}:</span>{' '}
+            you averaged <span className="font-semibold text-white">{summary.avgCalories.toLocaleString()} kcal/day</span>
+            {calorieDelta != null && calorieDelta !== 0 && (
+              <span className="text-stone-400"> ({calorieDelta < 0 ? '↓' : '↑'}{Math.abs(calorieDelta).toLocaleString()} vs last week)</span>
+            )}
+            , logged <span className="font-semibold text-white">{summary.loggedDays} of {range} days</span>
+            {weightInRange.length >= 2 && (
+              <>, and your weight is <span className="font-semibold text-white">{weightDelta <= 0 ? 'down' : 'up'} {Math.abs(weightDelta * 2.20462).toFixed(1)} lbs</span></>
+            )}
+            .
+          </p>
+        )}
+      </div>
+
       {/* Summary chips */}
       <div className="mx-4 mb-4 grid grid-cols-2 gap-3">
         <div className="bg-stone-900 border border-stone-800 rounded-2xl p-3">
           <p className="text-stone-400 text-xs">Avg calories / day</p>
           <p className="text-white text-2xl font-bold mt-0.5">{summary.avgCalories || '—'}</p>
-          {calorieTarget && summary.avgCalories > 0 && (
+          {calorieDelta != null && calorieDelta !== 0 ? (
+            <p className={`text-xs font-medium flex items-center gap-0.5 ${calorieDelta < 0 ? 'text-emerald-400' : 'text-orange-400'}`}>
+              {calorieDelta < 0 ? <ArrowDown size={11} aria-hidden="true" /> : <ArrowUp size={11} aria-hidden="true" />}
+              {Math.abs(calorieDelta).toLocaleString()} vs last week
+            </p>
+          ) : calorieTarget && summary.avgCalories > 0 ? (
             <p className="text-stone-400 text-xs">target {calorieTarget}</p>
-          )}
+          ) : null}
         </div>
         <div className="bg-stone-900 border border-stone-800 rounded-2xl p-3">
           <p className="text-stone-400 text-xs">Days logged</p>
@@ -134,28 +173,115 @@ export default function TrendsClient({ series30, calorieTarget, macroTargets, we
         </div>
       </div>
 
+      {/* Weight — promoted near the top (the motivational payoff for goal users) */}
+      <div className="mx-4 mb-4 bg-stone-900 border border-stone-800 rounded-2xl p-4">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <Scale size={15} className="text-sky-400" />
+            <p className="text-white font-semibold text-sm">Weight</p>
+          </div>
+          {weightInRange.length >= 2 && (
+            <span className={`text-xs font-semibold ${weightDelta < 0 ? 'text-emerald-400' : weightDelta > 0 ? 'text-orange-400' : 'text-stone-400'}`}>
+              {weightDelta > 0 ? '+' : ''}{(weightDelta * 2.20462).toFixed(1)} lbs · {range}d
+            </span>
+          )}
+        </div>
+
+        {weightInRange.length >= 2 ? (
+          <>
+            <svg
+              viewBox={`0 0 ${W} ${H}`}
+              className="w-full h-28"
+              role="img"
+              aria-label={`Weight from ${kgToLbs(cVals[0])} to ${kgToLbs(cVals[cVals.length - 1])} lbs over the last ${range} days`}
+            >
+              <polyline points={polyline} fill="none" stroke="rgb(56 189 248)" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+              {pts.map((p, i) => (
+                <circle key={i} cx={p.x} cy={p.y} r="2.5" fill="rgb(56 189 248)" />
+              ))}
+            </svg>
+            {/* Axis endpoints so the line is actually readable */}
+            <div className="flex justify-between text-xs text-stone-400 mt-1">
+              <span>{fmtDate(weightInRange[0].logged_at)} · {kgToLbs(weightInRange[0].weight_kg)} lbs</span>
+              <span>{fmtDate(weightInRange[weightInRange.length - 1].logged_at)} · {kgToLbs(weightInRange[weightInRange.length - 1].weight_kg)} lbs</span>
+            </div>
+          </>
+        ) : (
+          <p className="text-stone-400 text-xs mb-3">
+            {currentWeightKg ? `Current: ${kgToLbs(currentWeightKg)} lbs. ` : ''}Log your weight regularly to see your {range}-day trend.
+          </p>
+        )}
+
+        {/* Goal weight progress + milestone celebration */}
+        {goal && (
+          <div className={`mt-3 rounded-xl px-4 py-3 border ${goal.reached ? 'bg-amber-950/40 border-amber-700/50' : 'bg-stone-800/50 border-stone-700'}`}>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-stone-300 text-xs font-medium">Goal: {goal.targetLbs} lbs</span>
+              <span className={`text-xs font-semibold ${goal.reached ? 'text-amber-300' : 'text-sky-300'} tabular-nums`}>
+                {goal.reached ? 'Reached 🏆' : `${goal.remainingLbs.toFixed(1)} lbs to go`}
+              </span>
+            </div>
+            <div className="relative h-2 rounded-full bg-stone-700 overflow-hidden">
+              <div className={`h-full rounded-full transition-all ${goal.reached ? 'bg-amber-400' : 'bg-gradient-to-r from-sky-600 to-sky-400'}`} style={{ width: `${Math.max(2, goal.pct)}%` }} />
+              {[25, 50, 75].map(m => (
+                <span key={m} className="absolute top-0 bottom-0 w-px bg-stone-900/70" style={{ left: `${m}%` }} />
+              ))}
+            </div>
+            <p className={`text-xs mt-2 ${goal.reached ? 'text-amber-300' : 'text-stone-300'}`}>
+              {MILESTONE_MSG[goal.milestone]} <span className="text-stone-400">({goal.pct}%)</span>
+            </p>
+          </div>
+        )}
+
+        {/* Log weight */}
+        <form onSubmit={logWeight} className="flex gap-2 mt-3">
+          <input
+            value={weightInput}
+            onChange={e => setWeightInput(e.target.value)}
+            type="number"
+            step="0.1"
+            inputMode="decimal"
+            placeholder={currentWeightKg ? `${kgToLbs(currentWeightKg)} lbs` : 'Weight (lbs)'}
+            className="flex-1 bg-stone-800 border border-stone-700 rounded-xl px-3 py-2.5 text-white text-sm placeholder-stone-600 focus:outline-none focus:ring-1 focus:ring-sky-500"
+          />
+          <button
+            type="submit"
+            disabled={savingWeight || !weightInput}
+            className="flex items-center gap-1 bg-sky-700 hover:bg-sky-600 disabled:opacity-40 text-white text-sm font-semibold px-3 rounded-xl transition-colors"
+          >
+            <Plus size={14} /> Log
+          </button>
+        </form>
+        {weightError && <p className="text-red-400 text-xs mt-2">{weightError}</p>}
+      </div>
+
       {/* Calorie bar chart */}
       <div className="mx-4 mb-4 bg-stone-900 border border-stone-800 rounded-2xl p-4">
         <p className="text-white font-semibold text-sm mb-3">Calories logged</p>
         <div className="relative h-32 flex items-end gap-1">
           {targetPct != null && (
             <div className="absolute left-0 right-0 border-t border-dashed border-emerald-500/50 z-10" style={{ bottom: `${targetPct}%` }}>
-              <span className="absolute -top-2 right-0 text-[11px] text-emerald-500/80 bg-stone-900 px-1">target</span>
+              <span className="absolute -top-2 right-0 text-xs text-emerald-500/80 bg-stone-900 px-1">target</span>
             </div>
           )}
           {series.map((d, i) => {
             const h = (d.calories / maxCal) * 100
             const over = calorieTarget != null && d.calories > calorieTarget
             return (
-              <div key={i} className="flex-1 flex flex-col items-center justify-end h-full" title={`${d.label}: ${d.calories} kcal`}>
+              <div key={i} className="flex-1 flex flex-col items-center justify-end h-full" title={d.calories === 0 ? `${d.label}: not logged` : `${d.label}: ${d.calories} kcal`}>
                 {/* Value label above the bar (7-day view only — 30-day is too dense) */}
                 {range === 7 && d.calories > 0 && (
-                  <span className="text-[11px] text-stone-300 mb-0.5 tabular-nums leading-none">{d.calories}</span>
+                  <span className="text-xs text-stone-300 mb-0.5 tabular-nums leading-none">{d.calories}</span>
                 )}
-                <div
-                  className={`w-full rounded-t ${d.calories === 0 ? 'bg-stone-800' : over ? 'bg-red-500/70' : 'bg-emerald-500/70'}`}
-                  style={{ height: `${Math.max(d.calories === 0 ? 2 : 4, h)}%` }}
-                />
+                {d.calories === 0 ? (
+                  /* Hollow bar = not logged (vs a real low-calorie day) */
+                  <div className="w-full rounded-t border border-dashed border-stone-600/80" style={{ height: '10%' }} />
+                ) : (
+                  <div
+                    className={`w-full rounded-t ${over ? 'bg-red-500/70' : 'bg-emerald-500/70'}`}
+                    style={{ height: `${Math.max(4, h)}%` }}
+                  />
+                )}
               </div>
             )
           })}
@@ -163,7 +289,7 @@ export default function TrendsClient({ series30, calorieTarget, macroTargets, we
         {range === 7 && (
           <div className="flex gap-1 mt-1.5">
             {series.map((d, i) => (
-              <span key={i} className="flex-1 text-center text-[11px] text-stone-400 truncate">
+              <span key={i} className="flex-1 text-center text-xs text-stone-400 truncate">
                 {new Date(d.date + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'short' })}
               </span>
             ))}
@@ -220,80 +346,9 @@ export default function TrendsClient({ series30, calorieTarget, macroTargets, we
                 </div>
               )
             })}
-            <p className="text-stone-400 text-[11px] pt-1">Days you reached 100% of the daily target.</p>
+            <p className="text-stone-400 text-xs pt-1">Days you reached 100% of the daily target.</p>
           </div>
         )}
-      </div>
-
-      {/* Weight */}
-      <div className="mx-4 mb-4 bg-stone-900 border border-stone-800 rounded-2xl p-4">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <Scale size={15} className="text-sky-400" />
-            <p className="text-white font-semibold text-sm">Weight</p>
-          </div>
-          {weightLogs.length >= 2 && (
-            <span className={`text-xs font-semibold ${weightDelta < 0 ? 'text-emerald-400' : weightDelta > 0 ? 'text-orange-400' : 'text-stone-400'}`}>
-              {weightDelta > 0 ? '+' : ''}{(weightDelta * 2.20462).toFixed(1)} lbs
-            </span>
-          )}
-        </div>
-
-        {weightLogs.length >= 2 ? (
-          <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-28">
-            <polyline points={polyline} fill="none" stroke="rgb(56 189 248)" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
-            {pts.map((p, i) => (
-              <circle key={i} cx={p.x} cy={p.y} r="2.5" fill="rgb(56 189 248)" />
-            ))}
-          </svg>
-        ) : (
-          <p className="text-stone-400 text-xs mb-3">
-            {currentWeightKg ? `Current: ${kgToLbs(currentWeightKg)} lbs. ` : ''}Log your weight regularly to see your trend.
-          </p>
-        )}
-
-        {/* Goal weight progress + milestone celebration */}
-        {goal && (
-          <div className={`mt-3 rounded-xl px-4 py-3 border ${goal.reached ? 'bg-amber-950/40 border-amber-700/50' : 'bg-stone-800/50 border-stone-700'}`}>
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-stone-300 text-xs font-medium">Goal: {goal.targetLbs} lbs</span>
-              <span className={`text-xs font-semibold ${goal.reached ? 'text-amber-300' : 'text-sky-300'} tabular-nums`}>
-                {goal.reached ? 'Reached 🏆' : `${goal.remainingLbs.toFixed(1)} lbs to go`}
-              </span>
-            </div>
-            <div className="relative h-2 rounded-full bg-stone-700 overflow-hidden">
-              <div className={`h-full rounded-full transition-all ${goal.reached ? 'bg-amber-400' : 'bg-gradient-to-r from-sky-600 to-sky-400'}`} style={{ width: `${Math.max(2, goal.pct)}%` }} />
-              {/* 25 / 50 / 75 milestone ticks */}
-              {[25, 50, 75].map(m => (
-                <span key={m} className="absolute top-0 bottom-0 w-px bg-stone-900/70" style={{ left: `${m}%` }} />
-              ))}
-            </div>
-            <p className={`text-xs mt-2 ${goal.reached ? 'text-amber-300' : 'text-stone-300'}`}>
-              {MILESTONE_MSG[goal.milestone]} <span className="text-stone-400">({goal.pct}%)</span>
-            </p>
-          </div>
-        )}
-
-        {/* Log weight */}
-        <form onSubmit={logWeight} className="flex gap-2 mt-3">
-          <input
-            value={weightInput}
-            onChange={e => setWeightInput(e.target.value)}
-            type="number"
-            step="0.1"
-            inputMode="decimal"
-            placeholder={currentWeightKg ? `${kgToLbs(currentWeightKg)} lbs` : 'Weight (lbs)'}
-            className="flex-1 bg-stone-800 border border-stone-700 rounded-xl px-3 py-2.5 text-white text-sm placeholder-stone-600 focus:outline-none focus:ring-1 focus:ring-sky-500"
-          />
-          <button
-            type="submit"
-            disabled={savingWeight || !weightInput}
-            className="flex items-center gap-1 bg-sky-700 hover:bg-sky-600 disabled:opacity-40 text-white text-sm font-semibold px-3 rounded-xl transition-colors"
-          >
-            <Plus size={14} /> Log
-          </button>
-        </form>
-        {weightError && <p className="text-red-400 text-xs mt-2">{weightError}</p>}
       </div>
 
       <BottomNav active="trends" />
