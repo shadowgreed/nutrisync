@@ -106,13 +106,17 @@ export default function ProfileClient({ profile, email, logs, activities, group,
     setGroupPhotoError('')
     const supabase = createClient()
     try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('Not signed in')
+      // Reuse the proven 'avatars' bucket (its policy allows writes to your own
+      // folder), so group photos don't depend on a separate bucket/policy.
       const ext = (file.name.split('.').pop() || 'jpg').toLowerCase()
-      const path = `${group.id}/${Date.now()}.${ext}`
+      const path = `${user.id}/group-${group.id}-${Date.now()}.${ext}`
       const { error: upErr } = await supabase.storage
-        .from('group-photos')
+        .from('avatars')
         .upload(path, file, { contentType: file.type || 'image/jpeg', upsert: false })
       if (upErr) throw new Error(`Upload failed: ${upErr.message}`)
-      const publicUrl = supabase.storage.from('group-photos').getPublicUrl(path).data.publicUrl
+      const publicUrl = supabase.storage.from('avatars').getPublicUrl(path).data.publicUrl
       const { error: updErr } = await supabase.from('groups').update({ photo_url: publicUrl }).eq('id', group.id)
       if (updErr) throw new Error(`Couldn't save photo: ${updErr.message}`)
       setGroupPhoto(publicUrl)
