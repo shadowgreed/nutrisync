@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { rateLimit } from '@/lib/ratelimit'
 import { sendPushToUser } from '@/lib/push'
 
 // Send an encouragement ("cheer") to a group co-member: in-app notification +
@@ -14,6 +15,10 @@ export async function POST(req: NextRequest) {
   const { userId } = await req.json() as { userId?: string }
   if (!userId || userId === user.id) {
     return NextResponse.json({ error: 'Invalid target' }, { status: 400 })
+  }
+  // Cheers create notifications + pushes — keep them special, not spammable.
+  if (!rateLimit(`cheer:${user.id}`, 20, 60 * 60 * 1000)) {
+    return NextResponse.json({ error: "You've cheered a lot this hour — save some for later! 👏" }, { status: 429 })
   }
 
   // Only allow cheering people who actually share a group with the sender.

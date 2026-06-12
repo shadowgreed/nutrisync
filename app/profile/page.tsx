@@ -42,18 +42,13 @@ export default async function ProfilePage() {
   const isOwner = !!group && group.created_by === user.id
 
   // The founder also gets the list of pending join requests to approve/deny.
+  // Via SECURITY DEFINER RPC: requesters aren't members yet, so their profiles
+  // aren't readable under the scoped profiles policy (migration 025).
   let pendingRequests: { id: string; user_id: string; display_name: string; avatar_url: string | null }[] = []
   if (isOwner && group) {
-    const { data: reqs } = await supabase
-      .from('group_join_requests')
-      .select('id, user_id, profile:user_id(display_name, avatar_url)')
-      .eq('group_id', group.id)
-      .eq('status', 'pending')
-      .order('created_at', { ascending: true })
-    pendingRequests = (reqs ?? []).map(r => {
-      const p = r.profile as unknown as { display_name: string; avatar_url: string | null } | null
-      return { id: r.id as string, user_id: r.user_id as string, display_name: p?.display_name ?? 'Someone', avatar_url: p?.avatar_url ?? null }
-    })
+    const { data: reqs } = await supabase.rpc('get_group_pending_requests', { p_group_id: group.id })
+    pendingRequests = ((reqs ?? []) as { id: string; user_id: string; display_name: string | null; avatar_url: string | null }[])
+      .map(r => ({ id: r.id, user_id: r.user_id, display_name: r.display_name ?? 'Someone', avatar_url: r.avatar_url }))
   }
 
   return (

@@ -113,8 +113,21 @@ export default function MealLogger({ onLogged }: Props) {
   }
 
   async function handlePhoto(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(e.target.files ?? [])
-    if (!files.length) return
+    const MAX_PHOTOS = 5
+    const MAX_BYTES = 8 * 1024 * 1024
+    let files = Array.from(e.target.files ?? []).filter(f => f.type.startsWith('image/') && f.size <= MAX_BYTES)
+    const room = MAX_PHOTOS - photoFiles.length
+    if (room <= 0) {
+      setError(`Max ${MAX_PHOTOS} photos per meal.`)
+      if (fileRef.current) fileRef.current.value = ''
+      return
+    }
+    files = files.slice(0, room)
+    if (!files.length) {
+      setError('Photos must be images under 8 MB.')
+      if (fileRef.current) fileRef.current.value = ''
+      return
+    }
     setAnalyzing(true)
     setError('')
     try {
