@@ -495,14 +495,6 @@ export default function DashboardClient({
         </div>
       )}
 
-      {/* Always-visible primary action */}
-      <Link
-        href="/log"
-        aria-label="Log a meal or activity"
-        className="fixed bottom-[4.75rem] right-4 z-30 flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-semibold pl-4 pr-5 py-3.5 rounded-full shadow-lg shadow-emerald-900/40 transition-all"
-      >
-        <Plus size={20} aria-hidden="true" /> Log
-      </Link>
 
       {activeGap && (
         <NutrientGapPanel gap={activeGap} onClose={() => setActiveGap(null)} />
@@ -520,29 +512,41 @@ export default function DashboardClient({
 export function BottomNav({ active }: { active: string }) {
   const items = [
     { href: '/dashboard', label: 'today',   emoji: '📊', key: 'dashboard' },
-    { href: '/log',       label: 'log',      emoji: '➕', key: 'log' },
     { href: '/trends',    label: 'trends',   emoji: '📈', key: 'trends' },
     { href: '/feed',      label: 'feed',     emoji: '👥', key: 'feed' },
     { href: '/profile',   label: 'profile',  emoji: '👤', key: 'profile' },
   ]
   return (
-    <nav aria-label="Primary" className="fixed bottom-0 left-0 right-0 bg-stone-950/95 border-t border-stone-800 flex backdrop-blur-sm">
-      {items.map(item => {
-        const isActive = active === item.key
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            aria-current={isActive ? 'page' : undefined}
-            className={`flex-1 flex flex-col items-center justify-center py-2.5 min-h-[52px] gap-0.5 transition-colors ${
-              isActive ? 'text-emerald-400' : 'text-stone-300 hover:text-white'
-            }`}
-          >
-            <span className="text-xl" aria-hidden="true">{item.emoji}</span>
-            <span className="text-xs capitalize">{item.label}</span>
-          </Link>
-        )
-      })}
-    </nav>
+    <>
+      {/* Logging lives on a floating button, not a tab — shown on every page
+          except the log screen itself. */}
+      {active !== 'log' && (
+        <Link
+          href="/log"
+          aria-label="Log a meal or activity"
+          className="fixed bottom-[4.75rem] right-4 z-30 flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-semibold pl-4 pr-5 py-3.5 rounded-full shadow-lg shadow-emerald-900/40 transition-all"
+        >
+          <Plus size={20} aria-hidden="true" /> Log
+        </Link>
+      )}
+      <nav aria-label="Primary" className="fixed bottom-0 left-0 right-0 bg-stone-950/95 border-t border-stone-800 flex backdrop-blur-sm">
+        {items.map(item => {
+          const isActive = active === item.key
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              aria-current={isActive ? 'page' : undefined}
+              className={`flex-1 flex flex-col items-center justify-center py-2.5 min-h-[52px] gap-0.5 transition-colors ${
+                isActive ? 'text-emerald-400' : 'text-stone-300 hover:text-white'
+              }`}
+            >
+              <span className="text-xl" aria-hidden="true">{item.emoji}</span>
+              <span className="text-xs capitalize">{item.label}</span>
+            </Link>
+          )
+        })}
+      </nav>
+    </>
   )
 }
