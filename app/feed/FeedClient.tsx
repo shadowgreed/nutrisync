@@ -31,12 +31,12 @@ function dayLabel(iso: string): string {
 export default function FeedClient({ entries: initial, activities, currentUserId, nameMap, headerGroup }: Props) {
   const [entries, setEntries] = useState<FeedEntry[]>(initial)
 
-  // Fire-and-forget push to the meal owner (in-app notification is created by a DB trigger)
-  function notifyPush(logId: string, kind: 'reaction' | 'comment') {
+  // Fire-and-forget push (in-app notification is created by a DB trigger).
+  function notifyPush(logId: string, kind: 'reaction' | 'comment' | 'reply', targetUserId?: string) {
     fetch('/api/push/notify', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ foodLogId: logId, kind }),
+      body: JSON.stringify({ foodLogId: logId, kind, targetUserId }),
     }).catch(() => {})
   }
 
@@ -96,7 +96,7 @@ export default function FeedClient({ entries: initial, activities, currentUserId
     }
   }
 
-  async function handleComment(logId: string, text: string) {
+  async function handleComment(logId: string, text: string, parentId?: string) {
     const { createClient } = await import('@/lib/supabase/client')
     const supabase = createClient()
 
@@ -106,8 +106,8 @@ export default function FeedClient({ entries: initial, activities, currentUserId
 
     const { data, error } = await supabase
       .from('comments')
-      .insert({ food_log_id: logId, text, user_id: user.id })
-      .select('id, user_id, food_log_id, text, created_at, profile:user_id(id, display_name, avatar_url, privacy_mode, dark_mode_until)')
+      .insert({ food_log_id: logId, text, user_id: user.id, parent_id: parentId ?? null })
+      .select('id, user_id, food_log_id, text, created_at, parent_id, profile:user_id(id, display_name, avatar_url, privacy_mode, dark_mode_until)')
       .single()
 
     if (error) {
@@ -116,13 +116,31 @@ export default function FeedClient({ entries: initial, activities, currentUserId
     }
 
     if (data) {
+      // Find the parent comment's author so a reply pushes the right person.
+      const parentAuthor = parentId
+        ? entries.find(e => e.id === logId)?.comments.find(c => c.id === parentId)?.user_id
+        : undefined
       setEntries(prev => prev.map(e =>
         e.id === logId
           ? { ...e, comments: [...e.comments, data as any] }
           : e,
       ))
-      notifyPush(logId, 'comment')
+      if (parentId) notifyPush(logId, 'reply', parentAuthor)
+      else notifyPush(logId, 'comment')
     }
+  }
+
+  async function handleDeleteComment(logId: string, commentId: string) {
+    const { createClient } = await import('@/lib/supabase/client')
+    const supabase = createClient()
+    const { error } = await supabase.from('comments').delete().eq('id', commentId)
+    if (error) { console.error('delete comment error:', error.message); return }
+    // Drop the comment and any of its replies (DB cascades; mirror it in state).
+    setEntries(prev => prev.map(e =>
+      e.id === logId
+        ? { ...e, comments: e.comments.filter(c => c.id !== commentId && c.parent_id !== commentId) }
+        : e,
+    ))
   }
 
   // Merge meals + activities into one timeline, newest first.
@@ -192,6 +210,7 @@ export default function FeedClient({ entries: initial, activities, currentUserId
                     onComment={handleComment}
                     onDelete={handleDelete}
                     onEdit={handleEdit}
+                    onDeleteComment={handleDeleteComment}
                     nameMap={nameMap}
                   />
                 ) : (

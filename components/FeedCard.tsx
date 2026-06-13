@@ -2,7 +2,7 @@
 
 import { useState, useRef } from 'react'
 import { Heart, MessageCircle, Send, X, Trash2, Pencil, MoreHorizontal, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react'
-import type { FeedEntry, NutrientKey, MacroTotals } from '@/types'
+import type { FeedEntry, NutrientKey, MacroTotals, Comment } from '@/types'
 import { NUTRIENT_META, NUTRIENT_KEYS } from '@/lib/nutrients'
 import { MACRO_KEYS, MACRO_META, emptyMacros } from '@/lib/macros'
 import MiniProfileModal from '@/components/MiniProfileModal'
@@ -52,17 +52,23 @@ interface Props {
   entry: FeedEntry
   currentUserId: string
   onReact: (logId: string, emoji: string) => Promise<void>
-  onComment: (logId: string, text: string) => Promise<void>
+  onComment: (logId: string, text: string, parentId?: string) => Promise<void>
   onDelete?: (logId: string) => Promise<void>
   onEdit?: (logId: string, patch: { caption?: string; meal_type?: string }) => Promise<void>
+  onDeleteComment?: (logId: string, commentId: string) => Promise<void>
   nameMap?: Record<string, string>
 }
 
-export default function FeedCard({ entry, currentUserId, onReact, onComment, onDelete, onEdit, nameMap = {} }: Props) {
+export default function FeedCard({ entry, currentUserId, onReact, onComment, onDelete, onEdit, onDeleteComment, nameMap = {} }: Props) {
   const [showComments, setShowComments] = useState(false)
   const [showNutrients, setShowNutrients] = useState(false)
   const [commentText, setCommentText] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [replyTo, setReplyTo] = useState<{ id: string; name: string } | null>(null)
+  const [menuComment, setMenuComment] = useState<Comment | null>(null)
+  const [deletingCommentId, setDeletingCommentId] = useState<string | null>(null)
+  const commentInputRef = useRef<HTMLInputElement>(null)
+  const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -188,9 +194,81 @@ export default function FeedCard({ entry, currentUserId, onReact, onComment, onD
     e.preventDefault()
     if (!commentText.trim() || submitting) return
     setSubmitting(true)
-    await onComment(entry.id, commentText.trim())
+    await onComment(entry.id, commentText.trim(), replyTo?.id)
     setCommentText('')
+    setReplyTo(null)
     setSubmitting(false)
+  }
+
+  function startReply(c: Comment) {
+    // Reply always threads under the top-level comment.
+    const rootId = c.parent_id ?? c.id
+    setReplyTo({ id: rootId, name: c.profile?.display_name ?? 'User' })
+    setMenuComment(null)
+    setTimeout(() => commentInputRef.current?.focus(), 0)
+  }
+
+  async function deleteComment(c: Comment) {
+    if (!onDeleteComment) return
+    setDeletingCommentId(c.id)
+    try {
+      await onDeleteComment(entry.id, c.id)
+    } finally {
+      setDeletingCommentId(null)
+      setMenuComment(null)
+    }
+  }
+
+  // Long-press (touch) / right-click (desktop) opens the comment action sheet.
+  function pressStart(c: Comment) {
+    pressTimer.current = setTimeout(() => setMenuComment(c), 450)
+  }
+  function pressEnd() {
+    if (pressTimer.current) { clearTimeout(pressTimer.current); pressTimer.current = null }
+  }
+
+  // Thread comments: top-level + replies grouped under their parent.
+  const topLevelComments = entry.comments.filter(c => !c.parent_id)
+  const repliesByParent = entry.comments.reduce((acc, c) => {
+    if (c.parent_id) (acc[c.parent_id] ??= []).push(c)
+    return acc
+  }, {} as Record<string, typeof entry.comments>)
+
+  function renderComment(c: Comment, isReply: boolean) {
+    const isOwnComment = c.user_id === currentUserId
+    return (
+      <div key={c.id} className={`flex gap-2.5 items-start ${isReply ? 'ml-10' : ''} ${deletingCommentId === c.id ? 'opacity-40' : ''}`}>
+        <div className={`${isReply ? 'w-7 h-7' : 'w-8 h-8'} rounded-full bg-gradient-to-br from-emerald-700 to-emerald-900 flex items-center justify-center text-xs font-bold text-white shrink-0 overflow-hidden`}>
+          {c.profile?.avatar_url
+            ? <img src={c.profile.avatar_url} alt="" className="w-full h-full object-cover" />
+            : (c.profile?.display_name?.[0]?.toUpperCase() ?? '?')}
+        </div>
+        <div
+          className="flex-1 min-w-0"
+          onContextMenu={e => { e.preventDefault(); setMenuComment(c) }}
+          onTouchStart={() => pressStart(c)}
+          onTouchEnd={pressEnd}
+          onTouchMove={pressEnd}
+          onMouseDown={() => pressStart(c)}
+          onMouseUp={pressEnd}
+          onMouseLeave={pressEnd}
+        >
+          <p className="text-sm leading-snug select-none">
+            <span className="text-white font-semibold mr-1.5">{c.profile?.display_name ?? 'User'}</span>
+            <span className="text-stone-200">{c.text}</span>
+          </p>
+          <div className="flex items-center gap-3 mt-0.5">
+            <span className="text-stone-400 text-xs">{shortAgo(c.created_at)}</span>
+            <button onClick={() => startReply(c)} className="text-stone-400 hover:text-stone-200 text-xs font-medium">Reply</button>
+            {isOwnComment && onDeleteComment && (
+              <button onClick={() => deleteComment(c)} disabled={deletingCommentId === c.id} className="text-stone-500 hover:text-red-300 text-xs">
+                {deletingCommentId === c.id ? '…' : 'Delete'}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -530,27 +608,29 @@ export default function FeedCard({ entry, currentUserId, onReact, onComment, onD
             {entry.comments.length === 0 && (
               <p className="text-stone-400 text-xs text-center py-1">No comments yet — be first!</p>
             )}
-            {entry.comments.map(c => (
-              <div key={c.id} className="flex gap-2.5 items-start">
-                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-700 to-emerald-900 flex items-center justify-center text-xs font-bold text-white shrink-0 overflow-hidden">
-                  {c.profile?.avatar_url
-                    ? <img src={c.profile.avatar_url} alt="" className="w-full h-full object-cover" />
-                    : (c.profile?.display_name?.[0]?.toUpperCase() ?? '?')}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm leading-snug">
-                    <span className="text-white font-semibold mr-1.5">{c.profile?.display_name ?? 'User'}</span>
-                    <span className="text-stone-200">{c.text}</span>
-                  </p>
-                  <p className="text-stone-400 text-xs mt-0.5">{shortAgo(c.created_at)}</p>
-                </div>
+            {topLevelComments.map(c => (
+              <div key={c.id} className="space-y-2.5">
+                {renderComment(c, false)}
+                {(repliesByParent[c.id] ?? []).map(r => renderComment(r, true))}
               </div>
             ))}
+
+            {/* Replying-to chip */}
+            {replyTo && (
+              <div className="flex items-center justify-between bg-stone-800/70 rounded-lg px-3 py-1.5">
+                <span className="text-stone-300 text-xs">Replying to <span className="text-white font-medium">{replyTo.name}</span></span>
+                <button onClick={() => setReplyTo(null)} aria-label="Cancel reply" className="text-stone-400 hover:text-white p-1 -mr-1">
+                  <X size={14} />
+                </button>
+              </div>
+            )}
+
             <form onSubmit={submitComment} className="flex gap-2 pt-1">
               <input
+                ref={commentInputRef}
                 value={commentText}
                 onChange={e => setCommentText(e.target.value.slice(0, 280))}
-                placeholder="Add a comment…"
+                placeholder={replyTo ? `Reply to ${replyTo.name}…` : 'Add a comment…'}
                 className="flex-1 bg-stone-800 border border-stone-700 rounded-full px-4 py-2.5 text-white text-sm placeholder-stone-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
               />
               <button
@@ -613,6 +693,36 @@ export default function FeedCard({ entry, currentUserId, onReact, onComment, onD
 
       {showProfile && (
         <MiniProfileModal userId={entry.user_id} name={entry.profile.display_name} onClose={() => setShowProfile(false)} />
+      )}
+
+      {/* Long-press comment action sheet */}
+      {menuComment && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-end justify-center" onClick={() => setMenuComment(null)}>
+          <div className="w-full max-w-md bg-stone-900 border-t border-stone-700 rounded-t-3xl overflow-hidden mb-0" onClick={e => e.stopPropagation()}>
+            <p className="text-stone-400 text-xs text-center pt-3 px-4 truncate">“{menuComment.text}”</p>
+            <button
+              onClick={() => startReply(menuComment)}
+              className="w-full py-4 text-white text-sm font-medium hover:bg-stone-800 transition-colors"
+            >
+              Reply
+            </button>
+            {menuComment.user_id === currentUserId && onDeleteComment && (
+              <button
+                onClick={() => deleteComment(menuComment)}
+                disabled={deletingCommentId === menuComment.id}
+                className="w-full py-4 text-red-400 text-sm font-semibold border-t border-stone-800 hover:bg-stone-800 transition-colors disabled:opacity-50"
+              >
+                {deletingCommentId === menuComment.id ? 'Deleting…' : 'Delete'}
+              </button>
+            )}
+            <button
+              onClick={() => setMenuComment(null)}
+              className="w-full py-4 text-stone-300 text-sm border-t border-stone-800 hover:bg-stone-800 transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
       )}
     </>
   )

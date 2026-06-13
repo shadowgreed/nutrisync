@@ -113,6 +113,7 @@ export interface Comment {
   food_log_id: string
   text: string
   created_at: string
+  parent_id?: string | null
   profile: Profile
 }
 
@@ -143,7 +144,7 @@ export interface ActivityLog {
   logged_at: string
 }
 
-export type NotificationType = 'reaction' | 'comment' | 'challenge' | 'group_join' | 'meal' | 'weekly_report' | 'cheer' | 'join_request'
+export type NotificationType = 'reaction' | 'comment' | 'challenge' | 'group_join' | 'meal' | 'weekly_report' | 'cheer' | 'join_request' | 'reply'
 
 export interface AppNotification {
   id: string

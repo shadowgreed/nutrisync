@@ -11,8 +11,8 @@ export default function SplashScreen() {
   const [phase, setPhase] = useState<'show' | 'fading' | 'done'>('show')
 
   useEffect(() => {
-    const t1 = setTimeout(() => setPhase('fading'), 1500)
-    const t2 = setTimeout(() => setPhase('done'), 2050)
+    const t1 = setTimeout(() => setPhase('fading'), 3500)
+    const t2 = setTimeout(() => setPhase('done'), 4050)
     return () => { clearTimeout(t1); clearTimeout(t2) }
   }, [])
 
@@ -34,11 +34,11 @@ export default function SplashScreen() {
               not per-path. Edge moves from bottom-left (2,22) to top-right (22,2). */}
           <linearGradient id="ns-leaf-reveal" gradientUnits="userSpaceOnUse" x1="2" y1="22" x2="22" y2="2">
             <stop offset="0" stopColor="#ffffff" stopOpacity="1">
-              <animate attributeName="offset" values="0;1.05" dur="1.2s" begin="0.2s" fill="freeze"
+              <animate attributeName="offset" values="0;1.05" dur="3.2s" begin="0.2s" fill="freeze"
                 calcMode="spline" keyTimes="0;1" keySplines="0.4 0 0.2 1" />
             </stop>
             <stop offset="0" stopColor="#ffffff" stopOpacity="0">
-              <animate attributeName="offset" values="0;1.05" dur="1.2s" begin="0.2s" fill="freeze"
+              <animate attributeName="offset" values="0;1.05" dur="3.2s" begin="0.2s" fill="freeze"
                 calcMode="spline" keyTimes="0;1" keySplines="0.4 0 0.2 1" />
             </stop>
           </linearGradient>

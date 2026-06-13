@@ -10,17 +10,21 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { foodLogId, kind } = await req.json() as { foodLogId: string; kind: 'reaction' | 'comment' }
+  const { foodLogId, kind, targetUserId } = await req.json() as {
+    foodLogId: string; kind: 'reaction' | 'comment' | 'reply'; targetUserId?: string
+  }
   if (!foodLogId) return NextResponse.json({ error: 'Missing foodLogId' }, { status: 400 })
 
-  const { data: log } = await supabase
-    .from('food_logs')
-    .select('user_id')
-    .eq('id', foodLogId)
-    .single()
-
-  const owner = log?.user_id as string | undefined
-  if (!owner || owner === user.id) return NextResponse.json({ ok: true, skipped: true })
+  // Replies push the parent comment's author (passed by the client); reactions
+  // and top-level comments push the meal owner.
+  let recipient: string | undefined
+  if (kind === 'reply') {
+    recipient = targetUserId
+  } else {
+    const { data: log } = await supabase.from('food_logs').select('user_id').eq('id', foodLogId).single()
+    recipient = log?.user_id as string | undefined
+  }
+  if (!recipient || recipient === user.id) return NextResponse.json({ ok: true, skipped: true })
 
   const { data: actor } = await supabase
     .from('profiles')
@@ -29,9 +33,16 @@ export async function POST(req: NextRequest) {
     .single()
   const who = actor?.display_name ?? 'Someone'
 
-  await sendPushToUser(supabase, owner, {
+  const body =
+    kind === 'reply' ? `${who} replied to your comment`
+    : kind === 'comment' ? `${who} commented on your meal`
+    : `${who} reacted to your meal`
+
+  // sendPushToUser is group-gated server-side, so targetUserId can't be abused
+  // to push a stranger.
+  await sendPushToUser(supabase, recipient, {
     title: 'NutriSync',
-    body: kind === 'comment' ? `${who} commented on your meal` : `${who} reacted to your meal`,
+    body,
     url: '/feed',
     tag: `${kind}-${foodLogId}`,
   })
