@@ -45,11 +45,15 @@ export async function POST(req: NextRequest) {
     const { data: actor } = await supabase
       .from('profiles').select('display_name').eq('id', user.id).single()
     const who = actor?.display_name ?? 'A group member'
+    const { count: unread } = await admin
+      .from('notifications').select('id', { count: 'exact', head: true })
+      .eq('user_id', userId).eq('read', false)
     await sendPushToUser(supabase, userId, {
       title: '👏 Cheer received',
       body: `${who} cheered you on — keep it up!`,
       url: '/notifications',
       tag: `cheer-${user.id}`,
+      count: unread ?? undefined,
     })
   } catch { /* ignore */ }
 

@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { ArrowLeft, Bell } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { setAppBadge } from '@/lib/badge'
 import { BottomNav } from '../dashboard/DashboardClient'
 import PushToggle from '@/components/PushToggle'
 import ReminderSettings from '@/components/ReminderSettings'
@@ -53,8 +54,10 @@ function message(n: AppNotification): string {
 export default function NotificationsClient({ initial }: { initial: AppNotification[] }) {
   const [items] = useState<AppNotification[]>(initial)
 
-  // Mark everything read when the page opens (clears the bell badge on return).
+  // Mark everything read when the page opens (clears the bell badge + app-icon
+  // badge on return).
   useEffect(() => {
+    setAppBadge(0)
     const unreadIds = initial.filter(n => !n.read).map(n => n.id)
     if (unreadIds.length === 0) return
     const supabase = createClient()

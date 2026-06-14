@@ -61,11 +61,15 @@ export async function GET(req: NextRequest) {
       .from('push_subscriptions').select('subscription').eq('user_id', p.id)
     if (subRows && subRows.length) {
       const subs = subRows.map(r => r.subscription) as webpush.PushSubscription[]
+      const { count: unread } = await supabase
+        .from('notifications').select('id', { count: 'exact', head: true })
+        .eq('user_id', p.id).eq('read', false)
       sent += await sendPushToSubscriptions(subs, {
         title: '📊 Your weekly report',
         body: 'See how your nutrition & activity went this week.',
         url: '/weekly',
         tag: 'weekly-report',
+        count: unread ?? undefined,
       })
     }
 

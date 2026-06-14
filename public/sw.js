@@ -12,7 +12,19 @@ self.addEventListener('push', (event) => {
     data: { url: data.url || '/notifications' },
     tag: data.tag || undefined,
   }
-  event.waitUntil(self.registration.showNotification(title, options))
+
+  const tasks = [self.registration.showNotification(title, options)]
+
+  // App-icon badge (the red unread count) — works even when the app is closed.
+  if (typeof data.count === 'number' && self.navigator && self.navigator.setAppBadge) {
+    tasks.push(
+      data.count > 0
+        ? self.navigator.setAppBadge(data.count)
+        : (self.navigator.clearAppBadge ? self.navigator.clearAppBadge() : Promise.resolve()),
+    )
+  }
+
+  event.waitUntil(Promise.all(tasks))
 })
 
 self.addEventListener('notificationclick', (event) => {

@@ -1,6 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { sendPushToUser } from '@/lib/push'
+
+// Recipient's unread notification count, for the app-icon badge. Best-effort.
+async function unreadCount(userId: string): Promise<number | undefined> {
+  try {
+    const admin = createAdminClient()
+    const { count } = await admin
+      .from('notifications').select('id', { count: 'exact', head: true })
+      .eq('user_id', userId).eq('read', false)
+    return count ?? undefined
+  } catch {
+    return undefined
+  }
+}
 
 // Sends a web-push to the owner of a food log after someone reacts/comments.
 // The in-app notification row is created separately by a DB trigger; this only
@@ -45,6 +59,7 @@ export async function POST(req: NextRequest) {
     body,
     url: '/feed',
     tag: `${kind}-${foodLogId}`,
+    count: await unreadCount(recipient),
   })
 
   return NextResponse.json({ ok: true })

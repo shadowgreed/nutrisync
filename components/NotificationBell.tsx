@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { Bell } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { setAppBadge } from '@/lib/badge'
 
 /**
  * Bell icon with a live unread-count badge. Fetches the initial count and then
@@ -12,6 +13,9 @@ import { createClient } from '@/lib/supabase/client'
  */
 export default function NotificationBell() {
   const [count, setCount] = useState(0)
+
+  // Keep the installed-app icon badge in sync with the unread count while open.
+  useEffect(() => { setAppBadge(count) }, [count])
 
   useEffect(() => {
     const supabase = createClient()

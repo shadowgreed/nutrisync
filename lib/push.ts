@@ -18,6 +18,7 @@ export interface PushPayload {
   body: string
   url?: string
   tag?: string
+  count?: number // recipient's unread count, for the app-icon badge
 }
 
 /** Send to an explicit list of subscriptions (used by the server-side cron, which
