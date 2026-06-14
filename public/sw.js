@@ -1,5 +1,11 @@
 // NutriSync service worker — handles incoming web-push notifications.
 
+// Activate a newly deployed service worker immediately instead of waiting for
+// every tab to close — otherwise code changes here (like the app badge) never
+// take effect for already-installed users.
+self.addEventListener('install', () => self.skipWaiting())
+self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim()))
+
 self.addEventListener('push', (event) => {
   let data = {}
   try { data = event.data ? event.data.json() : {} } catch (e) { data = {} }
