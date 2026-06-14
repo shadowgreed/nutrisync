@@ -25,7 +25,9 @@ export async function proxy(request: NextRequest) {
 
   const { pathname } = request.nextUrl
   // /api/cron does its own CRON_SECRET auth and is called without a user session.
+  // Legal/about pages are public so they can be shared and linked (e.g. app stores).
   const isPublic = pathname.startsWith('/login') || pathname.startsWith('/auth') || pathname.startsWith('/api/cron')
+    || pathname === '/privacy' || pathname === '/terms' || pathname === '/about'
 
   if (!user && !isPublic) {
     return NextResponse.redirect(new URL('/login', request.url))

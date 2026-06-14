@@ -1,8 +1,9 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Save, LogOut, Trash2 } from 'lucide-react'
+import { ArrowLeft, Save, LogOut, Trash2, Info, Shield, FileText, ChevronRight } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import AvatarUpload from '@/components/AvatarUpload'
 import {
@@ -401,7 +402,7 @@ export default function EditProfileClient({ profile }: Props) {
         {/* Account */}
         <div>
           <p className="text-stone-400 text-xs uppercase tracking-wider mb-3">Account</p>
-          <div className="bg-stone-900 border border-stone-800 rounded-2xl divide-y divide-stone-800">
+          <div className="bg-stone-900 border border-stone-800 rounded-2xl">
             <button
               type="button"
               onClick={signOut}
@@ -409,6 +410,25 @@ export default function EditProfileClient({ profile }: Props) {
             >
               <LogOut size={16} aria-hidden="true" /> Sign out
             </button>
+          </div>
+        </div>
+
+        {/* Help — legal docs, about, and account deletion */}
+        <div>
+          <p className="text-stone-400 text-xs uppercase tracking-wider mb-3">Help</p>
+          <div className="bg-stone-900 border border-stone-800 rounded-2xl divide-y divide-stone-800">
+            <Link href="/about" className="flex items-center gap-2.5 px-4 py-3.5 text-stone-300 hover:text-white text-sm font-medium transition-colors">
+              <Info size={16} aria-hidden="true" /> About us
+              <ChevronRight size={16} className="ml-auto text-stone-500" aria-hidden="true" />
+            </Link>
+            <Link href="/privacy" className="flex items-center gap-2.5 px-4 py-3.5 text-stone-300 hover:text-white text-sm font-medium transition-colors">
+              <Shield size={16} aria-hidden="true" /> Privacy Policy
+              <ChevronRight size={16} className="ml-auto text-stone-500" aria-hidden="true" />
+            </Link>
+            <Link href="/terms" className="flex items-center gap-2.5 px-4 py-3.5 text-stone-300 hover:text-white text-sm font-medium transition-colors">
+              <FileText size={16} aria-hidden="true" /> Terms of Service
+              <ChevronRight size={16} className="ml-auto text-stone-500" aria-hidden="true" />
+            </Link>
 
             {confirmDelete ? (
               <div className="px-4 py-3.5 space-y-3">
