@@ -61,3 +61,6 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .splash-leaf, .splash-word { animation-duration: 0.3s; }
 }
+
+/* Weekly report — story-style auto-advancing progress bar */
+@keyframes story-progress { from { width: 0%; } to { width: 100%; } }
