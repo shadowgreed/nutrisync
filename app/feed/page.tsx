@@ -55,7 +55,6 @@ export default async function FeedPage() {
       .from('activity_logs')
       .select('id, user_id, activity_name, duration_minutes, distance_km, steps, calories_burned, logged_at')
       .in('user_id', memberUserIds)
-      .neq('source', 'apple_health') // auto-synced wearable data isn't auto-posted to the feed
       .gte('logged_at', since)
       .order('logged_at', { ascending: false }),
   ])

@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { Settings, Flame, Utensils, TrendingUp, Users, Copy, Check, LogOut, Camera, Loader2, UserPlus, X, Pencil, Watch, ChevronRight } from 'lucide-react'
+import { Settings, Flame, Utensils, TrendingUp, Users, Copy, Check, LogOut, Camera, Loader2, UserPlus, X, Pencil } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import AvatarUpload from '@/components/AvatarUpload'
 import { BottomNav } from '../dashboard/DashboardClient'
@@ -461,21 +461,6 @@ export default function ProfileClient({ profile, email, logs, activities, group,
             </div>
           </div>
         )}
-      </div>
-
-      {/* Devices */}
-      <div className="px-4 mb-4">
-        <p className="text-stone-400 text-xs uppercase tracking-wider mb-3">Devices</p>
-        <Link href="/connect" className="flex items-center gap-3 bg-stone-900 border border-stone-800 rounded-2xl p-4 hover:border-stone-700 transition-colors">
-          <div className="w-10 h-10 rounded-xl bg-emerald-900/50 border border-emerald-800/50 flex items-center justify-center shrink-0">
-            <Watch size={18} className="text-emerald-400" aria-hidden="true" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-white font-semibold text-sm">Connect Apple Watch</p>
-            <p className="text-stone-400 text-xs">Auto-import steps & activity</p>
-          </div>
-          <ChevronRight size={18} className="text-stone-500 shrink-0" aria-hidden="true" />
-        </Link>
       </div>
 
       {/* Tabs */}
