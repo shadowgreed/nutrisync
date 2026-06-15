@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import {
@@ -20,13 +20,23 @@ const GOAL_DESC: Record<Goal, string> = {
 }
 const ACTIVITY_LEVELS: ActivityLevel[] = ['sedentary', 'light', 'moderate', 'active', 'very_active']
 
-const TOTAL_STEPS = 5
+// Feature highlights shown on the welcome screen.
+const FEATURES = [
+  { emoji: '📸', title: 'Snap a photo', desc: 'Our AI reads the calories, macros & 10 key micronutrients — no barcodes, no searching.' },
+  { emoji: '🎯', title: 'Spend a calorie budget', desc: 'See exactly how much you have left for the day as you eat and move.' },
+  { emoji: '👥', title: 'Eat with friends', desc: 'A private group feed with hearts, comments and milestone confetti. Accountability that’s actually fun.' },
+  { emoji: '✨', title: 'Get your weekly wrap', desc: 'Every Sunday, a recap of your week — streaks, wins and where to nudge.' },
+]
+
+// The data-collection steps that the progress bar tracks (welcome & reveal sit outside it).
+const FORM_STEPS = 5
 
 export default function OnboardingPage() {
   const router = useRouter()
   const supabase = createClient()
 
-  const [step, setStep] = useState(1)
+  // step 0 = welcome, 1..5 = form, 6 = plan reveal
+  const [step, setStep] = useState(0)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -61,12 +71,8 @@ export default function OnboardingPage() {
     if (raw !== '' && Number.isFinite(n) && n > 0) setWaterTargetMl(ozToMl(n))
   }
 
-  async function finish() {
-    setSaving(true)
-    setError('')
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { router.push('/login'); return }
-
+  // Single source of truth for the calorie maths — used by both the reveal and finish().
+  const plan = useMemo(() => {
     const age = birthYear ? new Date().getFullYear() - Number(birthYear) : 30
     const w = useMetric
       ? (Number(weightKg) || 70)
@@ -76,24 +82,30 @@ export default function OnboardingPage() {
       : (heightFt ? ftInToCm(Number(heightFt), Number(heightIn) || 0) : 170)
     const bmr = calculateBMR(w, h, age, sex)
     const tdee = calculateTDEE(bmr, activityLevel)
-    // Pick a single "primary" goal for the calorie maths from the selected set.
     const primaryGoal: Goal =
       (['lose_weight', 'build_muscle', 'maintain', 'improve_health'] as Goal[])
         .find(g => goals.includes(g)) ?? 'improve_health'
     const calorieTarget = calculateCalorieTarget(tdee, primaryGoal)
-
     const hasWeight = useMetric ? !!weightKg : !!weightLbs
     const hasHeight = useMetric ? !!heightCm : !!heightFt
+    return { w, h, primaryGoal, calorieTarget, hasWeight, hasHeight }
+  }, [birthYear, useMetric, weightKg, weightLbs, heightCm, heightFt, heightIn, sex, activityLevel, goals])
+
+  async function finish() {
+    setSaving(true)
+    setError('')
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { router.push('/login'); return }
 
     const baseUpdate = {
       display_name:   displayName.trim() || user.email?.split('@')[0],
-      weight_kg:      hasWeight ? w : null,
-      height_cm:      hasHeight ? h : null,
+      weight_kg:      plan.hasWeight ? plan.w : null,
+      height_cm:      plan.hasHeight ? plan.h : null,
       birth_year:     birthYear ? Number(birthYear) : null,
       biological_sex: sex,
-      goal:           primaryGoal,
+      goal:           plan.primaryGoal,
       activity_level: activityLevel,
-      calorie_target: calorieTarget,
+      calorie_target: plan.calorieTarget,
       onboarding_done: true,
       water_bottle_ml: waterBottleMl,
       water_daily_target_ml: waterTargetMl,
@@ -102,7 +114,7 @@ export default function OnboardingPage() {
     // Try saving the multi-goal array; if migration 012 (goals column) isn't applied
     // yet, retry without it so onboarding still completes.
     let { error: err } = await supabase.from('profiles')
-      .update({ ...baseUpdate, goals: goals.length ? goals : [primaryGoal] })
+      .update({ ...baseUpdate, goals: goals.length ? goals : [plan.primaryGoal] })
       .eq('id', user.id)
     if (err && (err.code === 'PGRST204' || /goals/.test(err.message))) {
       ;({ error: err } = await supabase.from('profiles').update(baseUpdate).eq('id', user.id))
@@ -112,11 +124,11 @@ export default function OnboardingPage() {
     router.push('/dashboard')
   }
 
-  const progress = (step / TOTAL_STEPS) * 100
+  const progress = step === 0 ? 0 : Math.min(step, FORM_STEPS) / FORM_STEPS * 100
 
   return (
     <div className="min-h-screen bg-stone-950 flex flex-col">
-      {/* Progress bar */}
+      {/* Progress bar (hidden on welcome) */}
       <div className="h-1 bg-stone-800">
         <div
           className="h-full bg-emerald-500 transition-all duration-500"
@@ -127,18 +139,55 @@ export default function OnboardingPage() {
       <div className="flex-1 flex flex-col items-center justify-center p-6">
         <div className="w-full max-w-sm">
 
-          {/* Step indicator */}
-          <p className="text-stone-400 text-sm text-center mb-8">
-            Step {step} of {TOTAL_STEPS}
-          </p>
+          {/* Step indicator (only during the form) */}
+          {step >= 1 && step <= FORM_STEPS && (
+            <p className="text-stone-400 text-sm text-center mb-8">
+              Step {step} of {FORM_STEPS}
+            </p>
+          )}
+
+          {/* ── Step 0: Welcome ── */}
+          {step === 0 && (
+            <div className="space-y-7 animate-fadeIn">
+              <div className="text-center">
+                <div className="text-6xl mb-4" aria-hidden="true">🌿</div>
+                <h1 className="text-white text-3xl font-bold leading-tight">Welcome to NutriSync</h1>
+                <p className="text-stone-400 text-base mt-3">
+                  Nutrition tracking that doesn&apos;t feel like homework. Here&apos;s what you&apos;re getting into:
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                {FEATURES.map(f => (
+                  <div key={f.title} className="flex gap-3.5 items-start bg-stone-900 border border-stone-800 rounded-2xl p-4">
+                    <span className="text-2xl shrink-0" aria-hidden="true">{f.emoji}</span>
+                    <div className="min-w-0">
+                      <p className="text-white font-semibold text-sm">{f.title}</p>
+                      <p className="text-stone-400 text-xs mt-0.5 leading-relaxed">{f.desc}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="space-y-2">
+                <button
+                  onClick={() => setStep(1)}
+                  className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-4 rounded-2xl transition-colors text-lg"
+                >
+                  Let&apos;s set you up →
+                </button>
+                <p className="text-stone-500 text-xs text-center">Takes about a minute. No wrong answers.</p>
+              </div>
+            </div>
+          )}
 
           {/* ── Step 1: Name ── */}
           {step === 1 && (
             <div className="space-y-6 animate-fadeIn">
               <div className="text-center">
-                <div className="text-5xl mb-4">👋</div>
-                <h1 className="text-white text-2xl font-bold">What should we call you?</h1>
-                <p className="text-stone-400 text-sm mt-2">This is what your group will see</p>
+                <div className="text-5xl mb-4" aria-hidden="true">👋</div>
+                <h1 className="text-white text-2xl font-bold">First things first — what should we call you?</h1>
+                <p className="text-stone-400 text-sm mt-2">This is the name your group will see on the feed.</p>
               </div>
               <input
                 type="text"
@@ -148,13 +197,18 @@ export default function OnboardingPage() {
                 autoFocus
                 className="w-full bg-stone-900 border border-stone-700 rounded-2xl px-4 py-4 text-white text-lg text-center placeholder-stone-600 focus:outline-none focus:ring-2 focus:ring-emerald-500"
               />
-              <button
-                onClick={() => setStep(2)}
-                disabled={!displayName.trim()}
-                className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white font-semibold py-4 rounded-2xl transition-colors text-lg"
-              >
-                Continue →
-              </button>
+              <div className="flex gap-3">
+                <button onClick={() => setStep(0)} className="flex-1 bg-stone-800 hover:bg-stone-700 text-stone-300 font-semibold py-4 rounded-2xl transition-colors">
+                  ← Back
+                </button>
+                <button
+                  onClick={() => setStep(2)}
+                  disabled={!displayName.trim()}
+                  className="flex-1 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white font-semibold py-4 rounded-2xl transition-colors"
+                >
+                  Continue →
+                </button>
+              </div>
             </div>
           )}
 
@@ -162,9 +216,9 @@ export default function OnboardingPage() {
           {step === 2 && (
             <div className="space-y-5 animate-fadeIn">
               <div className="text-center">
-                <div className="text-5xl mb-4">📏</div>
-                <h1 className="text-white text-2xl font-bold">Your body stats</h1>
-                <p className="text-stone-400 text-sm mt-2">Used to calculate your calorie targets — optional</p>
+                <div className="text-5xl mb-4" aria-hidden="true">📏</div>
+                <h1 className="text-white text-2xl font-bold">A few numbers</h1>
+                <p className="text-stone-400 text-sm mt-2">These power your personal calorie budget. Skip anything you&apos;d rather not share — we&apos;ll fill in sensible defaults.</p>
               </div>
 
               {/* Unit toggle */}
@@ -298,8 +352,8 @@ export default function OnboardingPage() {
             <div className="space-y-5 animate-fadeIn">
               <div className="text-center">
                 <div className="text-5xl mb-4" aria-hidden="true">🎯</div>
-                <h1 className="text-white text-2xl font-bold">What are your goals?</h1>
-                <p className="text-stone-400 text-sm mt-2">Pick all that apply — we&apos;ll tailor your plan</p>
+                <h1 className="text-white text-2xl font-bold">What are you here for?</h1>
+                <p className="text-stone-400 text-sm mt-2">Pick all that apply — we&apos;ll tune your numbers around it.</p>
               </div>
 
               <div className="space-y-2">
@@ -350,9 +404,9 @@ export default function OnboardingPage() {
           {step === 4 && (
             <div className="space-y-5 animate-fadeIn">
               <div className="text-center">
-                <div className="text-5xl mb-4">🏃</div>
-                <h1 className="text-white text-2xl font-bold">How active are you?</h1>
-                <p className="text-stone-400 text-sm mt-2">Sets your baseline calorie burn</p>
+                <div className="text-5xl mb-4" aria-hidden="true">🏃</div>
+                <h1 className="text-white text-2xl font-bold">How active is a normal week?</h1>
+                <p className="text-stone-400 text-sm mt-2">This sets your baseline burn. You can still log workouts on top.</p>
               </div>
 
               <div className="space-y-2">
@@ -370,7 +424,7 @@ export default function OnboardingPage() {
                       <span className={`font-medium capitalize ${activityLevel === level ? 'text-white' : 'text-stone-300'}`}>
                         {level.replace('_', ' ')}
                       </span>
-                      {activityLevel === level && <span className="text-emerald-400">✓</span>}
+                      {activityLevel === level && <span className="text-emerald-400" aria-hidden="true">✓</span>}
                     </div>
                     <p className="text-stone-400 text-xs mt-0.5">{ACTIVITY_LABELS[level]}</p>
                   </button>
@@ -395,9 +449,9 @@ export default function OnboardingPage() {
           {step === 5 && (
             <div className="space-y-5 animate-fadeIn">
               <div className="text-center">
-                <div className="text-5xl mb-4">💧</div>
-                <h1 className="text-white text-2xl font-bold">Stay hydrated</h1>
-                <p className="text-stone-400 text-sm mt-2">We'll remind you to drink throughout the day</p>
+                <div className="text-5xl mb-4" aria-hidden="true">💧</div>
+                <h1 className="text-white text-2xl font-bold">Last one — hydration</h1>
+                <p className="text-stone-400 text-sm mt-2">Tell us your go-to bottle and we&apos;ll nudge you through the day.</p>
               </div>
 
               {/* Bottle size */}
@@ -470,18 +524,67 @@ export default function OnboardingPage() {
                 <span className="text-sky-400 font-bold">{mlToOz(waterTargetMl)} oz</span>
               </div>
 
-              {error && <p className="text-red-400 text-sm text-center">{error}</p>}
-
               <div className="flex gap-3">
                 <button onClick={() => setStep(4)} className="flex-1 bg-stone-800 hover:bg-stone-700 text-stone-300 font-semibold py-4 rounded-2xl transition-colors">
                   ← Back
                 </button>
                 <button
+                  onClick={() => setStep(6)}
+                  className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-4 rounded-2xl transition-colors"
+                >
+                  See my plan →
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ── Step 6: Plan reveal ── */}
+          {step === 6 && (
+            <div className="space-y-6 animate-fadeIn">
+              <div className="text-center">
+                <div className="text-5xl mb-4" aria-hidden="true">🎉</div>
+                <h1 className="text-white text-2xl font-bold">
+                  You&apos;re all set{displayName.trim() ? `, ${displayName.trim()}` : ''}!
+                </h1>
+                <p className="text-stone-400 text-sm mt-2">Here&apos;s your starting point — tweak it any time in your profile.</p>
+              </div>
+
+              {/* Calorie budget hero */}
+              <div className="bg-gradient-to-br from-emerald-900/40 to-stone-900 border border-emerald-800/40 rounded-3xl p-6 text-center">
+                <p className="text-emerald-300/80 text-xs uppercase tracking-wider">Your daily calorie budget</p>
+                <p className="text-white text-5xl font-bold tabular-nums mt-1">{plan.calorieTarget.toLocaleString()}</p>
+                <p className="text-stone-400 text-sm mt-1">kcal · tuned for {GOAL_LABELS[plan.primaryGoal].toLowerCase()}</p>
+              </div>
+
+              {/* What happens next */}
+              <div className="space-y-2.5">
+                <p className="text-stone-400 text-xs uppercase tracking-wider">What to do first</p>
+                <div className="flex gap-3 items-start">
+                  <span className="text-xl shrink-0" aria-hidden="true">📸</span>
+                  <p className="text-stone-300 text-sm">Log your next meal with a photo — watch your micronutrients fill up.</p>
+                </div>
+                <div className="flex gap-3 items-start">
+                  <span className="text-xl shrink-0" aria-hidden="true">👥</span>
+                  <p className="text-stone-300 text-sm">Join or start a group so the feed has friends in it.</p>
+                </div>
+                <div className="flex gap-3 items-start">
+                  <span className="text-xl shrink-0" aria-hidden="true">🔔</span>
+                  <p className="text-stone-300 text-sm">Turn on reminders so a busy day never breaks your streak.</p>
+                </div>
+              </div>
+
+              {error && <p className="text-red-400 text-sm text-center">{error}</p>}
+
+              <div className="flex gap-3">
+                <button onClick={() => setStep(5)} disabled={saving} className="flex-1 bg-stone-800 hover:bg-stone-700 disabled:opacity-50 text-stone-300 font-semibold py-4 rounded-2xl transition-colors">
+                  ← Back
+                </button>
+                <button
                   onClick={finish}
                   disabled={saving}
-                  className="flex-1 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-semibold py-4 rounded-2xl transition-colors"
+                  className="flex-[2] bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-semibold py-4 rounded-2xl transition-colors text-lg"
                 >
-                  {saving ? 'Saving…' : "Let's go! 🚀"}
+                  {saving ? 'Saving…' : 'Enter NutriSync 🚀'}
                 </button>
               </div>
             </div>
