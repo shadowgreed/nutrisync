@@ -29,5 +29,30 @@ export async function POST(req: NextRequest) {
   // Keep the profile's current weight in sync
   await supabase.from('profiles').update({ weight_kg: w }).eq('id', user.id)
 
+  // Goal-weight milestone — celebrate crossing a 25% increment toward the goal.
+  try {
+    const { data: profile } = await supabase
+      .from('profiles').select('target_weight_kg').eq('id', user.id).single()
+    const targetKg = profile?.target_weight_kg as number | null
+    const { data: firstRow } = await supabase
+      .from('weight_logs').select('weight_kg').eq('user_id', user.id)
+      .order('logged_at', { ascending: true }).limit(1).single()
+    const startKg = firstRow?.weight_kg as number | undefined
+    if (targetKg != null && startKg != null && Math.abs(startKg - targetKg) > 0.05) {
+      const total = Math.abs(startKg - targetKg)
+      const progressed = startKg > targetKg ? startKg - w : w - startKg
+      const pct = Math.max(0, Math.min(100, Math.round((progressed / total) * 100)))
+      const milestone = Math.floor(pct / 25) * 25 // 0,25,50,75,100
+      if (milestone >= 25) {
+        await supabase.from('milestones').upsert(
+          { user_id: user.id, type: 'goal_weight', key: `goal-${milestone}`, data: { pct: milestone } },
+          { onConflict: 'user_id,type,key', ignoreDuplicates: true },
+        )
+      }
+    }
+  } catch (e) {
+    console.warn('goal milestone check failed (non-fatal):', e)
+  }
+
   return NextResponse.json({ log: data })
 }

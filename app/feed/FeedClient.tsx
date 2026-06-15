@@ -1,17 +1,21 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { Trophy, Users } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { Trophy, Users, ArrowUp } from 'lucide-react'
 import FeedCard from '@/components/FeedCard'
 import ActivityCard from '@/components/ActivityCard'
+import MilestoneCard from '@/components/MilestoneCard'
 import NotificationBell from '@/components/NotificationBell'
+import { createClient } from '@/lib/supabase/client'
 import { BottomNav } from '../dashboard/DashboardClient'
-import type { FeedEntry, FeedActivityEntry } from '@/types'
+import type { FeedEntry, FeedActivityEntry, FeedMilestoneEntry } from '@/types'
 
 interface Props {
   entries: FeedEntry[]
   activities: FeedActivityEntry[]
+  milestones: FeedMilestoneEntry[]
   currentUserId: string
   nameMap: Record<string, string>
   headerGroup: { name: string; photo_url: string | null; count: number } | null
@@ -28,8 +32,51 @@ function dayLabel(iso: string): string {
   return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
 }
 
-export default function FeedClient({ entries: initial, activities, currentUserId, nameMap, headerGroup }: Props) {
+export default function FeedClient({ entries: initial, activities, milestones, currentUserId, nameMap, headerGroup }: Props) {
+  const router = useRouter()
   const [entries, setEntries] = useState<FeedEntry[]>(initial)
+  const [activityList, setActivityList] = useState<FeedActivityEntry[]>(activities)
+  const [newCount, setNewCount] = useState(0)
+  const [hasUpdates, setHasUpdates] = useState(false)
+
+  // Apply server data on refresh (e.g. after tapping the "new posts" pill).
+  useEffect(() => { setEntries(initial) }, [initial])
+  useEffect(() => { setActivityList(activities) }, [activities])
+
+  // Live feed: realtime is RLS-gated, so we only receive group members' rows.
+  // New posts bump a counter (shown as a pill); reactions/comments flag updates.
+  // Tapping the pill refreshes to pull everything in.
+  useEffect(() => {
+    const supabase = createClient()
+    const isOther = (row: Record<string, unknown> | undefined) => row && row.user_id !== currentUserId
+    const channel = supabase
+      .channel('feed-live')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'food_logs' }, p => {
+        const r = p.new as Record<string, unknown>
+        if (isOther(r) && r.shared_to_feed !== false) setNewCount(c => c + 1)
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'activity_logs' }, p => {
+        if (isOther(p.new as Record<string, unknown>)) setNewCount(c => c + 1)
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'reactions' }, p => {
+        if (isOther(p.new as Record<string, unknown>)) setHasUpdates(true)
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'comments' }, p => {
+        if (isOther(p.new as Record<string, unknown>)) setHasUpdates(true)
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'milestones' }, p => {
+        if (isOther(p.new as Record<string, unknown>)) setNewCount(c => c + 1)
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [currentUserId])
+
+  function refreshFeed() {
+    setNewCount(0)
+    setHasUpdates(false)
+    router.refresh()
+    if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
 
   // Fire-and-forget push (in-app notification is created by a DB trigger).
   function notifyPush(logId: string, kind: 'reaction' | 'comment' | 'reply', targetUserId?: string) {
@@ -143,10 +190,53 @@ export default function FeedClient({ entries: initial, activities, currentUserId
     ))
   }
 
-  // Merge meals + activities into one timeline, newest first.
+  // ── Activity social (in-app notifications come from DB triggers) ──
+  async function handleActivityReact(activityId: string, emoji: string) {
+    const mine = activityList.find(a => a.id === activityId)?.reactions.some(r => r.user_id === currentUserId)
+    if (mine) {
+      await fetch(`/api/reactions?activity_log_id=${activityId}`, { method: 'DELETE' })
+      setActivityList(prev => prev.map(a => a.id === activityId ? { ...a, reactions: a.reactions.filter(r => r.user_id !== currentUserId) } : a))
+    } else {
+      const res = await fetch('/api/reactions', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ activity_log_id: activityId, emoji }),
+      })
+      const { reaction } = await res.json()
+      if (reaction) {
+        setActivityList(prev => prev.map(a => a.id === activityId
+          ? { ...a, reactions: [...a.reactions.filter(r => r.user_id !== currentUserId), reaction] }
+          : a))
+      }
+    }
+  }
+
+  async function handleActivityComment(activityId: string, text: string) {
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    const { data, error } = await supabase
+      .from('comments')
+      .insert({ activity_log_id: activityId, text, user_id: user.id })
+      .select('id, user_id, food_log_id, activity_log_id, text, created_at, parent_id, profile:user_id(id, display_name, avatar_url, privacy_mode, dark_mode_until)')
+      .single()
+    if (error) { console.error('activity comment error:', error.message); return }
+    if (data) {
+      setActivityList(prev => prev.map(a => a.id === activityId ? { ...a, comments: [...a.comments, data as unknown as FeedActivityEntry['comments'][number]] } : a))
+    }
+  }
+
+  async function handleActivityDeleteComment(activityId: string, commentId: string) {
+    const supabase = createClient()
+    const { error } = await supabase.from('comments').delete().eq('id', commentId)
+    if (error) { console.error('delete activity comment error:', error.message); return }
+    setActivityList(prev => prev.map(a => a.id === activityId ? { ...a, comments: a.comments.filter(c => c.id !== commentId) } : a))
+  }
+
+  // Merge meals + activities + milestones into one timeline, newest first.
   const timeline = [
     ...entries.map(e => ({ kind: 'meal' as const, id: `m-${e.id}`, logged_at: e.logged_at, meal: e })),
-    ...activities.map(a => ({ kind: 'activity' as const, id: `a-${a.id}`, logged_at: a.logged_at, activity: a })),
+    ...activityList.map(a => ({ kind: 'activity' as const, id: `a-${a.id}`, logged_at: a.logged_at, activity: a })),
+    ...milestones.map(m => ({ kind: 'milestone' as const, id: `ms-${m.id}`, logged_at: m.created_at, milestone: m })),
   ].sort((x, y) => y.logged_at.localeCompare(x.logged_at))
   const isEmpty = timeline.length === 0
 
@@ -178,6 +268,17 @@ export default function FeedClient({ entries: initial, activities, currentUserId
           <NotificationBell />
         </div>
       </div>
+
+      {/* Live "new posts" pill */}
+      {(newCount > 0 || hasUpdates) && (
+        <button
+          onClick={refreshFeed}
+          className="fixed top-[4.25rem] left-1/2 -translate-x-1/2 z-40 flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold pl-3 pr-4 py-2 rounded-full shadow-lg shadow-emerald-900/40 transition-colors active:scale-95"
+        >
+          <ArrowUp size={15} aria-hidden="true" />
+          {newCount > 0 ? `${newCount} new ${newCount === 1 ? 'post' : 'posts'}` : 'New activity'}
+        </button>
+      )}
 
       <div className="px-4 space-y-3">
         {isEmpty ? (
@@ -213,8 +314,16 @@ export default function FeedClient({ entries: initial, activities, currentUserId
                     onDeleteComment={handleDeleteComment}
                     nameMap={nameMap}
                   />
+                ) : item.kind === 'activity' ? (
+                  <ActivityCard
+                    entry={item.activity}
+                    currentUserId={currentUserId}
+                    onReact={handleActivityReact}
+                    onComment={handleActivityComment}
+                    onDeleteComment={handleActivityDeleteComment}
+                  />
                 ) : (
-                  <ActivityCard entry={item.activity} currentUserId={currentUserId} />
+                  <MilestoneCard entry={item.milestone} currentUserId={currentUserId} />
                 )}
               </div>
             )

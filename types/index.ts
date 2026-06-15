@@ -103,14 +103,16 @@ export interface GroupMember {
 export interface Reaction {
   id: string
   user_id: string
-  food_log_id: string
+  food_log_id: string | null
+  activity_log_id?: string | null
   emoji: string
 }
 
 export interface Comment {
   id: string
   user_id: string
-  food_log_id: string
+  food_log_id: string | null
+  activity_log_id?: string | null
   text: string
   created_at: string
   parent_id?: string | null
@@ -132,6 +134,17 @@ export interface FeedActivityEntry {
   steps: number | null
   calories_burned: number
   logged_at: string
+  profile: { id: string; display_name: string; avatar_url: string | null; privacy_mode: string; dark_mode_until: string | null }
+  reactions: Reaction[]
+  comments: Comment[]
+}
+
+export interface FeedMilestoneEntry {
+  id: string
+  user_id: string
+  type: 'streak' | 'goal_weight'
+  data: Record<string, unknown>
+  created_at: string
   profile: { id: string; display_name: string; avatar_url: string | null; privacy_mode: string; dark_mode_until: string | null }
 }
 

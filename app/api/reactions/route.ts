@@ -6,13 +6,20 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { food_log_id, emoji } = await req.json()
-  if (!food_log_id || !emoji) return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
+  const { food_log_id, activity_log_id, emoji } = await req.json()
+  if (!emoji || (!food_log_id && !activity_log_id)) {
+    return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
+  }
 
-  // Upsert — one reaction per user per log (changes the emoji if re-reacting)
+  // Upsert — one reaction per user per target (meal or activity).
+  const row: Record<string, unknown> = activity_log_id
+    ? { user_id: user.id, activity_log_id, emoji }
+    : { user_id: user.id, food_log_id, emoji }
+  const onConflict = activity_log_id ? 'user_id,activity_log_id' : 'user_id,food_log_id'
+
   const { data, error } = await supabase
     .from('reactions')
-    .upsert({ user_id: user.id, food_log_id, emoji }, { onConflict: 'user_id,food_log_id' })
+    .upsert(row, { onConflict })
     .select()
     .single()
 
@@ -26,8 +33,12 @@ export async function DELETE(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const food_log_id = req.nextUrl.searchParams.get('food_log_id')
-  if (!food_log_id) return NextResponse.json({ error: 'Missing food_log_id' }, { status: 400 })
+  const activity_log_id = req.nextUrl.searchParams.get('activity_log_id')
+  if (!food_log_id && !activity_log_id) return NextResponse.json({ error: 'Missing target' }, { status: 400 })
 
-  await supabase.from('reactions').delete().match({ user_id: user.id, food_log_id })
+  const match = activity_log_id
+    ? { user_id: user.id, activity_log_id }
+    : { user_id: user.id, food_log_id }
+  await supabase.from('reactions').delete().match(match)
   return NextResponse.json({ ok: true })
 }

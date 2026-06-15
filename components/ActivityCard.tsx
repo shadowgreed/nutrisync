@@ -1,10 +1,12 @@
 'use client'
 
 import { useState } from 'react'
-import { Flame, PartyPopper } from 'lucide-react'
+import { Flame, PartyPopper, Heart, MessageCircle, Send } from 'lucide-react'
 import { kmToMiles } from '@/lib/fitness'
 import MiniProfileModal from '@/components/MiniProfileModal'
 import type { FeedActivityEntry } from '@/types'
+
+const HEART = '❤️'
 
 function shortAgo(iso: string): string {
   const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000)
@@ -29,11 +31,24 @@ function metric(a: FeedActivityEntry): string {
   return ''
 }
 
-export default function ActivityCard({ entry, currentUserId }: { entry: FeedActivityEntry; currentUserId: string }) {
+interface Props {
+  entry: FeedActivityEntry
+  currentUserId: string
+  onReact: (activityId: string, emoji: string) => Promise<void>
+  onComment: (activityId: string, text: string) => Promise<void>
+  onDeleteComment: (activityId: string, commentId: string) => Promise<void>
+}
+
+export default function ActivityCard({ entry, currentUserId, onReact, onComment, onDeleteComment }: Props) {
   const [showProfile, setShowProfile] = useState(false)
   const [cheer, setCheer] = useState<'idle' | 'sending' | 'sent'>('idle')
+  const [showComments, setShowComments] = useState(false)
+  const [commentText, setCommentText] = useState('')
+  const [submitting, setSubmitting] = useState(false)
   const emoji = ACTIVITY_EMOJI[entry.activity_name] ?? '💪'
   const isOwn = entry.user_id === currentUserId
+  const liked = entry.reactions.some(r => r.user_id === currentUserId)
+  const likeCount = entry.reactions.length
 
   async function sendCheer() {
     if (cheer !== 'idle') return
@@ -50,9 +65,18 @@ export default function ActivityCard({ entry, currentUserId }: { entry: FeedActi
     }
   }
 
+  async function submitComment(e: React.FormEvent) {
+    e.preventDefault()
+    if (!commentText.trim() || submitting) return
+    setSubmitting(true)
+    await onComment(entry.id, commentText.trim())
+    setCommentText('')
+    setSubmitting(false)
+  }
+
   return (
     <div className="bg-stone-900 border border-stone-800 rounded-3xl overflow-hidden shadow-lg shadow-black/30">
-      {/* Header — tap name/avatar to open the member's profile */}
+      {/* Header */}
       <div className="flex items-center gap-3 px-4 pt-4 pb-3">
         <button
           onClick={() => !isOwn && setShowProfile(true)}
@@ -86,8 +110,8 @@ export default function ActivityCard({ entry, currentUserId }: { entry: FeedActi
         )}
       </div>
 
-      {/* Activity card body */}
-      <div className="px-4 pb-4">
+      {/* Activity body */}
+      <div className="px-4 pb-3">
         <div className="flex items-center gap-3 bg-gradient-to-br from-orange-950/50 to-stone-900 border border-orange-900/40 rounded-2xl p-4">
           <div className="w-11 h-11 rounded-xl bg-orange-900/40 flex items-center justify-center text-2xl shrink-0" aria-hidden="true">
             {emoji}
@@ -101,11 +125,74 @@ export default function ActivityCard({ entry, currentUserId }: { entry: FeedActi
               <p className="text-orange-400 font-bold tabular-nums flex items-center gap-1 justify-end">
                 <Flame size={14} aria-hidden="true" /> {entry.calories_burned}
               </p>
-              <p className="text-stone-500 text-[11px]">kcal burned</p>
+              <p className="text-stone-500 text-xs">kcal burned</p>
             </div>
           )}
         </div>
       </div>
+
+      {/* Actions — heart · comment */}
+      <div className="px-2.5 py-1.5 border-t border-stone-800/70 flex items-center gap-1">
+        <button
+          onClick={() => onReact(entry.id, HEART)}
+          aria-pressed={liked}
+          aria-label={`Like${likeCount > 0 ? `, ${likeCount}` : ''}`}
+          className="flex items-center gap-1.5 min-h-[44px] px-2 rounded-lg transition-colors group/like"
+        >
+          <Heart size={23} className={`transition-all ${liked ? 'fill-rose-500 text-rose-500 scale-110' : 'text-stone-300 group-hover/like:text-rose-400'}`} aria-hidden="true" />
+          {likeCount > 0 && <span className={`text-sm ${liked ? 'text-rose-300' : 'text-stone-300'}`}>{likeCount}</span>}
+        </button>
+        <button
+          onClick={() => setShowComments(v => !v)}
+          aria-expanded={showComments}
+          aria-label={`Comments${entry.comments.length > 0 ? `, ${entry.comments.length}` : ''}`}
+          className={`flex items-center gap-1.5 min-h-[44px] px-2 rounded-lg transition-colors ${showComments ? 'text-emerald-400' : 'text-stone-300 hover:text-white'}`}
+        >
+          <MessageCircle size={21} aria-hidden="true" />
+          {entry.comments.length > 0 && <span className="text-sm">{entry.comments.length}</span>}
+        </button>
+      </div>
+
+      {/* Comments */}
+      {showComments && (
+        <div className="border-t border-stone-800 px-4 py-3 space-y-3">
+          {entry.comments.length === 0 && (
+            <p className="text-stone-400 text-xs text-center py-1">No comments yet — be first!</p>
+          )}
+          {entry.comments.map(c => (
+            <div key={c.id} className="flex gap-2.5 items-start">
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-orange-700 to-orange-900 flex items-center justify-center text-xs font-bold text-white shrink-0 overflow-hidden">
+                {c.profile?.avatar_url
+                  ? <img src={c.profile.avatar_url} alt="" className="w-full h-full object-cover" />
+                  : (c.profile?.display_name?.[0]?.toUpperCase() ?? '?')}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm leading-snug">
+                  <span className="text-white font-semibold mr-1.5">{c.profile?.display_name ?? 'User'}</span>
+                  <span className="text-stone-200">{c.text}</span>
+                </p>
+                <div className="flex items-center gap-3 mt-0.5">
+                  <span className="text-stone-400 text-xs">{shortAgo(c.created_at)}</span>
+                  {c.user_id === currentUserId && (
+                    <button onClick={() => onDeleteComment(entry.id, c.id)} className="text-stone-500 hover:text-red-300 text-xs">Delete</button>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+          <form onSubmit={submitComment} className="flex gap-2 pt-1">
+            <input
+              value={commentText}
+              onChange={e => setCommentText(e.target.value.slice(0, 280))}
+              placeholder="Add a comment…"
+              className="flex-1 bg-stone-800 border border-stone-700 rounded-full px-4 py-2.5 text-white text-base placeholder-stone-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+            />
+            <button type="submit" disabled={!commentText.trim() || submitting} className="bg-emerald-700 hover:bg-emerald-600 disabled:opacity-40 text-white rounded-full px-3.5 transition-colors">
+              <Send size={14} />
+            </button>
+          </form>
+        </div>
+      )}
 
       {showProfile && (
         <MiniProfileModal userId={entry.user_id} name={entry.profile.display_name} onClose={() => setShowProfile(false)} />

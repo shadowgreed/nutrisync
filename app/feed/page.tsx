@@ -48,7 +48,7 @@ export default async function FeedPage() {
 
   // Reactions and comments for those logs, plus group members' activity logs.
   const logIds = logs?.map(l => l.id) ?? []
-  const [{ data: reactions }, { data: comments }, { data: activityLogs }] = await Promise.all([
+  const [{ data: reactions }, { data: comments }, { data: activityLogs }, { data: milestoneRows }] = await Promise.all([
     supabase.from('reactions').select('*').in('food_log_id', logIds),
     supabase.from('comments').select('*, profile:profiles(id, display_name, avatar_url, privacy_mode, dark_mode_until)').in('food_log_id', logIds),
     supabase
@@ -57,6 +57,12 @@ export default async function FeedPage() {
       .in('user_id', memberUserIds)
       .gte('logged_at', since)
       .order('logged_at', { ascending: false }),
+    supabase
+      .from('milestones')
+      .select('id, user_id, type, data, created_at')
+      .in('user_id', memberUserIds)
+      .gte('created_at', since)
+      .order('created_at', { ascending: false }),
   ])
 
   // Build profile map
@@ -77,9 +83,25 @@ export default async function FeedPage() {
     comments: (comments ?? []).filter(c => c.food_log_id === log.id),
   }))
 
+  // Reactions + comments for activities (they're now likeable/commentable too).
+  const activityIds = (activityLogs ?? []).map(a => a.id)
+  const [{ data: actReactions }, { data: actComments }] = activityIds.length
+    ? await Promise.all([
+        supabase.from('reactions').select('*').in('activity_log_id', activityIds),
+        supabase.from('comments').select('*, profile:profiles(id, display_name, avatar_url, privacy_mode, dark_mode_until)').in('activity_log_id', activityIds),
+      ])
+    : [{ data: [] as { activity_log_id: string }[] }, { data: [] as { activity_log_id: string }[] }]
+
   const activityEntries = (activityLogs ?? []).map(a => ({
     ...a,
     profile: fallbackProfile(a.user_id),
+    reactions: (actReactions ?? []).filter(r => r.activity_log_id === a.id),
+    comments: (actComments ?? []).filter(c => c.activity_log_id === a.id),
+  }))
+
+  const milestoneEntries = (milestoneRows ?? []).map(m => ({
+    ...m,
+    profile: fallbackProfile(m.user_id),
   }))
 
   // userId -> name, for the "Liked by …" line.
@@ -89,6 +111,7 @@ export default async function FeedPage() {
   return (
     <FeedClient
       entries={feedEntries}
+      milestones={milestoneEntries}
       activities={activityEntries}
       currentUserId={user.id}
       nameMap={nameMap}
