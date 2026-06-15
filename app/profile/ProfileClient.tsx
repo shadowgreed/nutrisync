@@ -347,6 +347,17 @@ export default function ProfileClient({ profile, email, logs, activities, group,
             </div>
             {groupPhotoError && <p className="text-red-400 text-xs -mt-1">{groupPhotoError}</p>}
 
+            {/* Coach dashboard — founder coaches the group */}
+            {isOwner && (
+              <Link
+                href="/coach"
+                className="flex items-center justify-between bg-emerald-900/30 border border-emerald-800/50 rounded-xl px-3 py-2.5 hover:bg-emerald-900/50 transition-colors"
+              >
+                <span className="text-emerald-200 text-sm font-semibold">🧑‍🏫 Coach dashboard</span>
+                <span className="text-emerald-400 text-xs">Review your crew →</span>
+              </Link>
+            )}
+
             {/* Pending join requests — founder only */}
             {isOwner && requests.length > 0 && (
               <div className="bg-stone-800/60 rounded-xl p-3 space-y-2">
