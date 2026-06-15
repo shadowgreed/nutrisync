@@ -20,6 +20,8 @@ const TYPE_META: Record<NotificationType, { emoji: string; href: string }> = {
   cheer:      { emoji: '👏', href: '/dashboard' },
   join_request: { emoji: '🙋', href: '/profile' },
   reply:      { emoji: '↩️', href: '/feed' },
+  coach_message: { emoji: '🧑‍🏫', href: '/feed' },
+  coach_nudge:   { emoji: '📣', href: '/dashboard' },
 }
 
 function timeAgo(iso: string): string {
@@ -44,6 +46,8 @@ function message(n: AppNotification): string {
     case 'meal':       return `${who} logged ${(n.data?.meal_type as string) ?? 'a meal'}`
     case 'weekly_report': return 'Your weekly report is ready — see how your week went 📊'
     case 'cheer':      return `${who} cheered you on — keep it up! 👏`
+    case 'coach_message': return `${who} sent you a check-in: “${(n.data?.text as string) ?? ''}”`
+    case 'coach_nudge':   return `${who} sent your group a nudge 📣`
     // Requesters aren't group members yet, so their profile isn't readable under
     // the scoped RLS — the name is stored on the notification itself instead.
     case 'join_request': return `${(n.data?.requester_name as string) ?? who} wants to join ${(n.data?.group_name as string) ?? 'your group'} — review in Profile`

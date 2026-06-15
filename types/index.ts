@@ -83,7 +83,11 @@ export interface Profile {
   onboarding_done: boolean
   water_bottle_ml: number | null
   water_daily_target_ml: number | null
+  coach_visible: boolean
 }
+
+export type GroupRole = 'coach' | 'member'
+export type GroupPlan = 'free' | 'coach'
 
 export interface Group {
   id: string
@@ -91,12 +95,15 @@ export interface Group {
   created_by: string
   invite_code: string
   created_at: string
+  plan: GroupPlan
+  member_cap: number
 }
 
 export interface GroupMember {
   group_id: string
   user_id: string
   joined_at: string
+  role: GroupRole
   profile: Profile
 }
 
@@ -157,7 +164,7 @@ export interface ActivityLog {
   logged_at: string
 }
 
-export type NotificationType = 'reaction' | 'comment' | 'challenge' | 'group_join' | 'meal' | 'weekly_report' | 'cheer' | 'join_request' | 'reply'
+export type NotificationType = 'reaction' | 'comment' | 'challenge' | 'group_join' | 'meal' | 'weekly_report' | 'cheer' | 'join_request' | 'reply' | 'coach_message' | 'coach_nudge'
 
 export interface AppNotification {
   id: string
