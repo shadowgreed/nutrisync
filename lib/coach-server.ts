@@ -19,6 +19,12 @@ export async function coachGroupIds(supabase: SupabaseClient, userId: string): P
   return (data ?? []).map(r => r.group_id as string)
 }
 
+/** A group's plan ('free' | 'coach'); defaults to 'free' when unknown. */
+export async function getGroupPlan(supabase: SupabaseClient, groupId: string): Promise<'free' | 'coach'> {
+  const { data } = await supabase.from('groups').select('plan').eq('id', groupId).maybeSingle()
+  return (data?.plan as 'free' | 'coach') ?? 'free'
+}
+
 /**
  * Returns the group id through which `coachId` coaches `memberId`, or null if
  * there is no such relationship (i.e. not the coach's client).

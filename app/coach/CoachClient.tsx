@@ -1,11 +1,12 @@
 'use client'
 
 import Link from 'next/link'
-import { ArrowLeft, ChevronRight, EyeOff, Sparkles } from 'lucide-react'
+import { ArrowLeft, ChevronRight, EyeOff, Sparkles, Crown } from 'lucide-react'
 import { BottomNav } from '../dashboard/DashboardClient'
+import CoachStyleSetting from './CoachStyleSetting'
 import type { AttentionLevel } from '@/lib/copilot'
 
-export interface CoachGroup { id: string; name: string }
+export interface CoachGroup { id: string; name: string; plan: 'free' | 'coach'; memberCap: number; memberCount: number }
 
 export interface RosterMember {
   user_id: string
@@ -33,8 +34,13 @@ function initials(name: string): string {
 }
 
 export default function CoachClient({
-  groups, members, hiddenCount, pendingDrafts,
-}: { groups: CoachGroup[]; members: RosterMember[]; hiddenCount: number; pendingDrafts: number }) {
+  groups, members, hiddenCount, pendingDrafts, coachId, coachStyle,
+}: {
+  groups: CoachGroup[]; members: RosterMember[]; hiddenCount: number; pendingDrafts: number
+  coachId: string; coachStyle: string | null
+}) {
+  // Surface a plan/cap nudge when a free group has filled its 6 seats.
+  const cappedFreeGroup = groups.find(g => g.plan === 'free' && g.memberCount >= g.memberCap)
   const sorted = [...members].sort((a, b) =>
     ATTENTION_META[a.attention].order - ATTENTION_META[b.attention].order
     || b.streak - a.streak,
@@ -54,6 +60,8 @@ export default function CoachClient({
           </p>
         </div>
       </header>
+
+      <CoachStyleSetting userId={coachId} initial={coachStyle} />
 
       {members.length === 0 ? (
         <div className="px-4 mt-10 text-center">
@@ -80,6 +88,14 @@ export default function CoachClient({
                 </span>
                 <span className="text-emerald-400 text-xs">Open queue →</span>
               </Link>
+            )}
+            {cappedFreeGroup && (
+              <div className="flex items-center gap-2 bg-stone-900 border border-amber-900/40 rounded-2xl px-4 py-3">
+                <Crown size={15} className="text-amber-400 shrink-0" />
+                <span className="text-stone-300 text-xs">
+                  “{cappedFreeGroup.name}” is full at {cappedFreeGroup.memberCap}. The coach plan unlocks a larger roster.
+                </span>
+              </div>
             )}
           </div>
 
