@@ -473,7 +473,7 @@ export default function EditProfileClient({ profile }: Props) {
       </div>
 
       {/* Sticky save button */}
-      <div className="fixed bottom-0 left-0 right-0 px-4 pb-6 pt-3 bg-gradient-to-t from-stone-950 via-stone-950/95 to-transparent">
+      <div className="fixed bottom-0 left-0 right-0 px-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))] pt-3 bg-gradient-to-t from-stone-950 via-stone-950/95 to-transparent">
         <button
           onClick={handleSave}
           disabled={saving || saved}
