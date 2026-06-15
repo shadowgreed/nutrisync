@@ -631,7 +631,7 @@ export default function FeedCard({ entry, currentUserId, onReact, onComment, onD
                 value={commentText}
                 onChange={e => setCommentText(e.target.value.slice(0, 280))}
                 placeholder={replyTo ? `Reply to ${replyTo.name}…` : 'Add a comment…'}
-                className="flex-1 bg-stone-800 border border-stone-700 rounded-full px-4 py-2.5 text-white text-sm placeholder-stone-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                className="flex-1 bg-stone-800 border border-stone-700 rounded-full px-4 py-2.5 text-white text-base placeholder-stone-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
               />
               <button
                 type="submit"
