@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Flame, PartyPopper, Heart, MessageCircle, Send } from 'lucide-react'
+import { Flame, PartyPopper, Heart, MessageCircle, Send, MoreHorizontal, Trash2 } from 'lucide-react'
 import { kmToMiles } from '@/lib/fitness'
 import MiniProfileModal from '@/components/MiniProfileModal'
 import type { FeedActivityEntry } from '@/types'
@@ -37,18 +37,34 @@ interface Props {
   onReact: (activityId: string, emoji: string) => Promise<void>
   onComment: (activityId: string, text: string) => Promise<void>
   onDeleteComment: (activityId: string, commentId: string) => Promise<void>
+  // Founder moderation — set when the viewer founded this author's group.
+  canModerate?: boolean
+  moderationGroup?: { id: string; name: string } | null
+  onDelete?: (activityId: string) => Promise<void>
+  onRemoveMember?: (userId: string) => Promise<void>
 }
 
-export default function ActivityCard({ entry, currentUserId, onReact, onComment, onDeleteComment }: Props) {
+export default function ActivityCard({ entry, currentUserId, onReact, onComment, onDeleteComment, canModerate = false, moderationGroup = null, onDelete, onRemoveMember }: Props) {
   const [showProfile, setShowProfile] = useState(false)
   const [cheer, setCheer] = useState<'idle' | 'sending' | 'sent'>('idle')
   const [showComments, setShowComments] = useState(false)
   const [commentText, setCommentText] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const emoji = ACTIVITY_EMOJI[entry.activity_name] ?? '💪'
   const isOwn = entry.user_id === currentUserId
+  const isModeration = !isOwn && canModerate
   const liked = entry.reactions.some(r => r.user_id === currentUserId)
   const likeCount = entry.reactions.length
+
+  async function handleDelete() {
+    if (!onDelete) return
+    setDeleting(true)
+    try { await onDelete(entry.id) }
+    finally { setDeleting(false) }
+  }
 
   async function sendCheer() {
     if (cheer !== 'idle') return
@@ -107,6 +123,53 @@ export default function ActivityCard({ entry, currentUserId, onReact, onComment,
           >
             {cheer === 'sent' ? <><PartyPopper size={15} aria-hidden="true" /> Cheered</> : <>👏 Cheer</>}
           </button>
+        )}
+        {isModeration && onDelete && (
+          <div className="relative shrink-0">
+            <button
+              onClick={() => setMenuOpen(v => !v)}
+              aria-label="Post options"
+              aria-expanded={menuOpen}
+              className="text-stone-400 hover:text-white transition-colors p-1.5 -mr-1.5"
+            >
+              <MoreHorizontal size={18} aria-hidden="true" />
+            </button>
+            {menuOpen && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => { setMenuOpen(false); setConfirmDelete(false) }} />
+                <div className="absolute right-0 top-9 z-20 w-52 bg-stone-800 border border-stone-700 rounded-xl shadow-xl overflow-hidden">
+                  <p className="px-3.5 pt-2.5 pb-1 text-amber-400/90 text-[11px] font-medium uppercase tracking-wider">Founder tools</p>
+                  {confirmDelete ? (
+                    <div className="p-2.5">
+                      <p className="text-stone-300 text-xs px-1 pb-2">Remove {entry.profile.display_name}&apos;s post? This can&apos;t be undone.</p>
+                      <div className="flex gap-1.5">
+                        <button
+                          onClick={handleDelete}
+                          disabled={deleting}
+                          className="flex-1 bg-red-900/70 hover:bg-red-900 text-red-100 text-xs font-semibold py-1.5 rounded-lg transition-colors disabled:opacity-50"
+                        >
+                          {deleting ? '…' : 'Remove'}
+                        </button>
+                        <button
+                          onClick={() => { setConfirmDelete(false); setMenuOpen(false) }}
+                          className="flex-1 text-stone-300 hover:text-white text-xs py-1.5 transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setConfirmDelete(true)}
+                      className="w-full flex items-center gap-2 px-3.5 py-3 text-red-300 hover:bg-stone-700 text-sm text-left transition-colors"
+                    >
+                      <Trash2 size={15} aria-hidden="true" /> Remove post
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
         )}
       </div>
 
@@ -195,7 +258,13 @@ export default function ActivityCard({ entry, currentUserId, onReact, onComment,
       )}
 
       {showProfile && (
-        <MiniProfileModal userId={entry.user_id} name={entry.profile.display_name} onClose={() => setShowProfile(false)} />
+        <MiniProfileModal
+          userId={entry.user_id}
+          name={entry.profile.display_name}
+          onClose={() => setShowProfile(false)}
+          moderation={isModeration && moderationGroup ? { groupId: moderationGroup.id, groupName: moderationGroup.name } : null}
+          onRemoveMember={onRemoveMember}
+        />
       )}
     </div>
   )

@@ -23,16 +23,20 @@ export default async function ChallengesPage() {
     return <ChallengesClient group={null} currentUserId={user.id} challenges={[]} needsMigration={false} />
   }
 
-  // All members of the group (id + display name)
+  // All members of the group (id + display name + avatar)
   const { data: memberRows } = await supabase
     .from('group_members')
-    .select('user_id, profiles(display_name)')
+    .select('user_id, profiles(display_name, avatar_url)')
     .eq('group_id', groupId)
 
-  const members = (memberRows ?? []).map(m => ({
-    userId: m.user_id as string,
-    name: (m.profiles as unknown as { display_name: string } | null)?.display_name ?? 'Member',
-  }))
+  const members = (memberRows ?? []).map(m => {
+    const p = m.profiles as unknown as { display_name: string; avatar_url: string | null } | null
+    return {
+      userId: m.user_id as string,
+      name: p?.display_name ?? 'Member',
+      avatarUrl: p?.avatar_url ?? null,
+    }
+  })
   const memberIds = members.map(m => m.userId)
 
   // Challenges for this group
@@ -75,7 +79,7 @@ export default async function ChallengesPage() {
         c.start_date,
         c.end_date,
       )
-      return { userId: m.userId, name: m.name, progress, done: progress >= c.goal }
+      return { userId: m.userId, name: m.name, avatarUrl: m.avatarUrl, progress, done: progress >= c.goal }
     }).sort((a, b) => b.progress - a.progress)
 
     const teamProgress = leaderboard.reduce((s, l) => s + Math.min(l.progress, c.goal), 0)

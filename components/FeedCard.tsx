@@ -57,9 +57,13 @@ interface Props {
   onEdit?: (logId: string, patch: { caption?: string; meal_type?: string }) => Promise<void>
   onDeleteComment?: (logId: string, commentId: string) => Promise<void>
   nameMap?: Record<string, string>
+  // Founder moderation — set when the viewer founded this author's group.
+  canModerate?: boolean
+  moderationGroup?: { id: string; name: string } | null
+  onRemoveMember?: (userId: string) => Promise<void>
 }
 
-export default function FeedCard({ entry, currentUserId, onReact, onComment, onDelete, onEdit, onDeleteComment, nameMap = {} }: Props) {
+export default function FeedCard({ entry, currentUserId, onReact, onComment, onDelete, onEdit, onDeleteComment, nameMap = {}, canModerate = false, moderationGroup = null, onRemoveMember }: Props) {
   const [showComments, setShowComments] = useState(false)
   const [showNutrients, setShowNutrients] = useState(false)
   const [commentText, setCommentText] = useState('')
@@ -148,6 +152,7 @@ export default function FeedCard({ entry, currentUserId, onReact, onComment, onD
   }
 
   const isOwnLog = entry.user_id === currentUserId
+  const isModeration = !isOwnLog && canModerate
   const effectivePrivacy = entry.privacy_override ?? entry.profile.privacy_mode
   // Single heart reaction: any reaction row counts as a like.
   const liked = entry.reactions.some(r => r.user_id === currentUserId)
@@ -293,7 +298,7 @@ export default function FeedCard({ entry, currentUserId, onReact, onComment, onD
               <p className="text-stone-400 text-xs">{shortAgo(entry.logged_at)}</p>
             </div>
           </button>
-          {isOwnLog && onDelete && (
+          {(isOwnLog || isModeration) && onDelete && (
             <div className="relative shrink-0">
               <button
                 onClick={() => setMenuOpen(v => !v)}
@@ -306,8 +311,11 @@ export default function FeedCard({ entry, currentUserId, onReact, onComment, onD
               {menuOpen && (
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => { setMenuOpen(false); setConfirmDelete(false) }} />
-                  <div className="absolute right-0 top-9 z-20 w-44 bg-stone-800 border border-stone-700 rounded-xl shadow-xl overflow-hidden">
-                    {!confirmDelete && onEdit && (
+                  <div className="absolute right-0 top-9 z-20 w-52 bg-stone-800 border border-stone-700 rounded-xl shadow-xl overflow-hidden">
+                    {isModeration && !confirmDelete && (
+                      <p className="px-3.5 pt-2.5 pb-1 text-amber-400/90 text-[11px] font-medium uppercase tracking-wider">Founder tools</p>
+                    )}
+                    {!confirmDelete && isOwnLog && onEdit && (
                       <button
                         onClick={openEdit}
                         className="w-full flex items-center gap-2 px-3.5 py-3 text-stone-100 hover:bg-stone-700 text-sm text-left transition-colors border-b border-stone-700/60"
@@ -317,14 +325,18 @@ export default function FeedCard({ entry, currentUserId, onReact, onComment, onD
                     )}
                     {confirmDelete ? (
                       <div className="p-2.5">
-                        <p className="text-stone-300 text-xs px-1 pb-2">Delete this post? This can&apos;t be undone.</p>
+                        <p className="text-stone-300 text-xs px-1 pb-2">
+                          {isModeration
+                            ? `Remove ${entry.profile.display_name}'s post? This can't be undone.`
+                            : "Delete this post? This can't be undone."}
+                        </p>
                         <div className="flex gap-1.5">
                           <button
                             onClick={handleDelete}
                             disabled={deleting}
                             className="flex-1 bg-red-900/70 hover:bg-red-900 text-red-100 text-xs font-semibold py-1.5 rounded-lg transition-colors disabled:opacity-50"
                           >
-                            {deleting ? '…' : 'Delete'}
+                            {deleting ? '…' : isModeration ? 'Remove' : 'Delete'}
                           </button>
                           <button
                             onClick={() => { setConfirmDelete(false); setMenuOpen(false) }}
@@ -339,7 +351,7 @@ export default function FeedCard({ entry, currentUserId, onReact, onComment, onD
                         onClick={() => setConfirmDelete(true)}
                         className="w-full flex items-center gap-2 px-3.5 py-3 text-red-300 hover:bg-stone-700 text-sm text-left transition-colors"
                       >
-                        <Trash2 size={15} aria-hidden="true" /> Delete post
+                        <Trash2 size={15} aria-hidden="true" /> {isModeration ? 'Remove post' : 'Delete post'}
                       </button>
                     )}
                   </div>
@@ -692,7 +704,13 @@ export default function FeedCard({ entry, currentUserId, onReact, onComment, onD
       )}
 
       {showProfile && (
-        <MiniProfileModal userId={entry.user_id} name={entry.profile.display_name} onClose={() => setShowProfile(false)} />
+        <MiniProfileModal
+          userId={entry.user_id}
+          name={entry.profile.display_name}
+          onClose={() => setShowProfile(false)}
+          moderation={isModeration && moderationGroup ? { groupId: moderationGroup.id, groupName: moderationGroup.name } : null}
+          onRemoveMember={onRemoveMember}
+        />
       )}
 
       {/* Long-press comment action sheet */}

@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { founderSharesGroupWith } from '@/lib/moderation'
 import { sendPushToUser } from '@/lib/push'
 import { sumTotals, emptyTotals } from '@/lib/nutrients'
 import { sumMacros, emptyMacros } from '@/lib/macros'
@@ -16,15 +18,32 @@ export async function DELETE(req: NextRequest) {
   const id = req.nextUrl.searchParams.get('id')
   if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 })
 
-  // RLS ("Users can delete own logs") also enforces ownership; the user_id filter is belt-and-suspenders
-  const { error } = await supabase
+  // Delete own post — RLS ("Users can delete own logs") enforces ownership; the
+  // user_id filter is belt-and-suspenders. We check rowCount to tell apart
+  // "deleted" from "not yours" so we can fall back to founder moderation.
+  const { error, count } = await supabase
     .from('food_logs')
-    .delete()
+    .delete({ count: 'exact' })
     .eq('id', id)
     .eq('user_id', user.id)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ ok: true })
+  if (count && count > 0) return NextResponse.json({ ok: true })
+
+  // Not the author's own post — allow a group founder to remove a member's post.
+  let admin
+  try { admin = createAdminClient() }
+  catch { return NextResponse.json({ error: 'Not found' }, { status: 404 }) }
+
+  const { data: log } = await admin.from('food_logs').select('user_id').eq('id', id).single()
+  if (!log) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (!(await founderSharesGroupWith(admin, user.id, log.user_id as string))) {
+    return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
+  }
+
+  const { error: delErr } = await admin.from('food_logs').delete().eq('id', id)
+  if (delErr) return NextResponse.json({ error: delErr.message }, { status: 500 })
+  return NextResponse.json({ ok: true, moderated: true })
 }
 
 const MEAL_TYPES = ['breakfast', 'lunch', 'dinner', 'snack']

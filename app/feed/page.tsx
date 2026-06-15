@@ -28,13 +28,34 @@ export default async function FeedPage() {
     ? { name: myGroups[0].name as string, photo_url: (myGroups[0].photo_url as string | null) ?? null, count: myGroups.length }
     : null
 
+  // Founder moderation context: the first group this user created (among the ones
+  // they're in). Members of it can have their posts removed / be expelled.
+  const { data: founded } = await supabase
+    .from('groups')
+    .select('id, name')
+    .eq('created_by', user.id)
+    .in('id', groupIds)
+  const founderGroup = founded?.[0]
+    ? { id: founded[0].id as string, name: founded[0].name as string }
+    : null
+
   // Get group member user IDs
   const { data: allMembers } = await supabase
     .from('group_members')
-    .select('user_id, profiles(id, display_name, avatar_url, privacy_mode, dark_mode_until)')
+    .select('group_id, user_id, profiles(id, display_name, avatar_url, privacy_mode, dark_mode_until)')
     .in('group_id', groupIds)
 
   const memberUserIds = [...new Set(allMembers?.map(m => m.user_id) ?? [])]
+
+  // Members of the founder's own group (minus the founder) — posts by these
+  // users can be moderated, and they can be expelled.
+  const moderatableUserIds = founderGroup
+    ? [...new Set(
+        (allMembers ?? [])
+          .filter(m => m.group_id === founderGroup.id && m.user_id !== user.id)
+          .map(m => m.user_id),
+      )]
+    : []
 
   // A week of feed, so small groups don't open to a ghost town.
   const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
@@ -116,6 +137,8 @@ export default async function FeedPage() {
       currentUserId={user.id}
       nameMap={nameMap}
       headerGroup={headerGroup}
+      founderGroup={founderGroup}
+      moderatableUserIds={moderatableUserIds}
     />
   )
 }

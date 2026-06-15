@@ -14,6 +14,7 @@ import {
 export interface LeaderRow {
   userId: string
   name: string
+  avatarUrl: string | null
   progress: number
   done: boolean
 }
@@ -291,10 +292,12 @@ export default function ChallengesClient({ group, currentUserId, challenges, nee
                     const leading = i === 0 && row.progress > 0
                     return (
                       <div key={row.userId} className="flex items-center gap-2">
-                        <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
+                        <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 overflow-hidden ${
                           isMe ? 'bg-emerald-700 text-white' : 'bg-stone-700 text-stone-300'
                         }`}>
-                          {row.name[0]?.toUpperCase() ?? '?'}
+                          {row.avatarUrl
+                            ? <img src={row.avatarUrl} alt="" className="w-full h-full object-cover" />
+                            : (row.name[0]?.toUpperCase() ?? '?')}
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between mb-0.5">

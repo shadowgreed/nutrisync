@@ -19,6 +19,8 @@ interface Props {
   currentUserId: string
   nameMap: Record<string, string>
   headerGroup: { name: string; photo_url: string | null; count: number } | null
+  founderGroup: { id: string; name: string } | null
+  moderatableUserIds: string[]
 }
 
 // "Today" / "Yesterday" / "Mon, Jun 9" for the day separators.
@@ -32,10 +34,11 @@ function dayLabel(iso: string): string {
   return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
 }
 
-export default function FeedClient({ entries: initial, activities, milestones, currentUserId, nameMap, headerGroup }: Props) {
+export default function FeedClient({ entries: initial, activities, milestones, currentUserId, nameMap, headerGroup, founderGroup, moderatableUserIds }: Props) {
   const router = useRouter()
   const [entries, setEntries] = useState<FeedEntry[]>(initial)
   const [activityList, setActivityList] = useState<FeedActivityEntry[]>(activities)
+  const canModerate = (userId: string) => moderatableUserIds.includes(userId)
   const [newCount, setNewCount] = useState(0)
   const [hasUpdates, setHasUpdates] = useState(false)
 
@@ -232,6 +235,27 @@ export default function FeedClient({ entries: initial, activities, milestones, c
     setActivityList(prev => prev.map(a => a.id === activityId ? { ...a, comments: a.comments.filter(c => c.id !== commentId) } : a))
   }
 
+  // Founder moderation: remove a member's activity post.
+  async function handleActivityDelete(activityId: string) {
+    const res = await fetch(`/api/log-activity?id=${activityId}`, { method: 'DELETE' })
+    if (res.ok) setActivityList(prev => prev.filter(a => a.id !== activityId))
+  }
+
+  // Founder moderation: expel a member from the group; drop their content locally.
+  async function handleRemoveMember(userId: string) {
+    if (!founderGroup) return
+    const res = await fetch('/api/group/remove-member', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ groupId: founderGroup.id, userId }),
+    })
+    if (res.ok) {
+      setEntries(prev => prev.filter(e => e.user_id !== userId))
+      setActivityList(prev => prev.filter(a => a.user_id !== userId))
+      router.refresh()
+    }
+  }
+
   // Merge meals + activities + milestones into one timeline, newest first.
   const timeline = [
     ...entries.map(e => ({ kind: 'meal' as const, id: `m-${e.id}`, logged_at: e.logged_at, meal: e })),
@@ -313,6 +337,9 @@ export default function FeedClient({ entries: initial, activities, milestones, c
                     onEdit={handleEdit}
                     onDeleteComment={handleDeleteComment}
                     nameMap={nameMap}
+                    canModerate={canModerate(item.meal.user_id)}
+                    moderationGroup={founderGroup}
+                    onRemoveMember={handleRemoveMember}
                   />
                 ) : item.kind === 'activity' ? (
                   <ActivityCard
@@ -321,6 +348,10 @@ export default function FeedClient({ entries: initial, activities, milestones, c
                     onReact={handleActivityReact}
                     onComment={handleActivityComment}
                     onDeleteComment={handleActivityDeleteComment}
+                    canModerate={canModerate(item.activity.user_id)}
+                    moderationGroup={founderGroup}
+                    onDelete={handleActivityDelete}
+                    onRemoveMember={handleRemoveMember}
                   />
                 ) : (
                   <MilestoneCard entry={item.milestone} currentUserId={currentUserId} />

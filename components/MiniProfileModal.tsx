@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { X, Flame, CalendarCheck, Target, Utensils, Dumbbell } from 'lucide-react'
+import { X, Flame, CalendarCheck, Target, Utensils, Dumbbell, UserMinus } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { computeStreak } from '@/lib/streak'
 import { GOAL_LABELS, GOAL_EMOJIS } from '@/lib/fitness'
@@ -28,10 +28,32 @@ interface MiniData {
 
 const localDay = (ts: string) => new Date(ts).toLocaleDateString('en-CA')
 
-export default function MiniProfileModal({ userId, name, onClose }: { userId: string; name: string; onClose: () => void }) {
+interface MiniProfileProps {
+  userId: string
+  name: string
+  onClose: () => void
+  // Founder moderation — present only when the viewer founded this member's group.
+  moderation?: { groupId: string; groupName: string } | null
+  onRemoveMember?: (userId: string) => Promise<void>
+}
+
+export default function MiniProfileModal({ userId, name, onClose, moderation = null, onRemoveMember }: MiniProfileProps) {
   const [data, setData] = useState<MiniData | null>(null)
   const [loading, setLoading] = useState(true)
   const [cheerState, setCheerState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
+  const [confirmRemove, setConfirmRemove] = useState(false)
+  const [removing, setRemoving] = useState(false)
+
+  async function removeMember() {
+    if (!onRemoveMember) return
+    setRemoving(true)
+    try {
+      await onRemoveMember(userId)
+      onClose()
+    } finally {
+      setRemoving(false)
+    }
+  }
 
   useEffect(() => {
     const supabase = createClient()
@@ -257,6 +279,42 @@ export default function MiniProfileModal({ userId, name, onClose }: { userId: st
               {cheerState === 'sent' ? '👏 Cheer sent!' : cheerState === 'sending' ? 'Sending…'
                 : cheerState === 'error' ? 'Try again — 👏 Cheer them on' : `👏 Cheer ${name} on`}
             </button>
+
+            {/* Founder-only: remove this member from the group */}
+            {moderation && onRemoveMember && (
+              <div className="pt-1 border-t border-stone-800">
+                {confirmRemove ? (
+                  <div className="pt-3 space-y-2">
+                    <p className="text-stone-300 text-xs">
+                      Remove <span className="text-white font-medium">{name}</span> from {moderation.groupName}? They&apos;ll lose access to the group feed.
+                    </p>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={removeMember}
+                        disabled={removing}
+                        className="flex-1 bg-red-900/70 hover:bg-red-900 text-red-100 text-xs font-semibold py-2 rounded-lg transition-colors disabled:opacity-50"
+                      >
+                        {removing ? 'Removing…' : 'Remove'}
+                      </button>
+                      <button
+                        onClick={() => setConfirmRemove(false)}
+                        disabled={removing}
+                        className="flex-1 text-stone-300 hover:text-white text-xs py-2 transition-colors disabled:opacity-50"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setConfirmRemove(true)}
+                    className="flex items-center gap-1.5 text-stone-400 hover:text-red-300 text-xs font-medium pt-3 transition-colors"
+                  >
+                    <UserMinus size={13} aria-hidden="true" /> Remove from group
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>
