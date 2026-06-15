@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { ArrowLeft, ChevronRight, EyeOff } from 'lucide-react'
+import { ArrowLeft, ChevronRight, EyeOff, Sparkles } from 'lucide-react'
 import { BottomNav } from '../dashboard/DashboardClient'
 import type { AttentionLevel } from '@/lib/copilot'
 
@@ -33,8 +33,8 @@ function initials(name: string): string {
 }
 
 export default function CoachClient({
-  groups, members, hiddenCount,
-}: { groups: CoachGroup[]; members: RosterMember[]; hiddenCount: number }) {
+  groups, members, hiddenCount, pendingDrafts,
+}: { groups: CoachGroup[]; members: RosterMember[]; hiddenCount: number; pendingDrafts: number }) {
   const sorted = [...members].sort((a, b) =>
     ATTENTION_META[a.attention].order - ATTENTION_META[b.attention].order
     || b.streak - a.streak,
@@ -63,13 +63,24 @@ export default function CoachClient({
         </div>
       ) : (
         <>
-          <div className="px-4 mb-3">
+          <div className="px-4 mb-3 space-y-2">
             <div className="bg-stone-900 border border-stone-800 rounded-2xl px-4 py-3 flex items-center justify-between">
               <span className="text-stone-300 text-sm">{members.length} member{members.length === 1 ? '' : 's'}</span>
               <span className={`text-sm font-semibold ${needs ? 'text-amber-300' : 'text-emerald-300'}`}>
                 {needs ? `${needs} need${needs === 1 ? 's' : ''} a check-in` : 'Everyone on track 🎉'}
               </span>
             </div>
+            {pendingDrafts > 0 && (
+              <Link
+                href="/coach/queue"
+                className="flex items-center justify-between bg-emerald-900/30 border border-emerald-800/50 rounded-2xl px-4 py-3 hover:bg-emerald-900/50 transition-colors"
+              >
+                <span className="flex items-center gap-2 text-emerald-200 text-sm font-semibold">
+                  <Sparkles size={15} /> {pendingDrafts} check-in{pendingDrafts === 1 ? '' : 's'} ready to review
+                </span>
+                <span className="text-emerald-400 text-xs">Open queue →</span>
+              </Link>
+            )}
           </div>
 
           <ul className="px-4 space-y-2">

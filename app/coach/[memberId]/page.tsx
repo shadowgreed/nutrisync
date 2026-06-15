@@ -1,13 +1,9 @@
 import { redirect, notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { assessClient } from '@/lib/copilot'
-import { computeStreak } from '@/lib/streak'
-import type { NutrientTotals } from '@/types'
-import CoachMemberClient, { type CoachNote } from './CoachMemberClient'
+import { groupForCoachMember, assessMember } from '@/lib/coach-server'
+import CoachMemberClient, { type CoachNote, type PendingDraft } from './CoachMemberClient'
 
 export const dynamic = 'force-dynamic'
-
-const DAY_MS = 24 * 60 * 60 * 1000
 
 interface MemberProfile {
   id: string
@@ -24,25 +20,8 @@ export default async function CoachMemberPage({ params }: { params: Promise<{ me
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  // Groups the caller coaches.
-  const { data: coachRows } = await supabase
-    .from('group_members')
-    .select('group_id')
-    .eq('user_id', user.id)
-    .eq('role', 'coach')
-  const coachGroupIds = (coachRows ?? []).map(r => r.group_id as string)
-  if (coachGroupIds.length === 0) notFound()
-
-  // The member must belong to one of those groups.
-  const { data: rel } = await supabase
-    .from('group_members')
-    .select('group_id')
-    .eq('user_id', memberId)
-    .in('group_id', coachGroupIds)
-    .limit(1)
-    .maybeSingle()
-  if (!rel) notFound()
-  const groupId = rel.group_id as string
+  const groupId = await groupForCoachMember(supabase, user.id, memberId)
+  if (!groupId) notFound()
 
   const { data: profile } = await supabase
     .from('profiles')
@@ -50,44 +29,20 @@ export default async function CoachMemberPage({ params }: { params: Promise<{ me
     .eq('id', memberId)
     .single<MemberProfile>()
   if (!profile) notFound()
-
-  // Respect the member's opt-out.
   if (profile.privacy_mode === 'dark' || profile.coach_visible === false) notFound()
 
-  const since = new Date(Date.now() - 30 * DAY_MS).toISOString()
-  const sevenDaysAgo = Date.now() - 7 * DAY_MS
-
-  const [{ data: foods }, { data: acts }, { data: noteRows }] = await Promise.all([
-    supabase.from('food_logs')
-      .select('logged_at, total_calories, nutrient_totals')
-      .eq('user_id', memberId).gte('logged_at', since),
-    supabase.from('activity_logs')
-      .select('logged_at, calories_burned')
-      .eq('user_id', memberId).gte('logged_at', since),
+  const [{ attention, signals, report, streak }, { data: noteRows }, { data: draftRow }] = await Promise.all([
+    assessMember(supabase, memberId, profile.calorie_target ?? 2000),
     supabase.from('coach_client_notes')
       .select('id, body, created_at')
       .eq('coach_id', user.id).eq('member_id', memberId).eq('group_id', groupId)
       .order('created_at', { ascending: false }),
+    supabase.from('coach_message_drafts')
+      .select('id, kind, draft_text, status, created_at')
+      .eq('coach_id', user.id).eq('member_id', memberId).eq('status', 'pending')
+      .order('created_at', { ascending: false })
+      .limit(1).maybeSingle(),
   ])
-
-  const allFoods = (foods ?? []) as { logged_at: string; total_calories: number | null; nutrient_totals: NutrientTotals | null }[]
-  const allActs = (acts ?? []) as { logged_at: string; calories_burned: number | null }[]
-
-  const lastLoggedAt = allFoods.reduce<string | null>(
-    (max, f) => (!max || f.logged_at > max ? f.logged_at : max), null)
-  const streak = computeStreak(allFoods.map(f => f.logged_at))
-
-  const weekFoods = allFoods
-    .filter(f => new Date(f.logged_at).getTime() >= sevenDaysAgo)
-    .map(f => ({ logged_at: f.logged_at, total_calories: f.total_calories ?? 0, nutrient_totals: f.nutrient_totals ?? ({} as NutrientTotals) }))
-  const weekActs = allActs
-    .filter(a => new Date(a.logged_at).getTime() >= sevenDaysAgo)
-    .map(a => ({ logged_at: a.logged_at, calories_burned: a.calories_burned ?? 0 }))
-
-  const { attention, signals, report } = assessClient({
-    foods: weekFoods, activities: weekActs,
-    calorieTarget: profile.calorie_target ?? 2000, lastLoggedAt,
-  })
 
   return (
     <CoachMemberClient
@@ -98,6 +53,7 @@ export default async function CoachMemberPage({ params }: { params: Promise<{ me
       report={report}
       streak={streak}
       initialNotes={(noteRows ?? []) as CoachNote[]}
+      initialDraft={(draftRow as PendingDraft | null) ?? null}
     />
   )
 }

@@ -2,11 +2,16 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, Trash2, Lock, AlertCircle } from 'lucide-react'
+import { ArrowLeft, Trash2, Lock, AlertCircle, Sparkles, Send, RotateCcw, X, Check } from 'lucide-react'
 import type { AttentionLevel, ClientSignal } from '@/lib/copilot'
 import type { WeeklyReport } from '@/lib/weekly'
 
 export interface CoachNote { id: string; body: string; created_at: string }
+export interface PendingDraft { id: string; kind: 'nudge' | 'praise' | 'weekly_checkin'; draft_text: string; status: string; created_at: string }
+
+const KIND_LABEL: Record<PendingDraft['kind'], string> = {
+  nudge: 'Nudge', praise: 'Praise', weekly_checkin: 'Weekly check-in',
+}
 
 interface Member { id: string; display_name: string; avatar_url: string | null }
 
@@ -31,16 +36,63 @@ function Stat({ label, value, sub }: { label: string; value: string; sub?: strin
 }
 
 export default function CoachMemberClient({
-  member, groupId, attention, signals, report, streak, initialNotes,
+  member, groupId, attention, signals, report, streak, initialNotes, initialDraft,
 }: {
   member: Member; groupId: string; attention: AttentionLevel
-  signals: ClientSignal[]; report: WeeklyReport; streak: number; initialNotes: CoachNote[]
+  signals: ClientSignal[]; report: WeeklyReport; streak: number
+  initialNotes: CoachNote[]; initialDraft: PendingDraft | null
 }) {
   const [notes, setNotes] = useState<CoachNote[]>(initialNotes)
   const [draft, setDraft] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const meta = ATTENTION_LABEL[attention]
+
+  // ── Copilot draft state ────────────────────────────────────────────────────
+  const [pending, setPending] = useState<PendingDraft | null>(initialDraft)
+  const [draftText, setDraftText] = useState(initialDraft?.draft_text ?? '')
+  const [generating, setGenerating] = useState(false)
+  const [sending, setSending] = useState(false)
+  const [sentOk, setSentOk] = useState(false)
+  const [copilotError, setCopilotError] = useState('')
+
+  async function generateDraft() {
+    if (generating) return
+    setGenerating(true); setCopilotError(''); setSentOk(false)
+    try {
+      const res = await fetch('/api/coach/draft', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ memberId: member.id }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(json.error ?? 'Could not draft a message')
+      setPending(json.draft as PendingDraft)
+      setDraftText((json.draft as PendingDraft).draft_text)
+    } catch (e) {
+      setCopilotError(e instanceof Error ? e.message : 'Could not draft a message')
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  async function resolveDraft(action: 'send' | 'dismiss') {
+    if (!pending || sending) return
+    setSending(true); setCopilotError('')
+    try {
+      const res = await fetch('/api/coach/send', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ draftId: pending.id, action, text: action === 'send' ? draftText : undefined }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(json.error ?? 'Could not complete that')
+      setPending(null); setDraftText('')
+      if (action === 'send') setSentOk(true)
+    } catch (e) {
+      setCopilotError(e instanceof Error ? e.message : 'Could not complete that')
+    } finally {
+      setSending(false)
+    }
+  }
 
   async function addNote() {
     const body = draft.trim()
@@ -119,6 +171,76 @@ export default function CoachMemberClient({
           <Stat label="Nutrients" value={`${report.nutrients.onTrack}/${report.nutrients.total}`} sub="on track" />
           <Stat label="Active" value={`${report.activities.activeDays}/${report.activities.goalDays}`} sub={`${streak}🔥 streak`} />
         </div>
+      </section>
+
+      {/* Copilot — draft a check-in the coach reviews & sends */}
+      <section className="px-4 mb-5">
+        <div className="flex items-center gap-1.5 mb-2">
+          <Sparkles size={13} className="text-emerald-400" />
+          <p className="text-stone-400 text-xs uppercase tracking-wider">Copilot</p>
+        </div>
+
+        {!pending ? (
+          <div className="bg-stone-900 border border-stone-800 rounded-2xl p-4">
+            {sentOk && (
+              <p className="flex items-center gap-1.5 text-emerald-300 text-sm mb-3">
+                <Check size={15} /> Sent to {member.display_name}.
+              </p>
+            )}
+            <p className="text-stone-300 text-sm mb-3">
+              Draft a personalized check-in from {member.display_name}&apos;s week. You review and edit it before anything sends.
+            </p>
+            <button
+              onClick={generateDraft}
+              disabled={generating}
+              className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors"
+            >
+              <Sparkles size={15} /> {generating ? 'Drafting…' : sentOk ? 'Draft another' : 'Draft a check-in'}
+            </button>
+          </div>
+        ) : (
+          <div className="bg-stone-900 border border-emerald-900/50 rounded-2xl p-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full border border-emerald-800/60 bg-emerald-900/40 text-emerald-200">
+                {KIND_LABEL[pending.kind]}
+              </span>
+              <span className="text-stone-500 text-[11px]">Draft — review before sending</span>
+            </div>
+            <textarea
+              value={draftText}
+              onChange={e => setDraftText(e.target.value.slice(0, 2000))}
+              rows={4}
+              className="w-full bg-stone-950 border border-stone-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-emerald-500 resize-none"
+            />
+            <div className="flex items-center gap-2 mt-3">
+              <button
+                onClick={() => resolveDraft('send')}
+                disabled={sending || !draftText.trim()}
+                className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors"
+              >
+                <Send size={14} /> {sending ? 'Sending…' : 'Send'}
+              </button>
+              <button
+                onClick={generateDraft}
+                disabled={generating || sending}
+                aria-label="Regenerate draft"
+                className="flex items-center gap-1.5 bg-stone-800 hover:bg-stone-700 disabled:opacity-50 text-stone-200 text-sm font-semibold px-3 py-2 rounded-xl transition-colors"
+              >
+                <RotateCcw size={14} /> {generating ? '…' : 'Redo'}
+              </button>
+              <button
+                onClick={() => resolveDraft('dismiss')}
+                disabled={sending}
+                aria-label="Dismiss draft"
+                className="ml-auto flex items-center gap-1.5 text-stone-400 hover:text-red-300 text-sm px-2 py-2 transition-colors"
+              >
+                <X size={15} /> Dismiss
+              </button>
+            </div>
+          </div>
+        )}
+        {copilotError && <p className="text-red-400 text-xs mt-2">{copilotError}</p>}
+        <p className="text-stone-600 text-[11px] mt-2">Copilot drafts; you send it in your own voice. Nothing reaches {member.display_name} until you hit Send.</p>
       </section>
 
       {/* Private coach notes */}

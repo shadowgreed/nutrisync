@@ -37,10 +37,16 @@ export default async function CoachPage() {
     .filter((g): g is CoachGroup => !!g)
 
   if (groups.length === 0) {
-    return <CoachClient groups={[]} members={[]} hiddenCount={0} />
+    return <CoachClient groups={[]} members={[]} hiddenCount={0} pendingDrafts={0} />
   }
 
   const groupIds = groups.map(g => g.id)
+
+  // Pending Copilot drafts across all this coach's clients.
+  const { count: pendingDrafts } = await supabase
+    .from('coach_message_drafts')
+    .select('id', { count: 'exact', head: true })
+    .eq('coach_id', user.id).eq('status', 'pending')
 
   // Every member of those groups except the coach themselves.
   const { data: memberRows } = await supabase
@@ -57,7 +63,7 @@ export default async function CoachPage() {
 
   const memberIds = [...new Set(memberships.map(m => m.user_id))]
   if (memberIds.length === 0) {
-    return <CoachClient groups={groups} members={[]} hiddenCount={0} />
+    return <CoachClient groups={groups} members={[]} hiddenCount={0} pendingDrafts={pendingDrafts ?? 0} />
   }
 
   const since = new Date(Date.now() - 30 * DAY_MS).toISOString()
@@ -124,5 +130,5 @@ export default async function CoachPage() {
     })
   }
 
-  return <CoachClient groups={groups} members={members} hiddenCount={hiddenCount} />
+  return <CoachClient groups={groups} members={members} hiddenCount={hiddenCount} pendingDrafts={pendingDrafts ?? 0} />
 }
