@@ -524,12 +524,12 @@ export function BottomNav({ active }: { active: string }) {
         <Link
           href="/log"
           aria-label="Log a meal or activity"
-          className="fixed bottom-[4.75rem] right-4 z-30 flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-semibold pl-4 pr-5 py-3.5 rounded-full shadow-lg shadow-emerald-900/40 transition-all"
+          className="fixed bottom-[calc(4.75rem+env(safe-area-inset-bottom))] right-4 z-30 flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-semibold pl-4 pr-5 py-3.5 rounded-full shadow-lg shadow-emerald-900/40 transition-all"
         >
           <Plus size={20} aria-hidden="true" /> Log
         </Link>
       )}
-      <nav aria-label="Primary" className="fixed bottom-0 left-0 right-0 bg-stone-950/95 border-t border-stone-800 flex backdrop-blur-sm">
+      <nav aria-label="Primary" className="fixed bottom-0 left-0 right-0 bg-stone-950/95 border-t border-stone-800 flex backdrop-blur-sm pb-[env(safe-area-inset-bottom)]">
         {items.map(item => {
           const isActive = active === item.key
           return (

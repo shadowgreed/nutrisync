@@ -49,7 +49,7 @@ export default function CoachClient({
 
   return (
     <div className="min-h-screen bg-stone-950 text-white pb-24">
-      <header className="px-4 pt-5 pb-3 flex items-center gap-3">
+      <header className="px-4 pt-12 pb-3 flex items-center gap-3">
         <Link href="/profile" aria-label="Back to profile" className="text-stone-300 hover:text-white">
           <ArrowLeft size={22} />
         </Link>
