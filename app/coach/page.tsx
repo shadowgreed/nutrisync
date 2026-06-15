@@ -9,6 +9,7 @@ export const dynamic = 'force-dynamic'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
+interface GroupMeta { id: string; name: string; plan: 'free' | 'coach'; member_cap: number }
 interface ProfileJoin {
   id: string
   display_name: string | null
@@ -25,35 +26,37 @@ export default async function CoachPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
+  const { data: me } = await supabase.from('profiles').select('coach_style').eq('id', user.id).single()
+  const coachStyle = (me?.coach_style as string | null) ?? null
+
   // Groups this user coaches.
   const { data: coachRows } = await supabase
     .from('group_members')
-    .select('group_id, groups(id, name)')
+    .select('group_id, groups(id, name, plan, member_cap)')
     .eq('user_id', user.id)
     .eq('role', 'coach')
 
-  const groups: CoachGroup[] = (coachRows ?? [])
-    .map(r => (r.groups as unknown as { id: string; name: string } | null))
-    .filter((g): g is CoachGroup => !!g)
+  const groupMeta: GroupMeta[] = (coachRows ?? [])
+    .map(r => (r.groups as unknown as GroupMeta | null))
+    .filter((g): g is GroupMeta => !!g)
 
-  if (groups.length === 0) {
-    return <CoachClient groups={[]} members={[]} hiddenCount={0} pendingDrafts={0} />
+  const emptyGroups: CoachGroup[] = []
+  if (groupMeta.length === 0) {
+    return <CoachClient groups={emptyGroups} members={[]} hiddenCount={0} pendingDrafts={0} coachId={user.id} coachStyle={coachStyle} />
   }
 
-  const groupIds = groups.map(g => g.id)
+  const groupIds = groupMeta.map(g => g.id)
 
-  // Pending Copilot drafts across all this coach's clients.
-  const { count: pendingDrafts } = await supabase
-    .from('coach_message_drafts')
-    .select('id', { count: 'exact', head: true })
-    .eq('coach_id', user.id).eq('status', 'pending')
-
-  // Every member of those groups except the coach themselves.
-  const { data: memberRows } = await supabase
-    .from('group_members')
-    .select('user_id, group_id, profiles(id, display_name, avatar_url, calorie_target, privacy_mode, coach_visible)')
-    .in('group_id', groupIds)
-    .neq('user_id', user.id)
+  // Pending Copilot drafts + every member of those groups except the coach.
+  const [{ count: pendingDrafts }, { data: memberRows }] = await Promise.all([
+    supabase.from('coach_message_drafts')
+      .select('id', { count: 'exact', head: true })
+      .eq('coach_id', user.id).eq('status', 'pending'),
+    supabase.from('group_members')
+      .select('user_id, group_id, profiles(id, display_name, avatar_url, calorie_target, privacy_mode, coach_visible)')
+      .in('group_id', groupIds)
+      .neq('user_id', user.id),
+  ])
 
   const memberships = (memberRows ?? []).map(r => ({
     user_id: r.user_id as string,
@@ -61,9 +64,17 @@ export default async function CoachPage() {
     profile: r.profiles as unknown as ProfileJoin | null,
   })).filter(m => !!m.profile)
 
+  // Member count per group (+1 for the coach, who is a member of their own group).
+  const countByGroup = new Map<string, number>()
+  for (const m of memberships) countByGroup.set(m.group_id, (countByGroup.get(m.group_id) ?? 0) + 1)
+  const groups: CoachGroup[] = groupMeta.map(g => ({
+    id: g.id, name: g.name, plan: g.plan ?? 'free', memberCap: g.member_cap ?? 6,
+    memberCount: (countByGroup.get(g.id) ?? 0) + 1,
+  }))
+
   const memberIds = [...new Set(memberships.map(m => m.user_id))]
   if (memberIds.length === 0) {
-    return <CoachClient groups={groups} members={[]} hiddenCount={0} pendingDrafts={pendingDrafts ?? 0} />
+    return <CoachClient groups={groups} members={[]} hiddenCount={0} pendingDrafts={pendingDrafts ?? 0} coachId={user.id} coachStyle={coachStyle} />
   }
 
   const since = new Date(Date.now() - 30 * DAY_MS).toISOString()
@@ -92,7 +103,6 @@ export default async function CoachPage() {
 
   for (const m of memberships) {
     const p = m.profile!
-    // Respect the member's opt-out: dark privacy mode or coach_visible = false.
     if (p.privacy_mode === 'dark' || p.coach_visible === false) { hiddenCount++; continue }
 
     const userFoods = foodsByUser.get(m.user_id) ?? []
@@ -130,5 +140,10 @@ export default async function CoachPage() {
     })
   }
 
-  return <CoachClient groups={groups} members={members} hiddenCount={hiddenCount} pendingDrafts={pendingDrafts ?? 0} />
+  return (
+    <CoachClient
+      groups={groups} members={members} hiddenCount={hiddenCount}
+      pendingDrafts={pendingDrafts ?? 0} coachId={user.id} coachStyle={coachStyle}
+    />
+  )
 }

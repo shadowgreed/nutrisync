@@ -84,6 +84,7 @@ export interface Profile {
   water_bottle_ml: number | null
   water_daily_target_ml: number | null
   coach_visible: boolean
+  coach_style: string | null
 }
 
 export type GroupRole = 'coach' | 'member'
