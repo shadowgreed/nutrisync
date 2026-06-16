@@ -21,9 +21,14 @@
 
 html,
 body {
-  /* Prevent accidental horizontal scrolling / side-to-side drift on mobile */
+  /* Prevent accidental horizontal scrolling / side-to-side drift on mobile.
+     Use `clip`, not `hidden`: `overflow-x: hidden` turns the body into a scroll
+     container on iOS, which detaches `position: fixed` elements (the bottom nav)
+     from the viewport so they drift mid-page while scrolling. `clip` still
+     prevents horizontal scroll but keeps the body out of the scroll-container
+     role, so fixed positioning works. */
   max-width: 100%;
-  overflow-x: hidden;
+  overflow-x: clip;
 }
 
 body {
