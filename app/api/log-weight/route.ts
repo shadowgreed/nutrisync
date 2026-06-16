@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
     const targetKg = profile?.target_weight_kg as number | null
     const { data: firstRow } = await supabase
       .from('weight_logs').select('weight_kg').eq('user_id', user.id)
-      .order('logged_at', { ascending: true }).limit(1).single()
+      .order('logged_at', { ascending: true }).limit(1).maybeSingle()
     const startKg = firstRow?.weight_kg as number | undefined
     if (targetKg != null && startKg != null && Math.abs(startKg - targetKg) > 0.05) {
       const total = Math.abs(startKg - targetKg)

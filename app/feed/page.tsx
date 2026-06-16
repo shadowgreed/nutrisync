@@ -57,7 +57,8 @@ export default async function FeedPage() {
       )]
     : []
 
-  // A week of feed, so small groups don't open to a ghost town.
+  // A week of feed, so small groups don't open to a ghost town. Cap the row count
+  // so an active group can't blow up the initial payload (newest first).
   const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
   const { data: logs } = await supabase
     .from('food_logs')
@@ -66,6 +67,7 @@ export default async function FeedPage() {
     .eq('shared_to_feed', true)
     .gte('logged_at', since)
     .order('logged_at', { ascending: false })
+    .limit(100)
 
   // Reactions and comments for those logs, plus group members' activity logs.
   const logIds = logs?.map(l => l.id) ?? []
@@ -77,13 +79,15 @@ export default async function FeedPage() {
       .select('id, user_id, activity_name, duration_minutes, distance_km, steps, calories_burned, logged_at')
       .in('user_id', memberUserIds)
       .gte('logged_at', since)
-      .order('logged_at', { ascending: false }),
+      .order('logged_at', { ascending: false })
+      .limit(100),
     supabase
       .from('milestones')
       .select('id, user_id, type, data, created_at')
       .in('user_id', memberUserIds)
       .gte('created_at', since)
-      .order('created_at', { ascending: false }),
+      .order('created_at', { ascending: false })
+      .limit(50),
   ])
 
   // Build profile map
