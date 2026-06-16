@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation'
 import { ArrowLeft, Save, LogOut, Trash2, Info, Shield, FileText, ChevronRight } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import AvatarUpload from '@/components/AvatarUpload'
+import PushToggle from '@/components/PushToggle'
+import ReminderSettings from '@/components/ReminderSettings'
 import {
   GOAL_LABELS, GOAL_EMOJIS, ACTIVITY_LABELS,
   calculateBMR, calculateTDEE, calculateCalorieTarget,
@@ -446,6 +448,13 @@ export default function EditProfileClient({ profile }: Props) {
               <LogOut size={16} aria-hidden="true" /> Sign out
             </button>
           </div>
+        </div>
+
+        {/* Notifications — push enable/disable + test, and reminder schedule */}
+        <div className="space-y-3">
+          <p className={sectionHdr}>Notifications</p>
+          <PushToggle />
+          <ReminderSettings />
         </div>
 
         {/* Help — legal docs, about, and account deletion */}

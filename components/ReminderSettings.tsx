@@ -58,7 +58,7 @@ export default function ReminderSettings() {
   if (!loaded) return null
 
   return (
-    <div className="mx-4 mb-4">
+    <div>
       <p className="text-stone-400 text-xs uppercase tracking-wider mb-2 px-1">Reminders</p>
       <div className="bg-stone-900 border border-stone-800 rounded-2xl divide-y divide-stone-800">
         <div className="flex items-center gap-3 px-4 py-3">
