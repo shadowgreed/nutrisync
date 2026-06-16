@@ -105,7 +105,7 @@ export default function ChallengesClient({ group, currentUserId, challenges, nee
 
   if (!group) {
     return (
-      <div className="min-h-screen bg-stone-950 pb-24">
+      <div className="min-h-screen bg-stone-950 pb-[calc(6rem+env(safe-area-inset-bottom))]">
         <div className="px-4 pt-12 pb-4">
           <h1 className="text-white text-2xl font-bold">Challenges</h1>
         </div>
@@ -124,7 +124,7 @@ export default function ChallengesClient({ group, currentUserId, challenges, nee
   }
 
   return (
-    <div className="min-h-screen bg-stone-950 pb-24">
+    <div className="min-h-screen bg-stone-950 pb-[calc(6rem+env(safe-area-inset-bottom))]">
       {/* Header */}
       <div className="px-4 pt-12 pb-4 flex items-center justify-between">
         <div>

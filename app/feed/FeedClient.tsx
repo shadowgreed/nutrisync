@@ -301,7 +301,7 @@ export default function FeedClient({ entries: initial, activities, milestones, c
   let lastDay = ''
 
   return (
-    <div className="min-h-screen bg-stone-950 pb-24">
+    <div className="min-h-screen bg-stone-950 pb-[calc(6rem+env(safe-area-inset-bottom))]">
       <div className="px-4 pt-12 pb-4 flex items-center justify-between gap-3">
         <div className="flex items-center gap-3 min-w-0">
           <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-emerald-700 to-emerald-900 flex items-center justify-center overflow-hidden shrink-0">
