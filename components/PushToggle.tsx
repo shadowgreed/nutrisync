@@ -16,7 +16,10 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
 
 type State = 'loading' | 'unsupported' | 'ios-install' | 'off' | 'enabling' | 'on' | 'denied'
 
-export default function PushToggle() {
+// `prompt` (notifications page) only shows the enable CTA and hides entirely once
+// push is on — so the notifications page is just the list. `full` (settings page)
+// shows the manage controls (test / turn off).
+export default function PushToggle({ mode = 'full' }: { mode?: 'prompt' | 'full' }) {
   const [state, setState] = useState<State>('loading')
   const [testStatus, setTestStatus] = useState<'idle' | 'sending' | 'sent'>('idle')
 
@@ -93,10 +96,12 @@ export default function PushToggle() {
   }
 
   if (state === 'loading' || state === 'unsupported') return null
+  // On the notifications page, once activated (or blocked) there's nothing to show.
+  if (mode === 'prompt' && (state === 'on' || state === 'denied')) return null
 
   if (state === 'ios-install') {
     return (
-      <div className="mx-4 mb-4 bg-stone-900 border border-stone-800 rounded-2xl px-4 py-3 flex items-start gap-3">
+      <div className="bg-stone-900 border border-stone-800 rounded-2xl px-4 py-3 flex items-start gap-3">
         <BellOff size={18} className="text-stone-300 shrink-0 mt-0.5" aria-hidden="true" />
         <div className="flex-1 min-w-0">
           <p className="text-white text-sm font-medium">Turn on push on iPhone</p>
@@ -109,7 +114,7 @@ export default function PushToggle() {
   }
 
   return (
-    <div className="mx-4 mb-4 bg-stone-900 border border-stone-800 rounded-2xl px-4 py-3 flex items-center gap-3">
+    <div className="bg-stone-900 border border-stone-800 rounded-2xl px-4 py-3 flex items-center gap-3">
       <span className="text-stone-300 shrink-0" aria-hidden="true">
         {state === 'on' ? <Bell size={18} className="text-emerald-400" /> : <BellOff size={18} />}
       </span>

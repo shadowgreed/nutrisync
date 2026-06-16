@@ -7,7 +7,6 @@ import { createClient } from '@/lib/supabase/client'
 import { setAppBadge } from '@/lib/badge'
 import { BottomNav } from '../dashboard/DashboardClient'
 import PushToggle from '@/components/PushToggle'
-import ReminderSettings from '@/components/ReminderSettings'
 import type { AppNotification, NotificationType } from '@/types'
 
 const TYPE_META: Record<NotificationType, { emoji: string; href: string }> = {
@@ -85,8 +84,11 @@ export default function NotificationsClient({ initial }: { initial: AppNotificat
         <h1 className="text-white text-2xl font-bold">Notifications</h1>
       </div>
 
-      <PushToggle />
-      <ReminderSettings />
+      {/* Prompt to enable push — disappears once notifications are on, so the
+          page is just the list. Managing/disabling lives in Settings → Account. */}
+      <div className="px-4 mb-4 empty:hidden">
+        <PushToggle mode="prompt" />
+      </div>
 
       {items.length === 0 ? (
         <div className="mx-4 text-center py-16 bg-stone-900/50 border border-dashed border-stone-800 rounded-2xl">
