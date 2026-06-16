@@ -37,6 +37,7 @@ interface Props {
   onReact: (activityId: string, emoji: string) => Promise<void>
   onComment: (activityId: string, text: string) => Promise<void>
   onDeleteComment: (activityId: string, commentId: string) => Promise<void>
+  onLikeComment?: (commentId: string, liked: boolean) => void
   // Founder moderation — set when the viewer founded this author's group.
   canModerate?: boolean
   moderationGroup?: { id: string; name: string } | null
@@ -44,7 +45,7 @@ interface Props {
   onRemoveMember?: (userId: string) => Promise<void>
 }
 
-export default function ActivityCard({ entry, currentUserId, onReact, onComment, onDeleteComment, canModerate = false, moderationGroup = null, onDelete, onRemoveMember }: Props) {
+export default function ActivityCard({ entry, currentUserId, onReact, onComment, onDeleteComment, onLikeComment, canModerate = false, moderationGroup = null, onDelete, onRemoveMember }: Props) {
   const [showProfile, setShowProfile] = useState(false)
   const [cheer, setCheer] = useState<'idle' | 'sending' | 'sent'>('idle')
   const [showComments, setShowComments] = useState(false)
@@ -236,6 +237,17 @@ export default function ActivityCard({ entry, currentUserId, onReact, onComment,
                 </p>
                 <div className="flex items-center gap-3 mt-0.5">
                   <span className="text-stone-400 text-xs">{shortAgo(c.created_at)}</span>
+                  {onLikeComment && (
+                    <button
+                      onClick={() => onLikeComment(c.id, !!c.liked_by_me)}
+                      aria-label={c.liked_by_me ? 'Unlike comment' : 'Like comment'}
+                      aria-pressed={!!c.liked_by_me}
+                      className="flex items-center gap-1 text-xs font-medium text-stone-400 hover:text-rose-400 transition-colors"
+                    >
+                      <Heart size={13} className={c.liked_by_me ? 'fill-rose-500 text-rose-500' : ''} aria-hidden="true" />
+                      {(c.like_count ?? 0) > 0 && <span className={c.liked_by_me ? 'text-rose-400' : ''}>{c.like_count}</span>}
+                    </button>
+                  )}
                   {c.user_id === currentUserId && (
                     <button onClick={() => onDeleteComment(entry.id, c.id)} className="text-stone-500 hover:text-red-300 text-xs">Delete</button>
                   )}

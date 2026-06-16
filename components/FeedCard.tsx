@@ -56,6 +56,7 @@ interface Props {
   onDelete?: (logId: string) => Promise<void>
   onEdit?: (logId: string, patch: { caption?: string; meal_type?: string }) => Promise<void>
   onDeleteComment?: (logId: string, commentId: string) => Promise<void>
+  onLikeComment?: (commentId: string, liked: boolean) => void
   nameMap?: Record<string, string>
   // Founder moderation — set when the viewer founded this author's group.
   canModerate?: boolean
@@ -63,7 +64,7 @@ interface Props {
   onRemoveMember?: (userId: string) => Promise<void>
 }
 
-export default function FeedCard({ entry, currentUserId, onReact, onComment, onDelete, onEdit, onDeleteComment, nameMap = {}, canModerate = false, moderationGroup = null, onRemoveMember }: Props) {
+export default function FeedCard({ entry, currentUserId, onReact, onComment, onDelete, onEdit, onDeleteComment, onLikeComment, nameMap = {}, canModerate = false, moderationGroup = null, onRemoveMember }: Props) {
   const [showComments, setShowComments] = useState(false)
   const [showNutrients, setShowNutrients] = useState(false)
   const [commentText, setCommentText] = useState('')
@@ -264,6 +265,17 @@ export default function FeedCard({ entry, currentUserId, onReact, onComment, onD
           </p>
           <div className="flex items-center gap-3 mt-0.5">
             <span className="text-stone-400 text-xs">{shortAgo(c.created_at)}</span>
+            {onLikeComment && (
+              <button
+                onClick={() => onLikeComment(c.id, !!c.liked_by_me)}
+                aria-label={c.liked_by_me ? 'Unlike comment' : 'Like comment'}
+                aria-pressed={!!c.liked_by_me}
+                className="flex items-center gap-1 text-xs font-medium text-stone-400 hover:text-rose-400 transition-colors"
+              >
+                <Heart size={13} className={c.liked_by_me ? 'fill-rose-500 text-rose-500' : ''} aria-hidden="true" />
+                {(c.like_count ?? 0) > 0 && <span className={c.liked_by_me ? 'text-rose-400' : ''}>{c.like_count}</span>}
+              </button>
+            )}
             <button onClick={() => startReply(c)} className="text-stone-400 hover:text-stone-200 text-xs font-medium">Reply</button>
             {isOwnComment && onDeleteComment && (
               <button onClick={() => deleteComment(c)} disabled={deletingCommentId === c.id} className="text-stone-500 hover:text-red-300 text-xs">

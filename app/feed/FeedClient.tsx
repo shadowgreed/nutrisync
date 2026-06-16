@@ -10,7 +10,7 @@ import MilestoneCard from '@/components/MilestoneCard'
 import NotificationBell from '@/components/NotificationBell'
 import { createClient } from '@/lib/supabase/client'
 import { BottomNav } from '../dashboard/DashboardClient'
-import type { FeedEntry, FeedActivityEntry, FeedMilestoneEntry } from '@/types'
+import type { FeedEntry, FeedActivityEntry, FeedMilestoneEntry, Comment } from '@/types'
 
 interface Props {
   entries: FeedEntry[]
@@ -45,6 +45,25 @@ export default function FeedClient({ entries: initial, activities, milestones, c
   // Apply server data on refresh (e.g. after tapping the "new posts" pill).
   useEffect(() => { setEntries(initial) }, [initial])
   useEffect(() => { setActivityList(activities) }, [activities])
+
+  // Like / unlike a comment (works for meal + activity comments — ids are unique,
+  // so we map over both lists). Optimistic; the row write is best-effort.
+  async function toggleCommentLike(commentId: string, liked: boolean) {
+    const apply = <T extends { comments: Comment[] }>(item: T): T => ({
+      ...item,
+      comments: item.comments.map(c => c.id === commentId
+        ? { ...c, liked_by_me: !liked, like_count: Math.max(0, (c.like_count ?? 0) + (liked ? -1 : 1)) }
+        : c),
+    })
+    setEntries(prev => prev.map(apply))
+    setActivityList(prev => prev.map(apply))
+    const supabase = createClient()
+    if (liked) {
+      await supabase.from('comment_likes').delete().eq('comment_id', commentId).eq('user_id', currentUserId)
+    } else {
+      await supabase.from('comment_likes').insert({ comment_id: commentId, user_id: currentUserId })
+    }
+  }
 
   // Live feed: realtime is RLS-gated, so we only receive group members' rows.
   // New posts bump a counter (shown as a pill); reactions/comments flag updates.
@@ -336,6 +355,7 @@ export default function FeedClient({ entries: initial, activities, milestones, c
                     onDelete={handleDelete}
                     onEdit={handleEdit}
                     onDeleteComment={handleDeleteComment}
+                    onLikeComment={toggleCommentLike}
                     nameMap={nameMap}
                     canModerate={canModerate(item.meal.user_id)}
                     moderationGroup={founderGroup}
@@ -348,6 +368,7 @@ export default function FeedClient({ entries: initial, activities, milestones, c
                     onReact={handleActivityReact}
                     onComment={handleActivityComment}
                     onDeleteComment={handleActivityDeleteComment}
+                    onLikeComment={toggleCommentLike}
                     canModerate={canModerate(item.activity.user_id)}
                     moderationGroup={founderGroup}
                     onDelete={handleActivityDelete}

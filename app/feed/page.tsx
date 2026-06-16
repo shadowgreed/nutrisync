@@ -100,15 +100,7 @@ export default async function FeedPage() {
 
   const fallbackProfile = (uid: string) => profileMap[uid] ?? { id: uid, display_name: 'User', avatar_url: null, privacy_mode: 'summary', dark_mode_until: null }
 
-  // Assemble feed entries
-  const feedEntries = (logs ?? []).map(log => ({
-    ...log,
-    profile: fallbackProfile(log.user_id),
-    reactions: (reactions ?? []).filter(r => r.food_log_id === log.id),
-    comments: (comments ?? []).filter(c => c.food_log_id === log.id),
-  }))
-
-  // Reactions + comments for activities (they're now likeable/commentable too).
+  // Reactions + comments for activities (they're likeable/commentable too).
   const activityIds = (activityLogs ?? []).map(a => a.id)
   const [{ data: actReactions }, { data: actComments }] = activityIds.length
     ? await Promise.all([
@@ -117,11 +109,37 @@ export default async function FeedPage() {
       ])
     : [{ data: [] as { activity_log_id: string }[] }, { data: [] as { activity_log_id: string }[] }]
 
+  // Likes on every visible comment (meals + activities) → count + whether I liked it.
+  const allCommentIds = [
+    ...(comments ?? []).map(c => c.id as string),
+    ...(actComments ?? []).map(c => (c as { id: string }).id),
+  ]
+  const { data: commentLikes } = allCommentIds.length
+    ? await supabase.from('comment_likes').select('comment_id, user_id').in('comment_id', allCommentIds)
+    : { data: [] as { comment_id: string; user_id: string }[] }
+  const likeCount = new Map<string, number>()
+  const likedByMe = new Set<string>()
+  for (const l of commentLikes ?? []) {
+    likeCount.set(l.comment_id, (likeCount.get(l.comment_id) ?? 0) + 1)
+    if (l.user_id === user.id) likedByMe.add(l.comment_id)
+  }
+  const withLikes = <T extends { id: string }>(c: T) => ({
+    ...c, like_count: likeCount.get(c.id) ?? 0, liked_by_me: likedByMe.has(c.id),
+  })
+
+  // Assemble feed entries
+  const feedEntries = (logs ?? []).map(log => ({
+    ...log,
+    profile: fallbackProfile(log.user_id),
+    reactions: (reactions ?? []).filter(r => r.food_log_id === log.id),
+    comments: (comments ?? []).filter(c => c.food_log_id === log.id).map(withLikes),
+  }))
+
   const activityEntries = (activityLogs ?? []).map(a => ({
     ...a,
     profile: fallbackProfile(a.user_id),
     reactions: (actReactions ?? []).filter(r => r.activity_log_id === a.id),
-    comments: (actComments ?? []).filter(c => c.activity_log_id === a.id),
+    comments: (actComments ?? []).filter(c => c.activity_log_id === a.id).map(withLikes),
   }))
 
   const milestoneEntries = (milestoneRows ?? []).map(m => ({
