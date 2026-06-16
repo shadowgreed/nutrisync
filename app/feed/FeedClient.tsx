@@ -93,6 +93,20 @@ export default function FeedClient({ entries: initial, activities, milestones, c
     return () => { supabase.removeChannel(channel) }
   }, [currentUserId])
 
+  // Deep link from a notification (/feed?post=<id>): scroll to that post and
+  // briefly highlight it. Reads the param at run time so no Suspense boundary is
+  // needed; re-runs when entries change (e.g. after a refresh pulls it in).
+  useEffect(() => {
+    const targetPost = new URLSearchParams(window.location.search).get('post')
+    if (!targetPost) return
+    const el = document.getElementById(`post-${targetPost}`)
+    if (!el) return
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    el.classList.add('ring-2', 'ring-emerald-500')
+    const t = setTimeout(() => el.classList.remove('ring-2', 'ring-emerald-500'), 2200)
+    return () => clearTimeout(t)
+  }, [entries])
+
   function refreshFeed() {
     setNewCount(0)
     setHasUpdates(false)
@@ -347,20 +361,22 @@ export default function FeedClient({ entries: initial, activities, milestones, c
                   <p className="text-stone-400 text-xs font-semibold uppercase tracking-wider pt-2 px-1">{label}</p>
                 )}
                 {item.kind === 'meal' ? (
-                  <FeedCard
-                    entry={item.meal}
-                    currentUserId={currentUserId}
-                    onReact={handleReact}
-                    onComment={handleComment}
-                    onDelete={handleDelete}
-                    onEdit={handleEdit}
-                    onDeleteComment={handleDeleteComment}
-                    onLikeComment={toggleCommentLike}
-                    nameMap={nameMap}
-                    canModerate={canModerate(item.meal.user_id)}
-                    moderationGroup={founderGroup}
-                    onRemoveMember={handleRemoveMember}
-                  />
+                  <div id={`post-${item.meal.id}`} className="scroll-mt-24 rounded-3xl transition-shadow">
+                    <FeedCard
+                      entry={item.meal}
+                      currentUserId={currentUserId}
+                      onReact={handleReact}
+                      onComment={handleComment}
+                      onDelete={handleDelete}
+                      onEdit={handleEdit}
+                      onDeleteComment={handleDeleteComment}
+                      onLikeComment={toggleCommentLike}
+                      nameMap={nameMap}
+                      canModerate={canModerate(item.meal.user_id)}
+                      moderationGroup={founderGroup}
+                      onRemoveMember={handleRemoveMember}
+                    />
+                  </div>
                 ) : item.kind === 'activity' ? (
                   <ActivityCard
                     entry={item.activity}
