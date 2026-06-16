@@ -529,7 +529,7 @@ export function BottomNav({ active }: { active: string }) {
           <Plus size={20} aria-hidden="true" /> Log
         </Link>
       )}
-      <nav aria-label="Primary" className="fixed bottom-0 left-0 right-0 bg-stone-950/95 border-t border-stone-800 flex backdrop-blur-sm pb-[env(safe-area-inset-bottom)]">
+      <nav aria-label="Primary" className="fixed bottom-0 left-0 right-0 bg-stone-950 border-t border-stone-800 flex pb-[env(safe-area-inset-bottom)]">
         {items.map(item => {
           const isActive = active === item.key
           return (
