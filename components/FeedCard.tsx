@@ -72,8 +72,10 @@ export default function FeedCard({ entry, currentUserId, onReact, onComment, onD
   const [replyTo, setReplyTo] = useState<{ id: string; name: string } | null>(null)
   const [menuComment, setMenuComment] = useState<Comment | null>(null)
   const [deletingCommentId, setDeletingCommentId] = useState<string | null>(null)
+  const [poppedComment, setPoppedComment] = useState<string | null>(null)
   const commentInputRef = useRef<HTMLInputElement>(null)
   const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const lastCommentTap = useRef<{ id: string; t: number } | null>(null)
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -233,6 +235,21 @@ export default function FeedCard({ entry, currentUserId, onReact, onComment, onD
     if (pressTimer.current) { clearTimeout(pressTimer.current); pressTimer.current = null }
   }
 
+  // Double-tap a comment to like it (Instagram-style: likes, never unlikes — the
+  // heart button still toggles). Pops a heart for feedback.
+  function onCommentTap(c: Comment) {
+    const now = Date.now()
+    const prev = lastCommentTap.current
+    if (prev && prev.id === c.id && now - prev.t < 300) {
+      lastCommentTap.current = null
+      setPoppedComment(c.id)
+      setTimeout(() => setPoppedComment(p => (p === c.id ? null : p)), 750)
+      if (onLikeComment && !c.liked_by_me) onLikeComment(c.id, false)
+    } else {
+      lastCommentTap.current = { id: c.id, t: now }
+    }
+  }
+
   // Thread comments: top-level + replies grouped under their parent.
   const topLevelComments = entry.comments.filter(c => !c.parent_id)
   const repliesByParent = entry.comments.reduce((acc, c) => {
@@ -250,7 +267,8 @@ export default function FeedCard({ entry, currentUserId, onReact, onComment, onD
             : (c.profile?.display_name?.[0]?.toUpperCase() ?? '?')}
         </div>
         <div
-          className="flex-1 min-w-0"
+          className="flex-1 min-w-0 relative"
+          onClick={() => onCommentTap(c)}
           onContextMenu={e => { e.preventDefault(); setMenuComment(c) }}
           onTouchStart={() => pressStart(c)}
           onTouchEnd={pressEnd}
@@ -259,6 +277,11 @@ export default function FeedCard({ entry, currentUserId, onReact, onComment, onD
           onMouseUp={pressEnd}
           onMouseLeave={pressEnd}
         >
+          {poppedComment === c.id && (
+            <div className="pointer-events-none absolute -top-1 left-0 z-10" aria-hidden="true">
+              <Heart size={28} className="fill-rose-500 text-rose-500 drop-shadow animate-heart-pop" />
+            </div>
+          )}
           <p className="text-sm leading-snug select-none">
             <span className="text-white font-semibold mr-1.5">{c.profile?.display_name ?? 'User'}</span>
             <span className="text-stone-200">{c.text}</span>
