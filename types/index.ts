@@ -129,6 +129,8 @@ export interface Comment {
   created_at: string
   parent_id?: string | null
   profile: Profile
+  like_count?: number
+  liked_by_me?: boolean
 }
 
 export interface FeedEntry extends FoodLog {
