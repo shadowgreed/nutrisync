@@ -215,7 +215,7 @@ export default function ProfileClient({ profile, email, logs, activities, group,
   const maxCalories = Math.max(...chartData.map(d => Math.max(d.caloriesIn, d.burned)), 500)
 
   return (
-    <div className="min-h-screen bg-stone-950 pb-24">
+    <div className="min-h-screen bg-stone-950 pb-[calc(6rem+env(safe-area-inset-bottom))]">
       {/* Header */}
       <div className="px-4 pt-12 pb-6 flex items-start justify-between">
         <div className="flex items-center gap-4">
