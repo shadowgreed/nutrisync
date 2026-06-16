@@ -1,6 +1,8 @@
 import { redirect, notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { groupForCoachMember, assessMember } from '@/lib/coach-server'
+import { groupForCoachMember, assessMember, getDietOverride } from '@/lib/coach-server'
+import { effectiveDiet, isDiet } from '@/lib/diets'
+import type { Diet } from '@/types'
 import CoachMemberClient, { type CoachNote, type PendingDraft } from './CoachMemberClient'
 
 export const dynamic = 'force-dynamic'
@@ -12,6 +14,7 @@ interface MemberProfile {
   calorie_target: number | null
   privacy_mode: string | null
   coach_visible: boolean | null
+  diet: string | null
 }
 
 export default async function CoachMemberPage({ params }: { params: Promise<{ memberId: string }> }) {
@@ -23,16 +26,21 @@ export default async function CoachMemberPage({ params }: { params: Promise<{ me
   const groupId = await groupForCoachMember(supabase, user.id, memberId)
   if (!groupId) notFound()
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('id, display_name, avatar_url, calorie_target, privacy_mode, coach_visible')
-    .eq('id', memberId)
-    .single<MemberProfile>()
+  const [{ data: profile }, dietOverride] = await Promise.all([
+    supabase.from('profiles')
+      .select('id, display_name, avatar_url, calorie_target, privacy_mode, coach_visible, diet')
+      .eq('id', memberId)
+      .single<MemberProfile>(),
+    getDietOverride(supabase, user.id, memberId),
+  ])
   if (!profile) notFound()
   if (profile.privacy_mode === 'dark' || profile.coach_visible === false) notFound()
 
+  const memberDiet: Diet | null = isDiet(profile.diet) ? profile.diet : null
+  const diet = effectiveDiet(memberDiet, dietOverride)
+
   const [{ attention, signals, report, streak }, { data: noteRows }, { data: draftRow }] = await Promise.all([
-    assessMember(supabase, memberId, profile.calorie_target ?? 2000),
+    assessMember(supabase, memberId, profile.calorie_target ?? 2000, diet),
     supabase.from('coach_client_notes')
       .select('id, body, created_at')
       .eq('coach_id', user.id).eq('member_id', memberId).eq('group_id', groupId)
@@ -48,6 +56,9 @@ export default async function CoachMemberPage({ params }: { params: Promise<{ me
     <CoachMemberClient
       member={{ id: profile.id, display_name: profile.display_name ?? 'Member', avatar_url: profile.avatar_url }}
       groupId={groupId}
+      coachId={user.id}
+      memberDiet={memberDiet}
+      dietOverride={dietOverride}
       attention={attention}
       signals={signals}
       report={report}

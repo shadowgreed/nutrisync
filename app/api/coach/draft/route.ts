@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { rateLimit } from '@/lib/ratelimit'
-import { groupForCoachMember, assessMember } from '@/lib/coach-server'
+import { groupForCoachMember, assessMember, getDietOverride } from '@/lib/coach-server'
 import { chooseKind, draftCheckin } from '@/lib/copilot-ai'
+import { effectiveDiet, isDiet } from '@/lib/diets'
 
 // Generate (or regenerate) a Copilot check-in draft for one member. The draft is
 // stored as 'pending' — it does NOT reach the member until the coach sends it.
@@ -27,15 +28,18 @@ export async function POST(req: NextRequest) {
 
   const { data: member } = await supabase
     .from('profiles')
-    .select('display_name, calorie_target, privacy_mode, coach_visible')
+    .select('display_name, calorie_target, privacy_mode, coach_visible, diet')
     .eq('id', memberId)
-    .single<{ display_name: string | null; calorie_target: number | null; privacy_mode: string | null; coach_visible: boolean | null }>()
+    .single<{ display_name: string | null; calorie_target: number | null; privacy_mode: string | null; coach_visible: boolean | null; diet: string | null }>()
   if (!member) return NextResponse.json({ error: 'Member not found' }, { status: 404 })
   if (member.privacy_mode === 'dark' || member.coach_visible === false) {
     return NextResponse.json({ error: 'This member has opted out of coach view' }, { status: 403 })
   }
 
-  const { signals, report } = await assessMember(supabase, memberId, member.calorie_target ?? 2000)
+  const override = await getDietOverride(supabase, user.id, memberId)
+  const diet = effectiveDiet(isDiet(member.diet) ? member.diet : null, override)
+
+  const { signals, report } = await assessMember(supabase, memberId, member.calorie_target ?? 2000, diet)
   const kind = chooseKind(signals)
 
   const { data: coach } = await supabase
@@ -45,7 +49,7 @@ export async function POST(req: NextRequest) {
     coachName: coach?.display_name ?? 'Coach',
     coachStyle: coach?.coach_style,
     memberFirstName: (member.display_name ?? 'there').trim().split(/\s+/)[0],
-    kind, signals, report,
+    kind, signals, report, diet,
   })
 
   // One live draft per coach↔member: clear any existing pending one first.

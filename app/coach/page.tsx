@@ -2,7 +2,8 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { assessClient } from '@/lib/copilot'
 import { computeStreak } from '@/lib/streak'
-import type { NutrientTotals } from '@/types'
+import { effectiveDiet, isDiet } from '@/lib/diets'
+import type { NutrientTotals, Diet } from '@/types'
 import CoachClient, { type CoachGroup, type RosterMember } from './CoachClient'
 
 export const dynamic = 'force-dynamic'
@@ -17,6 +18,7 @@ interface ProfileJoin {
   calorie_target: number | null
   privacy_mode: string | null
   coach_visible: boolean | null
+  diet: string | null
 }
 interface FoodRow { user_id: string; logged_at: string; total_calories: number | null; nutrient_totals: NutrientTotals | null }
 interface ActivityRow { user_id: string; logged_at: string; calories_burned: number | null }
@@ -47,16 +49,24 @@ export default async function CoachPage() {
 
   const groupIds = groupMeta.map(g => g.id)
 
-  // Pending Copilot drafts + every member of those groups except the coach.
-  const [{ count: pendingDrafts }, { data: memberRows }] = await Promise.all([
+  // Pending Copilot drafts + members of those groups + this coach's diet overrides.
+  const [{ count: pendingDrafts }, { data: memberRows }, { data: overrideRows }] = await Promise.all([
     supabase.from('coach_message_drafts')
       .select('id', { count: 'exact', head: true })
       .eq('coach_id', user.id).eq('status', 'pending'),
     supabase.from('group_members')
-      .select('user_id, group_id, profiles(id, display_name, avatar_url, calorie_target, privacy_mode, coach_visible)')
+      .select('user_id, group_id, profiles(id, display_name, avatar_url, calorie_target, privacy_mode, coach_visible, diet)')
       .in('group_id', groupIds)
       .neq('user_id', user.id),
+    supabase.from('coach_client_settings')
+      .select('member_id, diet_override')
+      .eq('coach_id', user.id),
   ])
+
+  const overrideByMember = new Map<string, Diet | null>()
+  for (const o of overrideRows ?? []) {
+    overrideByMember.set(o.member_id as string, isDiet(o.diet_override) ? (o.diet_override as Diet) : null)
+  }
 
   const memberships = (memberRows ?? []).map(r => ({
     user_id: r.user_id as string,
@@ -118,9 +128,10 @@ export default async function CoachPage() {
       .filter(a => new Date(a.logged_at).getTime() >= sevenDaysAgo)
       .map(a => ({ logged_at: a.logged_at, calories_burned: a.calories_burned ?? 0 }))
 
+    const diet = effectiveDiet(isDiet(p.diet) ? p.diet : null, overrideByMember.get(m.user_id) ?? null)
     const { attention, signals, report } = assessClient({
       foods: weekFoods, activities: weekActs,
-      calorieTarget: p.calorie_target ?? 2000, lastLoggedAt,
+      calorieTarget: p.calorie_target ?? 2000, lastLoggedAt, diet,
     })
 
     const topSignal = (signals.find(s => s.severity === 'warn') ?? signals[0])?.label ?? null

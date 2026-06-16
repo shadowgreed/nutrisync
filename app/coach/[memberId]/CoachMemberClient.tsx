@@ -5,6 +5,8 @@ import Link from 'next/link'
 import { ArrowLeft, Trash2, Lock, AlertCircle, Sparkles, Send, RotateCcw, X, Check } from 'lucide-react'
 import type { AttentionLevel, ClientSignal } from '@/lib/copilot'
 import type { WeeklyReport } from '@/lib/weekly'
+import type { Diet } from '@/types'
+import CoachDietSetting from './CoachDietSetting'
 
 export interface CoachNote { id: string; body: string; created_at: string }
 export interface PendingDraft { id: string; kind: 'nudge' | 'praise' | 'weekly_checkin'; draft_text: string; status: string; created_at: string }
@@ -36,9 +38,11 @@ function Stat({ label, value, sub }: { label: string; value: string; sub?: strin
 }
 
 export default function CoachMemberClient({
-  member, groupId, attention, signals, report, streak, initialNotes, initialDraft,
+  member, groupId, coachId, memberDiet, dietOverride, attention, signals, report, streak, initialNotes, initialDraft,
 }: {
-  member: Member; groupId: string; attention: AttentionLevel
+  member: Member; groupId: string; coachId: string
+  memberDiet: Diet | null; dietOverride: Diet | null
+  attention: AttentionLevel
   signals: ClientSignal[]; report: WeeklyReport; streak: number
   initialNotes: CoachNote[]; initialDraft: PendingDraft | null
 }) {
@@ -172,6 +176,11 @@ export default function CoachMemberClient({
           <Stat label="Active" value={`${report.activities.activeDays}/${report.activities.goalDays}`} sub={`${streak}🔥 streak`} />
         </div>
       </section>
+
+      <CoachDietSetting
+        groupId={groupId} coachId={coachId} memberId={member.id}
+        memberDiet={memberDiet} initialOverride={dietOverride}
+      />
 
       {/* Copilot — draft a check-in the coach reviews & sends */}
       <section className="px-4 mb-5">

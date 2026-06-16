@@ -1,6 +1,8 @@
 import Anthropic from '@anthropic-ai/sdk'
 import type { ClientSignal } from './copilot'
 import type { WeeklyReport } from './weekly'
+import { dietLabel } from './diets'
+import type { Diet } from '@/types'
 
 // ── Coach Copilot: the only AI in the feature ─────────────────────────────────
 // draftCheckin() turns ALREADY-COMPUTED facts (from lib/copilot.ts) into a short,
@@ -26,6 +28,7 @@ export interface DraftRequest {
   kind: DraftKind
   signals: ClientSignal[]
   report: WeeklyReport
+  diet?: Diet | null
 }
 
 // A deterministic message so the queue is never empty/broken if the API is down.
@@ -52,6 +55,7 @@ Rules:
 - No medical, diagnostic, or weight-loss-guarantee claims.
 - Use the client's first name only. Keep it under 60 words.
 - If the coach provided a style/voice, match it.
+- Respect the client's diet: never suggest foods that conflict with it. If a nutrient naturally runs low on their diet (shown in the data), treat it as a supportive acknowledgement (e.g. a gentle "are you supplementing B12?"), NOT as a failure or something they're "missing".
 - Output ONLY the message text — no preamble, no quotation marks, no signature.`
 
 export async function draftCheckin(req: DraftRequest): Promise<{ text: string }> {
@@ -60,6 +64,7 @@ export async function draftCheckin(req: DraftRequest): Promise<{ text: string }>
     coachName: req.coachName,
     coachStyle: req.coachStyle ?? undefined,
     clientFirstName: req.memberFirstName,
+    diet: dietLabel(req.diet),
     daysLoggedThisWeek: req.report.daysLogged,
     calories: req.report.daysLogged
       ? { avgPerDay: req.report.calories.avgPerDay, target: req.report.calories.target, status: req.report.calories.status }

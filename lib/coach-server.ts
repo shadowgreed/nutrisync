@@ -1,7 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { assessClient, type ClientStatus } from './copilot'
 import { computeStreak } from './streak'
-import type { NutrientTotals } from '@/types'
+import { isDiet } from './diets'
+import type { NutrientTotals, Diet } from '@/types'
 
 // Server-side helpers shared by the coach pages and API routes. All reads go
 // through the caller's auth-scoped client, so RLS still applies — these helpers
@@ -23,6 +24,18 @@ export async function coachGroupIds(supabase: SupabaseClient, userId: string): P
 export async function getGroupPlan(supabase: SupabaseClient, groupId: string): Promise<'free' | 'coach'> {
   const { data } = await supabase.from('groups').select('plan').eq('id', groupId).maybeSingle()
   return (data?.plan as 'free' | 'coach') ?? 'free'
+}
+
+/** A coach's diet override for one member, or null if none set. */
+export async function getDietOverride(
+  supabase: SupabaseClient, coachId: string, memberId: string,
+): Promise<Diet | null> {
+  const { data } = await supabase
+    .from('coach_client_settings')
+    .select('diet_override')
+    .eq('coach_id', coachId).eq('member_id', memberId)
+    .maybeSingle()
+  return isDiet(data?.diet_override) ? data!.diet_override as Diet : null
 }
 
 /**
@@ -54,7 +67,7 @@ export interface MemberAssessment extends ClientStatus {
  * must already have verified it may view this member (see groupForCoachMember).
  */
 export async function assessMember(
-  supabase: SupabaseClient, memberId: string, calorieTarget: number,
+  supabase: SupabaseClient, memberId: string, calorieTarget: number, diet?: Diet | null,
 ): Promise<MemberAssessment> {
   const since = new Date(Date.now() - 30 * DAY_MS).toISOString()
   const sevenDaysAgo = Date.now() - 7 * DAY_MS
@@ -82,6 +95,6 @@ export async function assessMember(
     .filter(a => new Date(a.logged_at).getTime() >= sevenDaysAgo)
     .map(a => ({ logged_at: a.logged_at, calories_burned: a.calories_burned ?? 0 }))
 
-  const status = assessClient({ foods: weekFoods, activities: weekActs, calorieTarget, lastLoggedAt })
+  const status = assessClient({ foods: weekFoods, activities: weekActs, calorieTarget, lastLoggedAt, diet })
   return { ...status, streak, lastLoggedAt }
 }

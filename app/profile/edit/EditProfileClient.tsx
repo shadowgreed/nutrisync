@@ -12,9 +12,12 @@ import {
   lbsToKg, ftInToCm, kgToLbs, cmToFtIn,
 } from '@/lib/fitness'
 import { mlToOz, ozToMl, BOTTLE_OZ_PRESETS, TARGET_OZ_PRESETS } from '@/lib/water'
-import type { Goal, ActivityLevel, Profile } from '@/types'
+import { DIETS, DIET_LABELS, DIET_EMOJIS } from '@/lib/diets'
+import type { Goal, ActivityLevel, Profile, Diet } from '@/types'
 
 const GOALS: Goal[] = ['lose_weight', 'maintain', 'build_muscle', 'improve_health']
+// Omnivore == "no specific diet" for nutrient purposes, so it's the null option.
+const DIET_CHOICES: Diet[] = DIETS.filter(d => d !== 'omnivore')
 const ACTIVITY_LEVELS: ActivityLevel[] = ['sedentary', 'light', 'moderate', 'active', 'very_active']
 
 interface Props { profile: Profile }
@@ -70,6 +73,7 @@ export default function EditProfileClient({ profile }: Props) {
   const [activityLevel, setActivityLevel] = useState<ActivityLevel>(
     (profile.activity_level as ActivityLevel) ?? 'moderate'
   )
+  const [diet, setDiet] = useState<Diet | null>((profile.diet as Diet) ?? null)
   const [waterBottleMl, setWaterBottleMl] = useState(profile.water_bottle_ml ?? ozToMl(24))
   const [waterTargetMl, setWaterTargetMl] = useState(profile.water_daily_target_ml ?? ozToMl(64))
   const [bottleOzDraft, setBottleOzDraft] = useState(String(mlToOz(profile.water_bottle_ml ?? ozToMl(24))))
@@ -122,6 +126,7 @@ export default function EditProfileClient({ profile }: Props) {
       biological_sex:        sex,
       goal,
       activity_level:        activityLevel,
+      diet,
       calorie_target:        calorieTarget,
       water_bottle_ml:       waterBottleMl,
       water_daily_target_ml: waterTargetMl,
@@ -262,6 +267,35 @@ export default function EditProfileClient({ profile }: Props) {
               >
                 <span>{GOAL_EMOJIS[g]}</span>
                 <span className={`text-sm font-medium ${goal === g ? 'text-white' : 'text-stone-300'}`}>{GOAL_LABELS[g]}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Diet */}
+        <div>
+          <p className={sectionHdr}>Diet</p>
+          <p className="text-stone-500 text-[11px] -mt-1 mb-2">Tailors your nutrient insights — we won&apos;t flag what your diet naturally runs low on.</p>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => setDiet(null)}
+              className={`flex items-center gap-2 p-3 rounded-xl border transition-all text-left ${
+                diet === null ? 'border-emerald-500 bg-emerald-900/30' : 'border-stone-700 bg-stone-900 hover:border-stone-500'
+              }`}
+            >
+              <span>🍽️</span>
+              <span className={`text-sm font-medium ${diet === null ? 'text-white' : 'text-stone-300'}`}>No specific diet</span>
+            </button>
+            {DIET_CHOICES.map(d => (
+              <button
+                key={d}
+                onClick={() => setDiet(d)}
+                className={`flex items-center gap-2 p-3 rounded-xl border transition-all text-left ${
+                  diet === d ? 'border-emerald-500 bg-emerald-900/30' : 'border-stone-700 bg-stone-900 hover:border-stone-500'
+                }`}
+              >
+                <span>{DIET_EMOJIS[d]}</span>
+                <span className={`text-sm font-medium ${diet === d ? 'text-white' : 'text-stone-300'}`}>{DIET_LABELS[d]}</span>
               </button>
             ))}
           </div>
