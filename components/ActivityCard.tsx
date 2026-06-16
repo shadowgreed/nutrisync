@@ -1,10 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { Flame, PartyPopper, Heart, MessageCircle, Send, MoreHorizontal, Trash2 } from 'lucide-react'
 import { kmToMiles } from '@/lib/fitness'
 import MiniProfileModal from '@/components/MiniProfileModal'
-import type { FeedActivityEntry } from '@/types'
+import type { FeedActivityEntry, Comment } from '@/types'
 
 const HEART = '❤️'
 
@@ -54,6 +54,22 @@ export default function ActivityCard({ entry, currentUserId, onReact, onComment,
   const [menuOpen, setMenuOpen] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [poppedComment, setPoppedComment] = useState<string | null>(null)
+  const lastCommentTap = useRef<{ id: string; t: number } | null>(null)
+
+  // Double-tap a comment to like it (likes only; the heart button still toggles).
+  function onCommentTap(c: Comment) {
+    const now = Date.now()
+    const prev = lastCommentTap.current
+    if (prev && prev.id === c.id && now - prev.t < 300) {
+      lastCommentTap.current = null
+      setPoppedComment(c.id)
+      setTimeout(() => setPoppedComment(p => (p === c.id ? null : p)), 750)
+      if (onLikeComment && !c.liked_by_me) onLikeComment(c.id, false)
+    } else {
+      lastCommentTap.current = { id: c.id, t: now }
+    }
+  }
   const emoji = ACTIVITY_EMOJI[entry.activity_name] ?? '💪'
   const isOwn = entry.user_id === currentUserId
   const isModeration = !isOwn && canModerate
@@ -230,7 +246,12 @@ export default function ActivityCard({ entry, currentUserId, onReact, onComment,
                   ? <img src={c.profile.avatar_url} alt="" className="w-full h-full object-cover" />
                   : (c.profile?.display_name?.[0]?.toUpperCase() ?? '?')}
               </div>
-              <div className="flex-1 min-w-0">
+              <div className="flex-1 min-w-0 relative" onClick={() => onCommentTap(c)}>
+                {poppedComment === c.id && (
+                  <div className="pointer-events-none absolute -top-1 left-0 z-10" aria-hidden="true">
+                    <Heart size={28} className="fill-rose-500 text-rose-500 drop-shadow animate-heart-pop" />
+                  </div>
+                )}
                 <p className="text-sm leading-snug">
                   <span className="text-white font-semibold mr-1.5">{c.profile?.display_name ?? 'User'}</span>
                   <span className="text-stone-200">{c.text}</span>
