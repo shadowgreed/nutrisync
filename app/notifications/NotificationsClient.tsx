@@ -24,6 +24,14 @@ const TYPE_META: Record<NotificationType, { emoji: string; href: string }> = {
   coach_nudge:   { emoji: '📣', href: '/dashboard' },
 }
 
+// Post-related notifications deep-link to the exact post on the feed; everything
+// else uses its static destination.
+const POST_TYPES = new Set<NotificationType>(['reaction', 'comment', 'reply', 'meal'])
+function hrefFor(n: AppNotification): string {
+  if (n.food_log_id && POST_TYPES.has(n.type)) return `/feed?post=${n.food_log_id}`
+  return TYPE_META[n.type].href
+}
+
 function timeAgo(iso: string): string {
   const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000)
   if (s < 60) return 'just now'
@@ -93,7 +101,7 @@ export default function NotificationsClient({ initial }: { initial: AppNotificat
             return (
               <Link
                 key={n.id}
-                href={meta.href}
+                href={hrefFor(n)}
                 className={`flex items-start gap-3 px-4 py-3 rounded-2xl border transition-colors ${
                   n.read
                     ? 'bg-stone-900 border-stone-800 hover:border-stone-700'
