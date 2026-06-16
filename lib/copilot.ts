@@ -1,5 +1,8 @@
 import { buildWeeklyReport } from './weekly'
 import type { WeeklyReport, WeeklyFoodRow, WeeklyActivityRow } from './weekly'
+import { NUTRIENT_KEYS, NUTRIENT_META } from './nutrients'
+import { dietExpectedLow, dietLabel } from './diets'
+import type { Diet, NutrientKey } from '@/types'
 
 // ── Coach Copilot: deterministic client assessment ───────────────────────────
 // This layer contains NO AI. It turns a member's recent logs into a structured
@@ -9,7 +12,7 @@ import type { WeeklyReport, WeeklyFoodRow, WeeklyActivityRow } from './weekly'
 export type AttentionLevel = 'on_track' | 'watch' | 'needs_attention'
 
 export interface ClientSignal {
-  code: 'logging_gap' | 'calorie_drift_over' | 'calorie_drift_under' | 'nutrient_gap' | 'strong_week'
+  code: 'logging_gap' | 'calorie_drift_over' | 'calorie_drift_under' | 'nutrient_gap' | 'strong_week' | 'diet_note'
   severity: 'info' | 'warn'
   label: string                  // human-readable, e.g. "3 days since last log"
   data: Record<string, unknown>  // structured, for the M2 draft prompt
@@ -23,16 +26,20 @@ export interface ClientStatus {
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const DRIFT_PCT = 0.2  // off calorie target by >20% of the goal counts as drift
+const LOW_PCT = 50     // a nutrient under this % of its daily target is "low"
 
 /**
  * Assess one member from their last week of logs. `lastLoggedAt` is the most
- * recent food-log timestamp (null = never logged). Pure + deterministic.
+ * recent food-log timestamp (null = never logged). `diet` (when known) lets us
+ * acknowledge nutrients that naturally run low on that diet instead of flagging
+ * them. Pure + deterministic.
  */
 export function assessClient(opts: {
   foods: WeeklyFoodRow[]
   activities: WeeklyActivityRow[]
   calorieTarget: number
   lastLoggedAt: string | null
+  diet?: Diet | null
   now?: Date
 }): ClientStatus {
   const now = opts.now ?? new Date()
@@ -64,13 +71,42 @@ export function assessClient(opts: {
     }
   }
 
-  // ── Biggest nutrient gap (informational) ───────────────────────────────────
-  if (report.daysLogged > 0 && report.nutrients.worst && report.nutrients.worst.pct < 50) {
-    signals.push({
-      code: 'nutrient_gap', severity: 'info',
-      label: `${report.nutrients.worst.emoji} ${report.nutrients.worst.label} low (${report.nutrients.worst.pct}%)`,
-      data: { nutrient: report.nutrients.worst.label, pct: report.nutrients.worst.pct },
+  // ── Nutrients — diet-aware ─────────────────────────────────────────────────
+  // Rank each tracked micronutrient by % of its daily target this week. A diet
+  // can make some of these run low *by design* — those are acknowledged via a
+  // neutral diet_note rather than flagged as a gap the coach should chase.
+  if (report.daysLogged > 0) {
+    const expected = new Set<NutrientKey>(dietExpectedLow(opts.diet))
+    const perNutrient = NUTRIENT_KEYS.map(k => {
+      const meta = NUTRIENT_META[k]
+      const total = opts.foods.reduce((s, f) => s + (f.nutrient_totals?.[k] ?? 0), 0)
+      const avg = total / report.daysLogged
+      const pct = meta.target > 0 ? Math.round((avg / meta.target) * 100) : 0
+      return { key: k, label: meta.label, emoji: meta.emoji, pct }
     })
+
+    // Genuine gap: the worst nutrient that the diet does NOT explain.
+    const worstUnexpected = perNutrient
+      .filter(n => !expected.has(n.key))
+      .sort((a, b) => a.pct - b.pct)[0]
+    if (worstUnexpected && worstUnexpected.pct < LOW_PCT) {
+      signals.push({
+        code: 'nutrient_gap', severity: 'info',
+        label: `${worstUnexpected.emoji} ${worstUnexpected.label} low (${worstUnexpected.pct}%)`,
+        data: { nutrient: worstUnexpected.label, pct: worstUnexpected.pct },
+      })
+    }
+
+    // Diet-expected nutrients that are low: acknowledge, don't alarm.
+    const expectedLowNow = perNutrient.filter(n => expected.has(n.key) && n.pct < LOW_PCT)
+    if (opts.diet && expectedLowNow.length > 0) {
+      const names = expectedLowNow.map(n => n.label).slice(0, 3).join(', ')
+      signals.push({
+        code: 'diet_note', severity: 'info',
+        label: `${dietLabel(opts.diet)}: ${names} naturally run lower`,
+        data: { diet: opts.diet, nutrients: expectedLowNow.map(n => n.key) },
+      })
+    }
   }
 
   // ── Strong week → seeds a praise draft, not just fixes ─────────────────────
@@ -79,6 +115,7 @@ export function assessClient(opts: {
   }
 
   // ── Roll up to an attention level ──────────────────────────────────────────
+  // diet_note is neutral acknowledgement — it never raises the attention level.
   const hasWarn = signals.some(s => s.severity === 'warn')
   const softDip = daysSince === 1
   const hasInfoConcern = signals.some(s => s.code === 'nutrient_gap')

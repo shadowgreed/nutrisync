@@ -3,6 +3,9 @@ export type PrivacyMode = 'meal_photos' | 'summary' | 'full' | 'dark'
 export type NutrientStatus = 'green' | 'yellow' | 'red'
 export type Goal = 'lose_weight' | 'maintain' | 'build_muscle' | 'improve_health'
 export type ActivityLevel = 'sedentary' | 'light' | 'moderate' | 'active' | 'very_active'
+export type Diet =
+  | 'omnivore' | 'vegetarian' | 'vegan' | 'pescatarian' | 'keto'
+  | 'paleo' | 'mediterranean' | 'carnivore' | 'gluten_free' | 'dairy_free'
 
 export interface NutrientTotals {
   vitamin_d: number   // mcg
@@ -85,6 +88,7 @@ export interface Profile {
   water_daily_target_ml: number | null
   coach_visible: boolean
   coach_style: string | null
+  diet: Diet | null
 }
 
 export type GroupRole = 'coach' | 'member'

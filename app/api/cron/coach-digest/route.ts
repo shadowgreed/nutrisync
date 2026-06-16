@@ -4,6 +4,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { sendPushToSubscriptions } from '@/lib/push'
 import { assessMember } from '@/lib/coach-server'
 import { chooseKind, draftCheckin } from '@/lib/copilot-ai'
+import { effectiveDiet, isDiet } from '@/lib/diets'
+import type { Diet } from '@/types'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -22,7 +24,7 @@ function localParts(tz: string, date: Date): { date: string; hour: number } {
 
 interface MemberProfile {
   id: string; display_name: string | null; calorie_target: number | null
-  privacy_mode: string | null; coach_visible: boolean | null
+  privacy_mode: string | null; coach_visible: boolean | null; diet: string | null
 }
 
 /**
@@ -76,9 +78,17 @@ export async function GET(req: NextRequest) {
     const groupIds = groupsByCoach.get(coach.id as string) ?? []
     const { data: memberRows } = await admin
       .from('group_members')
-      .select('user_id, group_id, profiles(id, display_name, calorie_target, privacy_mode, coach_visible)')
+      .select('user_id, group_id, profiles(id, display_name, calorie_target, privacy_mode, coach_visible, diet)')
       .in('group_id', groupIds)
       .neq('user_id', coach.id as string)
+
+    // This coach's per-client diet overrides.
+    const { data: overrideRows } = await admin
+      .from('coach_client_settings').select('member_id, diet_override').eq('coach_id', coach.id as string)
+    const overrideByMember = new Map<string, Diet | null>()
+    for (const o of overrideRows ?? []) {
+      overrideByMember.set(o.member_id as string, isDiet(o.diet_override) ? (o.diet_override as Diet) : null)
+    }
 
     let needsCount = 0
 
@@ -87,7 +97,8 @@ export async function GET(req: NextRequest) {
       if (!p) continue
       if (p.privacy_mode === 'dark' || p.coach_visible === false) continue
 
-      const { attention, signals, report } = await assessMember(admin, p.id, p.calorie_target ?? 2000)
+      const diet = effectiveDiet(isDiet(p.diet) ? p.diet : null, overrideByMember.get(p.id) ?? null)
+      const { attention, signals, report } = await assessMember(admin, p.id, p.calorie_target ?? 2000, diet)
       if (attention !== 'needs_attention') continue
       needsCount++
 
@@ -104,7 +115,7 @@ export async function GET(req: NextRequest) {
         coachName: (coach.display_name as string) ?? 'Coach',
         coachStyle: coach.coach_style as string | null,
         memberFirstName: (p.display_name ?? 'there').trim().split(/\s+/)[0],
-        kind, signals, report,
+        kind, signals, report, diet,
       })
       await admin.from('coach_message_drafts').insert({
         group_id: row.group_id as string, coach_id: coach.id as string, member_id: p.id, kind,
