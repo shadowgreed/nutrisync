@@ -36,11 +36,11 @@ function Stat({ label, value, sub }: { label: string; value: string; sub?: strin
 }
 
 export default function CoachMemberClient({
-  member, groupId, attention, signals, report, streak, initialNotes, initialDraft,
+  member, groupId, attention, signals, report, streak, initialNotes, initialDraft, copilotEnabled,
 }: {
   member: Member; groupId: string; attention: AttentionLevel
   signals: ClientSignal[]; report: WeeklyReport; streak: number
-  initialNotes: CoachNote[]; initialDraft: PendingDraft | null
+  initialNotes: CoachNote[]; initialDraft: PendingDraft | null; copilotEnabled: boolean
 }) {
   const [notes, setNotes] = useState<CoachNote[]>(initialNotes)
   const [draft, setDraft] = useState('')
@@ -180,7 +180,17 @@ export default function CoachMemberClient({
           <p className="text-stone-400 text-xs uppercase tracking-wider">Copilot</p>
         </div>
 
-        {!pending ? (
+        {!copilotEnabled ? (
+          <div className="bg-stone-900 border border-stone-800 rounded-2xl p-4">
+            <p className="flex items-center gap-1.5 text-stone-200 text-sm font-medium">
+              <Lock size={14} className="text-emerald-400" /> Copilot is part of the Coach plan
+            </p>
+            <p className="text-stone-400 text-xs mt-1">
+              Activate it from the <Link href="/coach" className="text-emerald-400 hover:underline">coach dashboard</Link> to
+              draft check-ins for {member.display_name}.
+            </p>
+          </div>
+        ) : !pending ? (
           <div className="bg-stone-900 border border-stone-800 rounded-2xl p-4">
             {sentOk && (
               <p className="flex items-center gap-1.5 text-emerald-300 text-sm mb-3">
@@ -240,7 +250,9 @@ export default function CoachMemberClient({
           </div>
         )}
         {copilotError && <p className="text-red-400 text-xs mt-2">{copilotError}</p>}
-        <p className="text-stone-600 text-[11px] mt-2">Copilot drafts; you send it in your own voice. Nothing reaches {member.display_name} until you hit Send.</p>
+        {copilotEnabled && (
+          <p className="text-stone-600 text-[11px] mt-2">Copilot drafts; you send it in your own voice. Nothing reaches {member.display_name} until you hit Send.</p>
+        )}
       </section>
 
       {/* Private coach notes */}

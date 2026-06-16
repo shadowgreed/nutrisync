@@ -17,9 +17,9 @@ import type { Goal, ActivityLevel, Profile } from '@/types'
 const GOALS: Goal[] = ['lose_weight', 'maintain', 'build_muscle', 'improve_health']
 const ACTIVITY_LEVELS: ActivityLevel[] = ['sedentary', 'light', 'moderate', 'active', 'very_active']
 
-interface Props { profile: Profile }
+interface Props { profile: Profile; isCoach?: boolean }
 
-export default function EditProfileClient({ profile }: Props) {
+export default function EditProfileClient({ profile, isCoach = false }: Props) {
   const router = useRouter()
   const supabase = createClient()
   const [saving, setSaving] = useState(false)
@@ -88,6 +88,9 @@ export default function EditProfileClient({ profile }: Props) {
     profile.target_weight_kg ? String(kgToLbs(profile.target_weight_kg)) : ''
   )
   const [calorieTargetInput, setCalorieTargetInput] = useState(String(profile.calorie_target ?? ''))
+  // Coaching: opt-out of coach view (everyone) + coach voice (coaches only).
+  const [coachVisible, setCoachVisible] = useState(profile.coach_visible ?? true)
+  const [coachStyle, setCoachStyle] = useState(profile.coach_style ?? '')
 
   // Live "suggested" calorie target from the current form (Mifflin-St Jeor → TDEE → goal)
   const suggestedCalories = (() => {
@@ -128,11 +131,21 @@ export default function EditProfileClient({ profile }: Props) {
     }
     const targetKg = targetWeightLbs ? lbsToKg(Number(targetWeightLbs)) : null
 
-    // Retry without target_weight_kg if migration 014 isn't applied yet
-    let { error: err } = await supabase.from('profiles')
-      .update({ ...baseUpdate, target_weight_kg: targetKg }).eq('id', profile.id)
-    if (err && (err.code === 'PGRST204' || /target_weight_kg/.test(err.message))) {
-      ;({ error: err } = await supabase.from('profiles').update(baseUpdate).eq('id', profile.id))
+    // Optional columns added by later migrations (014 target, 031/033 coach). If a
+    // DB hasn't run them yet PostgREST reports the missing column — peel optionals
+    // off and retry so the core save still lands.
+    const coachUpdate = isCoach ? { coach_style: coachStyle.trim() || null } : {}
+    const attempts = [
+      { ...baseUpdate, target_weight_kg: targetKg, coach_visible: coachVisible, ...coachUpdate },
+      { ...baseUpdate, target_weight_kg: targetKg },
+      baseUpdate,
+    ]
+    let err = null
+    for (const update of attempts) {
+      ;({ error: err } = await supabase.from('profiles').update(update).eq('id', profile.id))
+      if (!err) break
+      const missingCol = err.code === 'PGRST204' || /target_weight_kg|coach_visible|coach_style/.test(err.message)
+      if (!missingCol) break
     }
 
     if (err) { setError(err.message); setSaving(false); return }
@@ -390,6 +403,41 @@ export default function EditProfileClient({ profile }: Props) {
               </span>
               <span className="text-sky-400 font-bold text-sm">{mlToOz(waterTargetMl)} oz</span>
             </div>
+          </div>
+        </div>
+
+        {/* Coaching */}
+        <div>
+          <p className={sectionHdr}>Coaching</p>
+          <div className="bg-stone-900 border border-stone-800 rounded-2xl divide-y divide-stone-800">
+            <button
+              type="button"
+              onClick={() => setCoachVisible(v => !v)}
+              aria-pressed={coachVisible}
+              className="w-full flex items-center gap-3 px-4 py-3.5 text-left"
+            >
+              <div className="flex-1">
+                <p className="text-stone-200 text-sm font-medium">Visible to my coach</p>
+                <p className="text-stone-500 text-xs mt-0.5">Let your group&apos;s coach see your weekly progress summaries.</p>
+              </div>
+              <span className={`shrink-0 w-11 h-6 rounded-full p-0.5 transition-colors ${coachVisible ? 'bg-emerald-600' : 'bg-stone-700'}`}>
+                <span className={`block w-5 h-5 rounded-full bg-white transition-transform ${coachVisible ? 'translate-x-5' : ''}`} />
+              </span>
+            </button>
+
+            {isCoach && (
+              <div className="px-4 py-3.5">
+                <p className="text-stone-200 text-sm font-medium">Your coaching voice</p>
+                <p className="text-stone-500 text-xs mt-0.5 mb-2">How Copilot drafts check-ins for you to review — e.g. &ldquo;warm, casual, emoji-light&rdquo;.</p>
+                <textarea
+                  value={coachStyle}
+                  onChange={e => setCoachStyle(e.target.value.slice(0, 200))}
+                  rows={2}
+                  placeholder="warm, encouraging, a little playful"
+                  className="w-full bg-stone-950 border border-stone-700 rounded-xl px-3 py-2.5 text-white text-sm placeholder-stone-600 focus:outline-none focus:ring-1 focus:ring-emerald-500 resize-none"
+                />
+              </div>
+            )}
           </div>
         </div>
 

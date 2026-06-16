@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { rateLimit } from '@/lib/ratelimit'
 import { groupForCoachMember, assessMember } from '@/lib/coach-server'
+import { isCoachPlanGroup } from '@/lib/coach-plan'
 import { chooseKind, draftCheckin } from '@/lib/copilot-ai'
 
 // Generate (or regenerate) a Copilot check-in draft for one member. The draft is
@@ -24,6 +25,11 @@ export async function POST(req: NextRequest) {
 
   const groupId = await groupForCoachMember(supabase, user.id, memberId)
   if (!groupId) return NextResponse.json({ error: 'Not your client' }, { status: 403 })
+
+  // Copilot drafting is a coach-plan feature (M4 gate).
+  if (!(await isCoachPlanGroup(supabase, groupId))) {
+    return NextResponse.json({ error: 'Copilot drafting is part of the Coach plan.', upgrade: true }, { status: 402 })
+  }
 
   const { data: member } = await supabase
     .from('profiles')

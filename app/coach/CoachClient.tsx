@@ -1,11 +1,14 @@
 'use client'
 
+import { useState } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, ChevronRight, EyeOff, Sparkles } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { ArrowLeft, ChevronRight, EyeOff, Sparkles, Lock } from 'lucide-react'
 import { BottomNav } from '../dashboard/DashboardClient'
+import { COACH_PLAN_MEMBER_CAP } from '@/lib/coach-plan'
 import type { AttentionLevel } from '@/lib/copilot'
 
-export interface CoachGroup { id: string; name: string }
+export interface CoachGroup { id: string; name: string; plan: 'free' | 'coach' }
 
 export interface RosterMember {
   user_id: string
@@ -33,13 +36,36 @@ function initials(name: string): string {
 }
 
 export default function CoachClient({
-  groups, members, hiddenCount, pendingDrafts,
-}: { groups: CoachGroup[]; members: RosterMember[]; hiddenCount: number; pendingDrafts: number }) {
+  groups, members, hiddenCount, pendingDrafts, copilotEnabled,
+}: { groups: CoachGroup[]; members: RosterMember[]; hiddenCount: number; pendingDrafts: number; copilotEnabled: boolean }) {
+  const router = useRouter()
+  const [activating, setActivating] = useState(false)
+  const [activateError, setActivateError] = useState('')
   const sorted = [...members].sort((a, b) =>
     ATTENTION_META[a.attention].order - ATTENTION_META[b.attention].order
     || b.streak - a.streak,
   )
   const needs = sorted.filter(m => m.attention !== 'on_track').length
+  // The group to upgrade if Copilot is locked (first free group the user coaches).
+  const upgradeGroup = groups.find(g => g.plan !== 'coach') ?? groups[0]
+
+  async function activateCoachPlan() {
+    if (!upgradeGroup || activating) return
+    setActivating(true); setActivateError('')
+    try {
+      const res = await fetch('/api/coach/plan', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ groupId: upgradeGroup.id, plan: 'coach' }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(json.error ?? 'Could not activate the Coach plan')
+      router.refresh()
+    } catch (e) {
+      setActivateError(e instanceof Error ? e.message : 'Could not activate the Coach plan')
+    } finally {
+      setActivating(false)
+    }
+  }
 
   return (
     <div className="min-h-screen bg-stone-950 text-white pb-24">
@@ -54,6 +80,30 @@ export default function CoachClient({
           </p>
         </div>
       </header>
+
+      {/* Copilot lock — free groups see the basic roster but no AI drafting (M4). */}
+      {groups.length > 0 && !copilotEnabled && (
+        <div className="px-4 mb-3">
+          <div className="bg-gradient-to-br from-emerald-900/40 to-stone-900 border border-emerald-800/50 rounded-2xl p-4">
+            <div className="flex items-center gap-2 mb-1">
+              <Lock size={15} className="text-emerald-300" />
+              <p className="text-white font-semibold text-sm">Unlock the Copilot</p>
+            </div>
+            <p className="text-stone-300 text-xs leading-relaxed mb-3">
+              The Coach plan adds AI-drafted check-ins (you review &amp; send), a daily
+              digest of who needs attention, and a roster up to {COACH_PLAN_MEMBER_CAP} members.
+            </p>
+            <button
+              onClick={activateCoachPlan}
+              disabled={activating}
+              className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors"
+            >
+              <Sparkles size={15} /> {activating ? 'Activating…' : 'Activate Coach plan'}
+            </button>
+            {activateError && <p className="text-red-400 text-xs mt-2">{activateError}</p>}
+          </div>
+        </div>
+      )}
 
       {members.length === 0 ? (
         <div className="px-4 mt-10 text-center">

@@ -28,16 +28,19 @@ export default async function CoachPage() {
   // Groups this user coaches.
   const { data: coachRows } = await supabase
     .from('group_members')
-    .select('group_id, groups(id, name)')
+    .select('group_id, groups(id, name, plan)')
     .eq('user_id', user.id)
     .eq('role', 'coach')
 
   const groups: CoachGroup[] = (coachRows ?? [])
-    .map(r => (r.groups as unknown as { id: string; name: string } | null))
+    .map(r => (r.groups as unknown as { id: string; name: string; plan: 'free' | 'coach' } | null))
     .filter((g): g is CoachGroup => !!g)
 
+  // Copilot (drafting) is unlocked once any coached group is on the coach plan.
+  const copilotEnabled = groups.some(g => g.plan === 'coach')
+
   if (groups.length === 0) {
-    return <CoachClient groups={[]} members={[]} hiddenCount={0} pendingDrafts={0} />
+    return <CoachClient groups={[]} members={[]} hiddenCount={0} pendingDrafts={0} copilotEnabled={false} />
   }
 
   const groupIds = groups.map(g => g.id)
@@ -63,7 +66,7 @@ export default async function CoachPage() {
 
   const memberIds = [...new Set(memberships.map(m => m.user_id))]
   if (memberIds.length === 0) {
-    return <CoachClient groups={groups} members={[]} hiddenCount={0} pendingDrafts={pendingDrafts ?? 0} />
+    return <CoachClient groups={groups} members={[]} hiddenCount={0} pendingDrafts={pendingDrafts ?? 0} copilotEnabled={copilotEnabled} />
   }
 
   const since = new Date(Date.now() - 30 * DAY_MS).toISOString()
@@ -130,5 +133,5 @@ export default async function CoachPage() {
     })
   }
 
-  return <CoachClient groups={groups} members={members} hiddenCount={hiddenCount} pendingDrafts={pendingDrafts ?? 0} />
+  return <CoachClient groups={groups} members={members} hiddenCount={hiddenCount} pendingDrafts={pendingDrafts ?? 0} copilotEnabled={copilotEnabled} />
 }

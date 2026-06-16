@@ -15,5 +15,12 @@ export default async function EditProfilePage() {
 
   if (!profile) redirect('/onboarding')
 
-  return <EditProfileClient profile={profile} />
+  // Is this user a coach of any group? Controls whether the coach-voice setting shows.
+  const { count: coachCount } = await supabase
+    .from('group_members')
+    .select('group_id', { count: 'exact', head: true })
+    .eq('user_id', user.id)
+    .eq('role', 'coach')
+
+  return <EditProfileClient profile={profile} isCoach={(coachCount ?? 0) > 0} />
 }

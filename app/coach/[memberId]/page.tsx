@@ -1,6 +1,7 @@
 import { redirect, notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { groupForCoachMember, assessMember } from '@/lib/coach-server'
+import { isCoachPlanGroup } from '@/lib/coach-plan'
 import CoachMemberClient, { type CoachNote, type PendingDraft } from './CoachMemberClient'
 
 export const dynamic = 'force-dynamic'
@@ -31,7 +32,7 @@ export default async function CoachMemberPage({ params }: { params: Promise<{ me
   if (!profile) notFound()
   if (profile.privacy_mode === 'dark' || profile.coach_visible === false) notFound()
 
-  const [{ attention, signals, report, streak }, { data: noteRows }, { data: draftRow }] = await Promise.all([
+  const [{ attention, signals, report, streak }, { data: noteRows }, { data: draftRow }, copilotEnabled] = await Promise.all([
     assessMember(supabase, memberId, profile.calorie_target ?? 2000),
     supabase.from('coach_client_notes')
       .select('id, body, created_at')
@@ -42,6 +43,7 @@ export default async function CoachMemberPage({ params }: { params: Promise<{ me
       .eq('coach_id', user.id).eq('member_id', memberId).eq('status', 'pending')
       .order('created_at', { ascending: false })
       .limit(1).maybeSingle(),
+    isCoachPlanGroup(supabase, groupId),
   ])
 
   return (
@@ -54,6 +56,7 @@ export default async function CoachMemberPage({ params }: { params: Promise<{ me
       streak={streak}
       initialNotes={(noteRows ?? []) as CoachNote[]}
       initialDraft={(draftRow as PendingDraft | null) ?? null}
+      copilotEnabled={copilotEnabled}
     />
   )
 }
