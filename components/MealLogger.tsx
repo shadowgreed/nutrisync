@@ -1,13 +1,17 @@
 'use client'
 
 import { useState, useRef } from 'react'
+import dynamic from 'next/dynamic'
 import { Camera, X, Loader2, CheckCircle, MessageSquarePlus, ScanLine, Users } from 'lucide-react'
 import FoodSearchBar from './FoodSearchBar'
-import BarcodeScanner from './BarcodeScanner'
 import { createClient } from '@/lib/supabase/client'
 import { NUTRIENT_KEYS } from '@/lib/nutrients'
 import { MACRO_KEYS } from '@/lib/macros'
 import type { FoodEntry, MealType } from '@/types'
+
+// The barcode scanner pulls in the heavy @zxing libraries. Load it only when the
+// user actually opens the scanner so it stays out of the initial /log bundle.
+const BarcodeScanner = dynamic(() => import('./BarcodeScanner'), { ssr: false })
 
 // Rescale a food's calories/macros/micros linearly to a new serving size in grams.
 // Everything stays as a precise float (no rounding) so repeated per-keystroke rescales

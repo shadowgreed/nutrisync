@@ -3,7 +3,7 @@ import { Geist } from "next/font/google";
 import "./globals.css";
 import SplashScreen from "@/components/SplashScreen";
 
-const geist = Geist({ subsets: ["latin"] });
+const geist = Geist({ subsets: ["latin"], display: "swap" });
 
 export const metadata: Metadata = {
   title: "NutriSync",

@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
   if (kind === 'reply') {
     recipient = targetUserId
   } else {
-    const { data: log } = await supabase.from('food_logs').select('user_id').eq('id', foodLogId).single()
+    const { data: log } = await supabase.from('food_logs').select('user_id').eq('id', foodLogId).maybeSingle()
     recipient = log?.user_id as string | undefined
   }
   if (!recipient || recipient === user.id) return NextResponse.json({ ok: true, skipped: true })
