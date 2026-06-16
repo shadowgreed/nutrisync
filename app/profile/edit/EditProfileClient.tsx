@@ -126,17 +126,18 @@ export default function EditProfileClient({ profile }: Props) {
       biological_sex:        sex,
       goal,
       activity_level:        activityLevel,
-      diet,
       calorie_target:        calorieTarget,
       water_bottle_ml:       waterBottleMl,
       water_daily_target_ml: waterTargetMl,
     }
     const targetKg = targetWeightLbs ? lbsToKg(Number(targetWeightLbs)) : null
 
-    // Retry without target_weight_kg if migration 014 isn't applied yet
+    // `diet` (migration 036) and `target_weight_kg` (migration 014) come from later
+    // migrations. If the DB hasn't caught up, the update 204s on the missing column —
+    // fall back to the core fields so the rest of the form still saves.
     let { error: err } = await supabase.from('profiles')
-      .update({ ...baseUpdate, target_weight_kg: targetKg }).eq('id', profile.id)
-    if (err && (err.code === 'PGRST204' || /target_weight_kg/.test(err.message))) {
+      .update({ ...baseUpdate, diet, target_weight_kg: targetKg }).eq('id', profile.id)
+    if (err && err.code === 'PGRST204') {
       ;({ error: err } = await supabase.from('profiles').update(baseUpdate).eq('id', profile.id))
     }
 
