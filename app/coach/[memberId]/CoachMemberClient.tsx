@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { ArrowLeft, Trash2, Lock, AlertCircle, Sparkles, Send, RotateCcw, X, Check } from 'lucide-react'
 import type { AttentionLevel, ClientSignal } from '@/lib/copilot'
 import type { WeeklyReport } from '@/lib/weekly'
+import { mlToOz, type WaterWeek } from '@/lib/water'
 import type { Diet } from '@/types'
 import CoachDietSetting from './CoachDietSetting'
 
@@ -38,12 +39,12 @@ function Stat({ label, value, sub }: { label: string; value: string; sub?: strin
 }
 
 export default function CoachMemberClient({
-  member, groupId, coachId, memberDiet, dietOverride, attention, signals, report, streak, initialNotes, initialDraft,
+  member, groupId, coachId, memberDiet, dietOverride, attention, signals, report, streak, water, initialNotes, initialDraft,
 }: {
   member: Member; groupId: string; coachId: string
   memberDiet: Diet | null; dietOverride: Diet | null
   attention: AttentionLevel
-  signals: ClientSignal[]; report: WeeklyReport; streak: number
+  signals: ClientSignal[]; report: WeeklyReport; streak: number; water: WaterWeek
   initialNotes: CoachNote[]; initialDraft: PendingDraft | null
 }) {
   const [notes, setNotes] = useState<CoachNote[]>(initialNotes)
@@ -166,7 +167,7 @@ export default function CoachMemberClient({
       {/* This week, at a glance */}
       <section className="px-4 mb-5">
         <p className="text-stone-400 text-xs uppercase tracking-wider mb-2">This week · {report.weekLabel}</p>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-2 gap-2">
           <Stat
             label="Calories"
             value={report.daysLogged ? report.calories.avgPerDay.toLocaleString() : '—'}
@@ -174,6 +175,11 @@ export default function CoachMemberClient({
           />
           <Stat label="Nutrients" value={`${report.nutrients.onTrack}/${report.nutrients.total}`} sub="on track" />
           <Stat label="Active" value={`${report.activities.activeDays}/${report.activities.goalDays}`} sub={`${streak}🔥 streak`} />
+          <Stat
+            label="Water"
+            value={`${water.daysHit}/${water.goalDays}`}
+            sub={water.daysLogged ? `${mlToOz(water.avgMl)} oz/day · ${mlToOz(water.targetMl)} oz goal` : 'no logs'}
+          />
         </div>
       </section>
 

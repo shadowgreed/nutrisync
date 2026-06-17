@@ -2,6 +2,7 @@ import { redirect, notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { groupForCoachMember, assessMember, getDietOverride } from '@/lib/coach-server'
 import { effectiveDiet, isDiet } from '@/lib/diets'
+import { buildWaterWeek } from '@/lib/water'
 import type { Diet } from '@/types'
 import CoachMemberClient, { type CoachNote, type PendingDraft } from './CoachMemberClient'
 
@@ -15,6 +16,7 @@ interface MemberProfile {
   privacy_mode: string | null
   coach_visible: boolean | null
   diet: string | null
+  water_daily_target_ml: number | null
 }
 
 export default async function CoachMemberPage({ params }: { params: Promise<{ memberId: string }> }) {
@@ -28,7 +30,7 @@ export default async function CoachMemberPage({ params }: { params: Promise<{ me
 
   const [{ data: profile }, dietOverride] = await Promise.all([
     supabase.from('profiles')
-      .select('id, display_name, avatar_url, calorie_target, privacy_mode, coach_visible, diet')
+      .select('id, display_name, avatar_url, calorie_target, privacy_mode, coach_visible, diet, water_daily_target_ml')
       .eq('id', memberId)
       .single<MemberProfile>(),
     getDietOverride(supabase, user.id, memberId),
@@ -39,7 +41,9 @@ export default async function CoachMemberPage({ params }: { params: Promise<{ me
   const memberDiet: Diet | null = isDiet(profile.diet) ? profile.diet : null
   const diet = effectiveDiet(memberDiet, dietOverride)
 
-  const [{ attention, signals, report, streak }, { data: noteRows }, { data: draftRow }] = await Promise.all([
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+
+  const [{ attention, signals, report, streak }, { data: noteRows }, { data: draftRow }, { data: waterRows }] = await Promise.all([
     assessMember(supabase, memberId, profile.calorie_target ?? 2000, diet),
     supabase.from('coach_client_notes')
       .select('id, body, created_at')
@@ -50,7 +54,15 @@ export default async function CoachMemberPage({ params }: { params: Promise<{ me
       .eq('coach_id', user.id).eq('member_id', memberId).eq('status', 'pending')
       .order('created_at', { ascending: false })
       .limit(1).maybeSingle(),
+    supabase.from('water_logs')
+      .select('logged_at, amount_ml')
+      .eq('user_id', memberId).gte('logged_at', sevenDaysAgo),
   ])
+
+  const water = buildWaterWeek(
+    (waterRows ?? []) as { logged_at: string; amount_ml: number }[],
+    profile.water_daily_target_ml ?? 2500,
+  )
 
   return (
     <CoachMemberClient
@@ -63,6 +75,7 @@ export default async function CoachMemberPage({ params }: { params: Promise<{ me
       signals={signals}
       report={report}
       streak={streak}
+      water={water}
       initialNotes={(noteRows ?? []) as CoachNote[]}
       initialDraft={(draftRow as PendingDraft | null) ?? null}
     />
