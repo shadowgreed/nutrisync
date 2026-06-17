@@ -2,6 +2,7 @@
 
 import { useState, useRef } from 'react'
 import dynamic from 'next/dynamic'
+import { useRouter } from 'next/navigation'
 import { Camera, X, Loader2, CheckCircle, MessageSquarePlus, ScanLine, Users } from 'lucide-react'
 import FoodSearchBar from './FoodSearchBar'
 import { createClient } from '@/lib/supabase/client'
@@ -62,6 +63,7 @@ function smartDefaultMeal(): MealType {
 interface Props { onLogged?: () => void }
 
 export default function MealLogger({ onLogged }: Props) {
+  const router = useRouter()
   const [mealType, setMealType] = useState<MealType>(smartDefaultMeal)
   const [foods, setFoods] = useState<FoodEntry[]>([])
   const [photoPreviews, setPhotoPreviews] = useState<string[]>([]) // blob: URLs, preview only
@@ -220,6 +222,7 @@ export default function MealLogger({ onLogged }: Props) {
         setShareToFeed(true)
         setSaved(false)
         onLogged?.()
+        router.push('/trends')
       }, 1400)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to save')
