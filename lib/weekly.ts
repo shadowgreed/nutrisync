@@ -1,10 +1,13 @@
 import { NUTRIENT_KEYS, NUTRIENT_META } from './nutrients'
+import { buildWaterWeek, mlToOz, type WeeklyWaterRow } from './water'
 import type { NutrientKey, NutrientTotals } from '@/types'
 
 // How many days a week we nudge people to be active for the activity slide.
 export const ACTIVE_DAYS_GOAL = 4
 // A nutrient counts as "hit" at >=90% of its daily target on average.
 const NUTRIENT_HIT_PCT = 90
+// Days a week we want hydration on target for the "accomplished" badge.
+const WATER_DAYS_GOAL = 7
 
 export interface WeeklyFoodRow { logged_at: string; total_calories: number; nutrient_totals: NutrientTotals }
 export interface WeeklyActivityRow { logged_at: string; calories_burned: number }
@@ -40,6 +43,16 @@ export interface WeeklyReport {
     headline: string
     message: string
   }
+  water: {
+    avgOz: number
+    targetOz: number
+    daysHit: number
+    goalDays: number
+    daysLogged: number
+    accomplished: boolean
+    headline: string
+    message: string
+  }
 }
 
 const dayKey = (ts: string) => ts.slice(0, 10)
@@ -65,6 +78,10 @@ export function buildWeeklyReport(opts: {
   foods: WeeklyFoodRow[]
   activities: WeeklyActivityRow[]
   calorieTarget: number
+  // Optional so other callers (e.g. the Copilot's assessClient) don't have to
+  // pass hydration data — the water section just reports "nothing logged".
+  water?: WeeklyWaterRow[]
+  waterTargetMl?: number
   now?: Date
 }): WeeklyReport {
   const { foods, activities } = opts
@@ -77,7 +94,7 @@ export function buildWeeklyReport(opts: {
 
   const loggedDays = new Set(foods.map(f => dayKey(f.logged_at)))
   const daysLogged = loggedDays.size
-  const hasData = daysLogged > 0 || activities.length > 0
+  const hasData = daysLogged > 0 || activities.length > 0 || (opts.water?.length ?? 0) > 0
 
   // ── Calories ───────────────────────────────────────────────────────────────
   const totalCals = foods.reduce((s, f) => s + (f.total_calories || 0), 0)
@@ -130,6 +147,20 @@ export function buildWeeklyReport(opts: {
       ? `You hit ${activeDays} active days — goal of ${ACTIVE_DAYS_GOAL} smashed! 🎉`
       : `${activeDays} of ${ACTIVE_DAYS_GOAL} active days. ${ACTIVE_DAYS_GOAL - activeDays} more next week to hit your goal. 💪`
 
+  // ── Hydration ──────────────────────────────────────────────────────────────
+  const ww = buildWaterWeek(opts.water ?? [], opts.waterTargetMl ?? 2500, now)
+  const waterAvgOz = mlToOz(ww.avgMl)
+  const waterTargetOz = mlToOz(ww.targetMl)
+  const waterAccomplished = ww.daysLogged > 0 && ww.daysHit >= Math.ceil(WATER_DAYS_GOAL * 0.7)
+  const waterHeadline = ww.daysLogged === 0
+    ? 'No water logged this week'
+    : `${ww.daysHit} of ${WATER_DAYS_GOAL} days on target`
+  const waterMessage = ww.daysLogged === 0
+    ? 'Log your water next week to track hydration. 💧'
+    : waterAccomplished
+      ? `Great hydration — you hit your ${waterTargetOz} oz goal ${ww.daysHit} of ${WATER_DAYS_GOAL} days, averaging ${waterAvgOz} oz/day. 🎉`
+      : `You hit your ${waterTargetOz} oz goal ${ww.daysHit} of ${WATER_DAYS_GOAL} days (avg ${waterAvgOz} oz/day). A bit more next week. 💧`
+
   return {
     weekLabel,
     daysLogged,
@@ -137,5 +168,6 @@ export function buildWeeklyReport(opts: {
     calories: { avgPerDay, target: calorieTarget, deltaPerDay, status: calStatus, accomplished: calAccomplished, headline: calHeadline, message: calMessage },
     nutrients: { onTrack, total, best, worst, accomplished: nutAccomplished, headline: nutHeadline, message: nutMessage },
     activities: { count, activeDays, goalDays: ACTIVE_DAYS_GOAL, caloriesBurned: burned, accomplished: actAccomplished, headline: actHeadline, message: actMessage },
+    water: { avgOz: waterAvgOz, targetOz: waterTargetOz, daysHit: ww.daysHit, goalDays: WATER_DAYS_GOAL, daysLogged: ww.daysLogged, accomplished: waterAccomplished, headline: waterHeadline, message: waterMessage },
   }
 }

@@ -55,6 +55,17 @@ function buildSlides(r: WeeklyReport): Slide[] {
       message: r.activities.message,
       accent: 'from-orange-600/30 to-stone-900',
     },
+    {
+      key: 'water',
+      emoji: '💧',
+      title: 'Hydration this week',
+      big: r.water.daysLogged ? `${r.water.daysHit}/${r.water.goalDays}` : '—',
+      sub: r.water.daysLogged ? 'days on target' : 'no water logged',
+      goalLine: `Goal: ${r.water.targetOz} oz/day`,
+      accomplished: r.water.accomplished,
+      message: r.water.message,
+      accent: 'from-sky-600/30 to-stone-900',
+    },
   ]
 }
 
