@@ -23,7 +23,7 @@ export default async function TrendsPage() {
   const since90 = new Date()
   since90.setDate(since90.getDate() - 90)
 
-  const [{ data: logs }, weightRes] = await Promise.all([
+  const [{ data: logs }, weightRes, { data: activityRows }, { data: waterRows }] = await Promise.all([
     supabase
       .from('food_logs')
       .select('logged_at, total_calories, macro_totals, nutrient_totals')
@@ -37,6 +37,16 @@ export default async function TrendsPage() {
       .eq('user_id', user.id)
       .gte('logged_at', since90.toISOString())
       .order('logged_at', { ascending: true }),
+    supabase
+      .from('activity_logs')
+      .select('logged_at, calories_burned')
+      .eq('user_id', user.id)
+      .gte('logged_at', since30.toISOString()),
+    supabase
+      .from('water_logs')
+      .select('logged_at, amount_ml')
+      .eq('user_id', user.id)
+      .gte('logged_at', since30.toISOString()),
   ])
 
   const series30 = buildDailySeries(logs ?? [], 30)
@@ -58,6 +68,9 @@ export default async function TrendsPage() {
       calorieTarget={calorieTarget}
       macroTargets={macroTargets}
       weightLogs={weightLogs}
+      activities={(activityRows ?? []) as { logged_at: string; calories_burned: number }[]}
+      waterLogs={(waterRows ?? []) as { logged_at: string; amount_ml: number }[]}
+      waterTargetMl={profile?.water_daily_target_ml ?? 2500}
       currentWeightKg={profile?.weight_kg ?? null}
       targetWeightKg={profile?.target_weight_kg ?? null}
     />

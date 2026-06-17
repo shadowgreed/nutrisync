@@ -3,21 +3,18 @@
 import Link from 'next/link'
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { Settings, Flame, Utensils, TrendingUp, Users, Copy, Check, LogOut, Camera, Loader2, UserPlus, X, Pencil } from 'lucide-react'
+import { Settings, Users, Copy, Check, LogOut, Camera, Loader2, UserPlus, X, Pencil } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import AvatarUpload from '@/components/AvatarUpload'
 import { BottomNav } from '../dashboard/DashboardClient'
 import {
   calculateBMR, calculateTDEE, calculateBMI, bmiCategory,
-  GOAL_LABELS, GOAL_EMOJIS, ACTIVITY_LABELS,
+  GOAL_LABELS, GOAL_EMOJIS,
   formatWeight, formatHeight, kmToMiles,
 } from '@/lib/fitness'
-import { mlToOz } from '@/lib/water'
 import type { Profile } from '@/types'
 
-interface LogRow { logged_at: string; total_calories: number }
 interface ActivityRow { logged_at: string; calories_burned: number; activity_name: string; duration_minutes: number | null; distance_km?: number | null; steps?: number | null }
-interface WaterRow { logged_at: string; amount_ml: number }
 
 interface GroupRow { id: string; name: string; invite_code: string; created_by: string | null; photo_url: string | null }
 interface PendingRequest { id: string; user_id: string; display_name: string; avatar_url: string | null }
@@ -25,9 +22,7 @@ interface PendingRequest { id: string; user_id: string; display_name: string; av
 interface Props {
   profile: Profile
   email: string
-  logs: LogRow[]
   activities: ActivityRow[]
-  waterLogs: WaterRow[]
   group: GroupRow | null
   isOwner: boolean
   pendingRequests: PendingRequest[]
@@ -42,19 +37,8 @@ function activityMetric(a: ActivityRow): string {
   return ''
 }
 
-function groupByDay<T extends { logged_at: string }>(items: T[]): Record<string, T[]> {
-  const map: Record<string, T[]> = {}
-  for (const item of items) {
-    const day = item.logged_at.slice(0, 10)
-    if (!map[day]) map[day] = []
-    map[day].push(item)
-  }
-  return map
-}
-
-export default function ProfileClient({ profile, email, logs, activities, waterLogs, group, isOwner, pendingRequests }: Props) {
+export default function ProfileClient({ profile, email, activities, group, isOwner, pendingRequests }: Props) {
   const [tab, setTab] = useState<'stats' | 'history'>('stats')
-  const [range, setRange] = useState<7 | 14 | 30>(7)
   const [useMetric, setUseMetric] = useState(true)
   // Origin is only known on the client — set after mount so SSR and first client
   // render match (avoids a hydration mismatch on the invite link).
@@ -188,53 +172,6 @@ export default function ProfileClient({ profile, email, logs, activities, waterL
     ? calculateBMI(profile.weight_kg, profile.height_cm)
     : null
 
-  // Range-selectable window (7 / 14 / 30 days) for the calorie + hydration views.
-  const days = Array.from({ length: range }, (_, i) => {
-    const d = new Date(Date.now() - (range - 1 - i) * 24 * 60 * 60 * 1000)
-    return d.toISOString().slice(0, 10)
-  })
-  const rangeLabel = range === 30 ? '30-day' : `${range}-day`
-  const cutoff = days[0]
-
-  // Calorie totals over the selected range — averaged over LOGGED days so the
-  // number matches the Trends page (averaging over calendar days made a single
-  // 92-kcal day read as 13).
-  const recentLogs = logs.filter(l => l.logged_at.slice(0, 10) >= cutoff)
-  const recentActivities = activities.filter(a => a.logged_at.slice(0, 10) >= cutoff)
-  const loggedDayCount = new Set(recentLogs.map(l => l.logged_at.slice(0, 10))).size
-  const divisor = Math.max(1, loggedDayCount)
-  const totalCaloriesIn = recentLogs.reduce((s, l) => s + (l.total_calories || 0), 0)
-  const totalCaloriesBurned = recentActivities.reduce((s, a) => s + (a.calories_burned || 0), 0)
-  const avgDailyCaloriesIn = Math.round(totalCaloriesIn / divisor)
-  const avgDailyBurned = Math.round(totalCaloriesBurned / divisor)
-  const avgNet = avgDailyCaloriesIn - avgDailyBurned
-
-  const logsByDay = groupByDay(logs)
-  const activitiesByDay = groupByDay(activities)
-
-  const chartData = days.map(day => ({
-    day: day.slice(5), // MM-DD
-    caloriesIn: logsByDay[day]?.reduce((s, l) => s + (l.total_calories || 0), 0) ?? 0,
-    burned: activitiesByDay[day]?.reduce((s, a) => s + (a.calories_burned || 0), 0) ?? 0,
-  }))
-
-  const maxCalories = Math.max(...chartData.map(d => Math.max(d.caloriesIn, d.burned)), 500)
-
-  // Hydration (oz/day vs target) over the same window — mirrors the calorie chart.
-  const waterByDay = groupByDay(waterLogs)
-  const waterTargetOz = mlToOz(profile.water_daily_target_ml ?? 2500)
-  const waterChart = days.map(day => ({
-    day: day.slice(5),
-    oz: mlToOz(waterByDay[day]?.reduce((s, w) => s + (w.amount_ml || 0), 0) ?? 0),
-  }))
-  const maxWaterOz = Math.max(...waterChart.map(d => d.oz), waterTargetOz, 1)
-  const waterLoggedDays = waterChart.filter(d => d.oz > 0).length
-  const waterDaysHit = waterChart.filter(d => d.oz >= waterTargetOz).length
-  const avgWaterOz = waterLoggedDays ? Math.round(waterChart.reduce((s, d) => s + d.oz, 0) / waterLoggedDays) : 0
-
-  // Thinner bars + no per-day labels for the longer ranges so they don't crowd.
-  const barGap = range === 7 ? 'gap-1.5' : 'gap-[3px]'
-
   return (
     <div className="min-h-screen bg-stone-950 pb-[calc(6rem+env(safe-area-inset-bottom))]">
       {/* Header */}
@@ -254,117 +191,6 @@ export default function ProfileClient({ profile, email, logs, activities, waterL
         <Link href="/profile/edit" className="text-stone-400 hover:text-white transition-colors">
           <Settings size={20} />
         </Link>
-      </div>
-
-      {/* Range toggle — controls the calorie balance + hydration views below */}
-      <div className="px-4 mb-3 flex justify-end">
-        <div className="flex bg-stone-800 rounded-xl p-1">
-          {([7, 14, 30] as const).map(r => (
-            <button
-              key={r}
-              onClick={() => setRange(r)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                range === r ? 'bg-stone-600 text-white' : 'text-stone-400 hover:text-white'
-              }`}
-            >
-              {r === 30 ? '1mo' : `${r}d`}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Calorie balance cards — averaged over logged days */}
-      <div className="px-4 grid grid-cols-3 gap-3 mb-6">
-        <div className="bg-stone-900 border border-stone-800 rounded-2xl p-3 text-center">
-          <Utensils size={16} className="text-emerald-400 mx-auto mb-1" aria-hidden="true" />
-          <p className="text-white font-bold text-lg tabular-nums">{avgDailyCaloriesIn}</p>
-          <p className="text-stone-400 text-xs">avg kcal/day</p>
-        </div>
-        <div className="bg-stone-900 border border-stone-800 rounded-2xl p-3 text-center">
-          <Flame size={16} className="text-orange-400 mx-auto mb-1" aria-hidden="true" />
-          <p className="text-white font-bold text-lg tabular-nums">{avgDailyBurned}</p>
-          <p className="text-stone-400 text-xs">burned/day</p>
-        </div>
-        <div className="bg-stone-900 border border-stone-800 rounded-2xl p-3 text-center">
-          <TrendingUp size={16} className="text-sky-400 mx-auto mb-1" aria-hidden="true" />
-          <p className="text-white font-bold text-lg tabular-nums">{avgNet > 0 ? '+' : ''}{avgNet}</p>
-          <p className="text-stone-400 text-xs">net/day</p>
-        </div>
-      </div>
-
-      {/* Calorie chart */}
-      <div className="mx-4 bg-stone-900 border border-stone-800 rounded-2xl p-4 mb-6">
-        <p className="text-stone-400 text-xs uppercase tracking-wider mb-4">{rangeLabel} calorie balance</p>
-        <div className={`flex items-end ${barGap} h-24`}>
-          {chartData.map((d, i) => (
-            <div key={i} className="flex-1 flex flex-col items-center gap-0.5">
-              <div className="w-full flex flex-col justify-end gap-0.5" style={{ height: '80px' }}>
-                {d.caloriesIn > 0 && (
-                  <div
-                    className="w-full bg-emerald-600 rounded-sm"
-                    style={{ height: `${(d.caloriesIn / maxCalories) * 100}%` }}
-                    title={`${d.caloriesIn} kcal in`}
-                  />
-                )}
-              </div>
-              {range === 7 && <span className="text-stone-400 text-[11px]">{d.day}</span>}
-            </div>
-          ))}
-        </div>
-        <div className="flex gap-4 mt-3">
-          <div className="flex items-center gap-1.5">
-            <div className="w-2.5 h-2.5 rounded-sm bg-emerald-600" />
-            <span className="text-stone-400 text-xs">Food in</span>
-          </div>
-          {profile.calorie_target && (
-            <div className="ml-auto text-stone-400 text-xs">
-              Target: <span className="text-white">{profile.calorie_target} kcal</span>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Hydration chart */}
-      <div className="mx-4 bg-stone-900 border border-stone-800 rounded-2xl p-4 mb-6">
-        <div className="flex items-center justify-between mb-4">
-          <p className="text-stone-400 text-xs uppercase tracking-wider">{rangeLabel} hydration</p>
-          {waterLoggedDays > 0 && (
-            <p className="text-stone-400 text-xs">{waterDaysHit}/{range} days on target</p>
-          )}
-        </div>
-        <div className={`relative flex items-end ${barGap} h-24`}>
-          {/* Target line */}
-          <div
-            className="absolute left-0 right-0 border-t border-dashed border-sky-500/50"
-            style={{ bottom: `${(waterTargetOz / maxWaterOz) * 80}px` }}
-            aria-hidden="true"
-          />
-          {waterChart.map((d, i) => (
-            <div key={i} className="flex-1 flex flex-col items-center gap-0.5">
-              <div className="w-full flex flex-col justify-end" style={{ height: '80px' }}>
-                {d.oz > 0 && (
-                  <div
-                    className={`w-full rounded-sm ${d.oz >= waterTargetOz ? 'bg-sky-500' : 'bg-sky-700/70'}`}
-                    style={{ height: `${(d.oz / maxWaterOz) * 100}%` }}
-                    title={`${d.oz} oz`}
-                  />
-                )}
-              </div>
-              {range === 7 && <span className="text-stone-400 text-[11px]">{d.day}</span>}
-            </div>
-          ))}
-        </div>
-        <div className="flex items-center gap-4 mt-3">
-          <div className="flex items-center gap-1.5">
-            <div className="w-2.5 h-2.5 rounded-sm bg-sky-500" />
-            <span className="text-stone-400 text-xs">
-              {waterLoggedDays > 0 ? `${avgWaterOz} oz/day avg` : 'No water logged yet'}
-            </span>
-          </div>
-          <div className="ml-auto text-stone-400 text-xs">
-            Target: <span className="text-white">{waterTargetOz} oz</span>
-          </div>
-        </div>
       </div>
 
       {/* Group section */}

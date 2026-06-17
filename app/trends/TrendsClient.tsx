@@ -2,32 +2,38 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Scale, TrendingUp, Plus, ArrowUp, ArrowDown } from 'lucide-react'
+import { Scale, TrendingUp, Plus, Utensils, Flame, Droplets } from 'lucide-react'
 import { BottomNav } from '../dashboard/DashboardClient'
 import { summarize, microConsistency, type DayTotal } from '@/lib/trends'
 import { MACRO_KEYS, MACRO_META } from '@/lib/macros'
 import { kgToLbs, lbsToKg } from '@/lib/fitness'
+import { mlToOz } from '@/lib/water'
 import type { MacroTargets } from '@/types'
 
 interface WeightLog { weight_kg: number; logged_at: string }
+interface ActivityLog { logged_at: string; calories_burned: number }
+interface WaterLog { logged_at: string; amount_ml: number }
 
 interface Props {
   series30: DayTotal[]
   calorieTarget: number | null
   macroTargets: MacroTargets
   weightLogs: WeightLog[]
+  activities: ActivityLog[]
+  waterLogs: WaterLog[]
+  waterTargetMl: number
   currentWeightKg: number | null
   targetWeightKg: number | null
 }
 
-export default function TrendsClient({ series30, calorieTarget, macroTargets, weightLogs, currentWeightKg, targetWeightKg }: Props) {
+export default function TrendsClient({ series30, calorieTarget, macroTargets, weightLogs, activities, waterLogs, waterTargetMl, currentWeightKg, targetWeightKg }: Props) {
   const router = useRouter()
-  const [range, setRange] = useState<7 | 30>(7)
+  const [range, setRange] = useState<7 | 14 | 30>(7)
   const [weightInput, setWeightInput] = useState('')
   const [savingWeight, setSavingWeight] = useState(false)
   const [weightError, setWeightError] = useState('')
 
-  const series = range === 7 ? series30.slice(-7) : series30
+  const series = series30.slice(-range)
   const summary = summarize(series)
   const micros = microConsistency(series)
 
@@ -108,6 +114,27 @@ export default function TrendsClient({ series30, calorieTarget, macroTargets, we
     100: '🏆 Goal weight reached. Amazing work!',
   }
 
+  // ── Calorie balance: burned + net over the range (in = avg per logged day) ──
+  const rangeStartDay = series[0]?.date ?? ''
+  const burnedInRange = activities
+    .filter(a => a.logged_at.slice(0, 10) >= rangeStartDay)
+    .reduce((s, a) => s + (a.calories_burned || 0), 0)
+  const avgBurned = summary.loggedDays ? Math.round(burnedInRange / summary.loggedDays) : 0
+  const avgNet = (summary.avgCalories || 0) - avgBurned
+
+  // ── Hydration over the range (oz/day vs target) ──
+  const waterByDay = new Map<string, number>()
+  for (const w of waterLogs) {
+    const day = w.logged_at.slice(0, 10)
+    waterByDay.set(day, (waterByDay.get(day) ?? 0) + (w.amount_ml || 0))
+  }
+  const waterTargetOz = mlToOz(waterTargetMl || 2500)
+  const waterChart = series.map(d => ({ label: d.label, oz: mlToOz(waterByDay.get(d.date) ?? 0) }))
+  const maxWaterOz = Math.max(...waterChart.map(d => d.oz), waterTargetOz, 1)
+  const waterLoggedDays = waterChart.filter(d => d.oz > 0).length
+  const waterDaysHit = waterChart.filter(d => d.oz >= waterTargetOz).length
+  const avgWaterOz = waterLoggedDays ? Math.round(waterChart.reduce((s, d) => s + d.oz, 0) / waterLoggedDays) : 0
+
   return (
     <div className="min-h-screen bg-stone-950 pb-[calc(6rem+env(safe-area-inset-bottom))]">
       {/* Header */}
@@ -118,7 +145,7 @@ export default function TrendsClient({ series30, calorieTarget, macroTargets, we
         </div>
         {/* Range toggle */}
         <div className="flex bg-stone-800 rounded-xl p-1">
-          {([7, 30] as const).map(r => (
+          {([7, 14, 30] as const).map(r => (
             <button
               key={r}
               onClick={() => setRange(r)}
@@ -126,7 +153,7 @@ export default function TrendsClient({ series30, calorieTarget, macroTargets, we
                 range === r ? 'bg-stone-600 text-white' : 'text-stone-400 hover:text-white'
               }`}
             >
-              {r}d
+              {r === 30 ? '1mo' : `${r}d`}
             </button>
           ))}
         </div>
@@ -138,7 +165,7 @@ export default function TrendsClient({ series30, calorieTarget, macroTargets, we
           <p className="text-stone-300 text-sm">Log a few days of meals to see your trends here.</p>
         ) : (
           <p className="text-stone-200 text-sm leading-relaxed">
-            <span className="font-semibold text-white">{range === 7 ? 'This week' : 'Last 30 days'}:</span>{' '}
+            <span className="font-semibold text-white">{range === 7 ? 'This week' : `Last ${range} days`}:</span>{' '}
             you averaged <span className="font-semibold text-white">{summary.avgCalories.toLocaleString()} kcal/day</span>
             {calorieDelta != null && calorieDelta !== 0 && (
               <span className="text-stone-400"> ({calorieDelta < 0 ? '↓' : '↑'}{Math.abs(calorieDelta).toLocaleString()} vs last week)</span>
@@ -152,24 +179,22 @@ export default function TrendsClient({ series30, calorieTarget, macroTargets, we
         )}
       </div>
 
-      {/* Summary chips */}
-      <div className="mx-4 mb-4 grid grid-cols-2 gap-3">
-        <div className="bg-stone-900 border border-stone-800 rounded-2xl p-3">
-          <p className="text-stone-400 text-xs">Avg calories / day</p>
-          <p className="text-white text-2xl font-bold mt-0.5">{summary.avgCalories || '—'}</p>
-          {calorieDelta != null && calorieDelta !== 0 ? (
-            <p className={`text-xs font-medium flex items-center gap-0.5 ${calorieDelta < 0 ? 'text-emerald-400' : 'text-orange-400'}`}>
-              {calorieDelta < 0 ? <ArrowDown size={11} aria-hidden="true" /> : <ArrowUp size={11} aria-hidden="true" />}
-              {Math.abs(calorieDelta).toLocaleString()} vs last week
-            </p>
-          ) : calorieTarget && summary.avgCalories > 0 ? (
-            <p className="text-stone-400 text-xs">target {calorieTarget}</p>
-          ) : null}
+      {/* Calorie balance — avg in / burned / net over the selected range */}
+      <div className="mx-4 mb-4 grid grid-cols-3 gap-3">
+        <div className="bg-stone-900 border border-stone-800 rounded-2xl p-3 text-center">
+          <Utensils size={16} className="text-emerald-400 mx-auto mb-1" aria-hidden="true" />
+          <p className="text-white font-bold text-lg tabular-nums">{summary.avgCalories || '—'}</p>
+          <p className="text-stone-400 text-xs">avg kcal/day</p>
         </div>
-        <div className="bg-stone-900 border border-stone-800 rounded-2xl p-3">
-          <p className="text-stone-400 text-xs">Days logged</p>
-          <p className="text-white text-2xl font-bold mt-0.5">{summary.loggedDays}<span className="text-stone-400 text-base font-normal"> / {range}</span></p>
-          <p className="text-stone-400 text-xs">{Math.round((summary.loggedDays / range) * 100)}% consistency</p>
+        <div className="bg-stone-900 border border-stone-800 rounded-2xl p-3 text-center">
+          <Flame size={16} className="text-orange-400 mx-auto mb-1" aria-hidden="true" />
+          <p className="text-white font-bold text-lg tabular-nums">{avgBurned}</p>
+          <p className="text-stone-400 text-xs">burned/day</p>
+        </div>
+        <div className="bg-stone-900 border border-stone-800 rounded-2xl p-3 text-center">
+          <TrendingUp size={16} className="text-sky-400 mx-auto mb-1" aria-hidden="true" />
+          <p className="text-white font-bold text-lg tabular-nums">{avgNet > 0 ? '+' : ''}{avgNet}</p>
+          <p className="text-stone-400 text-xs">net/day</p>
         </div>
       </div>
 
@@ -295,6 +320,53 @@ export default function TrendsClient({ series30, calorieTarget, macroTargets, we
             ))}
           </div>
         )}
+      </div>
+
+      {/* Hydration */}
+      <div className="mx-4 mb-4 bg-stone-900 border border-stone-800 rounded-2xl p-4">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <Droplets size={15} className="text-sky-400" />
+            <p className="text-white font-semibold text-sm">Hydration</p>
+          </div>
+          {waterLoggedDays > 0 && (
+            <span className="text-stone-400 text-xs">{waterDaysHit}/{range} days on target</span>
+          )}
+        </div>
+        <div className="relative flex items-end gap-1 h-24">
+          <div
+            className="absolute left-0 right-0 border-t border-dashed border-sky-500/50"
+            style={{ bottom: `${(waterTargetOz / maxWaterOz) * 80}px` }}
+            aria-hidden="true"
+          />
+          {waterChart.map((d, i) => (
+            <div key={i} className="flex-1 flex flex-col justify-end" style={{ height: '80px' }}>
+              {d.oz > 0 && (
+                <div
+                  className={`w-full rounded-sm ${d.oz >= waterTargetOz ? 'bg-sky-500' : 'bg-sky-700/70'}`}
+                  style={{ height: `${(d.oz / maxWaterOz) * 100}%` }}
+                  title={`${d.oz} oz`}
+                />
+              )}
+            </div>
+          ))}
+        </div>
+        {range === 7 && (
+          <div className="flex gap-1 mt-1.5">
+            {waterChart.map((d, i) => (
+              <span key={i} className="flex-1 text-center text-xs text-stone-400 truncate">{d.label}</span>
+            ))}
+          </div>
+        )}
+        <div className="flex items-center gap-4 mt-3">
+          <div className="flex items-center gap-1.5">
+            <div className="w-2.5 h-2.5 rounded-sm bg-sky-500" />
+            <span className="text-stone-400 text-xs">{waterLoggedDays > 0 ? `${avgWaterOz} oz/day avg` : 'No water logged yet'}</span>
+          </div>
+          <div className="ml-auto text-stone-400 text-xs">
+            Target: <span className="text-white">{waterTargetOz} oz</span>
+          </div>
+        </div>
       </div>
 
       {/* Average macros vs target */}
