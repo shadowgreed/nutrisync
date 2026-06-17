@@ -54,6 +54,7 @@ function groupByDay<T extends { logged_at: string }>(items: T[]): Record<string,
 
 export default function ProfileClient({ profile, email, logs, activities, waterLogs, group, isOwner, pendingRequests }: Props) {
   const [tab, setTab] = useState<'stats' | 'history'>('stats')
+  const [range, setRange] = useState<7 | 14 | 30>(7)
   const [useMetric, setUseMetric] = useState(true)
   // Origin is only known on the client — set after mount so SSR and first client
   // render match (avoids a hydration mismatch on the invite link).
@@ -187,11 +188,19 @@ export default function ProfileClient({ profile, email, logs, activities, waterL
     ? calculateBMI(profile.weight_kg, profile.height_cm)
     : null
 
-  // Calorie totals (last 7 days) — averaged over LOGGED days so the number matches
-  // the Trends page (averaging over 7 calendar days made a single 92-kcal day read as 13).
-  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
-  const recentLogs = logs.filter(l => l.logged_at.slice(0, 10) >= sevenDaysAgo)
-  const recentActivities = activities.filter(a => a.logged_at.slice(0, 10) >= sevenDaysAgo)
+  // Range-selectable window (7 / 14 / 30 days) for the calorie + hydration views.
+  const days = Array.from({ length: range }, (_, i) => {
+    const d = new Date(Date.now() - (range - 1 - i) * 24 * 60 * 60 * 1000)
+    return d.toISOString().slice(0, 10)
+  })
+  const rangeLabel = range === 30 ? '30-day' : `${range}-day`
+  const cutoff = days[0]
+
+  // Calorie totals over the selected range — averaged over LOGGED days so the
+  // number matches the Trends page (averaging over calendar days made a single
+  // 92-kcal day read as 13).
+  const recentLogs = logs.filter(l => l.logged_at.slice(0, 10) >= cutoff)
+  const recentActivities = activities.filter(a => a.logged_at.slice(0, 10) >= cutoff)
   const loggedDayCount = new Set(recentLogs.map(l => l.logged_at.slice(0, 10))).size
   const divisor = Math.max(1, loggedDayCount)
   const totalCaloriesIn = recentLogs.reduce((s, l) => s + (l.total_calories || 0), 0)
@@ -199,12 +208,6 @@ export default function ProfileClient({ profile, email, logs, activities, waterL
   const avgDailyCaloriesIn = Math.round(totalCaloriesIn / divisor)
   const avgDailyBurned = Math.round(totalCaloriesBurned / divisor)
   const avgNet = avgDailyCaloriesIn - avgDailyBurned
-
-  // Build last 7 days bar chart data
-  const days = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(Date.now() - (6 - i) * 24 * 60 * 60 * 1000)
-    return d.toISOString().slice(0, 10)
-  })
 
   const logsByDay = groupByDay(logs)
   const activitiesByDay = groupByDay(activities)
@@ -217,7 +220,7 @@ export default function ProfileClient({ profile, email, logs, activities, waterL
 
   const maxCalories = Math.max(...chartData.map(d => Math.max(d.caloriesIn, d.burned)), 500)
 
-  // Last 7 days hydration (oz/day vs target) — mirrors the calorie chart.
+  // Hydration (oz/day vs target) over the same window — mirrors the calorie chart.
   const waterByDay = groupByDay(waterLogs)
   const waterTargetOz = mlToOz(profile.water_daily_target_ml ?? 2500)
   const waterChart = days.map(day => ({
@@ -228,6 +231,9 @@ export default function ProfileClient({ profile, email, logs, activities, waterL
   const waterLoggedDays = waterChart.filter(d => d.oz > 0).length
   const waterDaysHit = waterChart.filter(d => d.oz >= waterTargetOz).length
   const avgWaterOz = waterLoggedDays ? Math.round(waterChart.reduce((s, d) => s + d.oz, 0) / waterLoggedDays) : 0
+
+  // Thinner bars + no per-day labels for the longer ranges so they don't crowd.
+  const barGap = range === 7 ? 'gap-1.5' : 'gap-[3px]'
 
   return (
     <div className="min-h-screen bg-stone-950 pb-[calc(6rem+env(safe-area-inset-bottom))]">
@@ -250,6 +256,23 @@ export default function ProfileClient({ profile, email, logs, activities, waterL
         </Link>
       </div>
 
+      {/* Range toggle — controls the calorie balance + hydration views below */}
+      <div className="px-4 mb-3 flex justify-end">
+        <div className="flex bg-stone-800 rounded-xl p-1">
+          {([7, 14, 30] as const).map(r => (
+            <button
+              key={r}
+              onClick={() => setRange(r)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                range === r ? 'bg-stone-600 text-white' : 'text-stone-400 hover:text-white'
+              }`}
+            >
+              {r === 30 ? '1mo' : `${r}d`}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Calorie balance cards — averaged over logged days */}
       <div className="px-4 grid grid-cols-3 gap-3 mb-6">
         <div className="bg-stone-900 border border-stone-800 rounded-2xl p-3 text-center">
@@ -269,10 +292,10 @@ export default function ProfileClient({ profile, email, logs, activities, waterL
         </div>
       </div>
 
-      {/* 7-day calorie chart */}
+      {/* Calorie chart */}
       <div className="mx-4 bg-stone-900 border border-stone-800 rounded-2xl p-4 mb-6">
-        <p className="text-stone-400 text-xs uppercase tracking-wider mb-4">7-day calorie balance</p>
-        <div className="flex items-end gap-1.5 h-24">
+        <p className="text-stone-400 text-xs uppercase tracking-wider mb-4">{rangeLabel} calorie balance</p>
+        <div className={`flex items-end ${barGap} h-24`}>
           {chartData.map((d, i) => (
             <div key={i} className="flex-1 flex flex-col items-center gap-0.5">
               <div className="w-full flex flex-col justify-end gap-0.5" style={{ height: '80px' }}>
@@ -284,7 +307,7 @@ export default function ProfileClient({ profile, email, logs, activities, waterL
                   />
                 )}
               </div>
-              <span className="text-stone-400 text-[11px]">{d.day}</span>
+              {range === 7 && <span className="text-stone-400 text-[11px]">{d.day}</span>}
             </div>
           ))}
         </div>
@@ -301,15 +324,15 @@ export default function ProfileClient({ profile, email, logs, activities, waterL
         </div>
       </div>
 
-      {/* 7-day hydration chart */}
+      {/* Hydration chart */}
       <div className="mx-4 bg-stone-900 border border-stone-800 rounded-2xl p-4 mb-6">
         <div className="flex items-center justify-between mb-4">
-          <p className="text-stone-400 text-xs uppercase tracking-wider">7-day hydration</p>
+          <p className="text-stone-400 text-xs uppercase tracking-wider">{rangeLabel} hydration</p>
           {waterLoggedDays > 0 && (
-            <p className="text-stone-400 text-xs">{waterDaysHit}/7 days on target</p>
+            <p className="text-stone-400 text-xs">{waterDaysHit}/{range} days on target</p>
           )}
         </div>
-        <div className="relative flex items-end gap-1.5 h-24">
+        <div className={`relative flex items-end ${barGap} h-24`}>
           {/* Target line */}
           <div
             className="absolute left-0 right-0 border-t border-dashed border-sky-500/50"
@@ -327,7 +350,7 @@ export default function ProfileClient({ profile, email, logs, activities, waterL
                   />
                 )}
               </div>
-              <span className="text-stone-400 text-[11px]">{d.day}</span>
+              {range === 7 && <span className="text-stone-400 text-[11px]">{d.day}</span>}
             </div>
           ))}
         </div>
