@@ -76,7 +76,7 @@ export default function NotificationsClient({ initial }: { initial: AppNotificat
   }, [initial])
 
   return (
-    <div className="min-h-screen bg-stone-950 pb-24">
+    <div className="min-h-screen bg-stone-950 pb-[calc(6rem+env(safe-area-inset-bottom))]">
       <div className="px-4 pt-12 pb-4 flex items-center gap-3">
         <Link href="/dashboard" aria-label="Back" className="flex items-center justify-center w-11 h-11 -ml-2 text-stone-300 hover:text-white">
           <ArrowLeft size={20} aria-hidden="true" />

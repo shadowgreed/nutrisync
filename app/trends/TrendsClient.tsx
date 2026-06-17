@@ -109,7 +109,7 @@ export default function TrendsClient({ series30, calorieTarget, macroTargets, we
   }
 
   return (
-    <div className="min-h-screen bg-stone-950 pb-24">
+    <div className="min-h-screen bg-stone-950 pb-[calc(6rem+env(safe-area-inset-bottom))]">
       {/* Header */}
       <div className="px-4 pt-12 pb-4 flex items-center justify-between">
         <div>
