@@ -15,7 +15,7 @@ export default async function ProfilePage() {
 
   const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
 
-  const [{ data: logs }, { data: activities }, { data: membership }] = await Promise.all([
+  const [{ data: logs }, { data: activities }, { data: waters }, { data: membership }] = await Promise.all([
     supabase
       .from('food_logs')
       .select('logged_at, total_calories')
@@ -28,6 +28,12 @@ export default async function ProfilePage() {
       .eq('user_id', user.id)
       .gte('logged_at', since)
       .order('logged_at', { ascending: false }),
+    supabase
+      .from('water_logs')
+      .select('logged_at, amount_ml')
+      .eq('user_id', user.id)
+      .gte('logged_at', since)
+      .order('logged_at', { ascending: true }),
     supabase
       .from('group_members')
       .select('group_id, groups(id, name, invite_code, created_by, photo_url)')
@@ -57,6 +63,7 @@ export default async function ProfilePage() {
       email={user.email ?? ''}
       logs={logs ?? []}
       activities={activities ?? []}
+      waterLogs={waters ?? []}
       group={group}
       isOwner={isOwner}
       pendingRequests={pendingRequests}

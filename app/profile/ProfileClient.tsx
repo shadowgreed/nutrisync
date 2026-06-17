@@ -12,10 +12,12 @@ import {
   GOAL_LABELS, GOAL_EMOJIS, ACTIVITY_LABELS,
   formatWeight, formatHeight, kmToMiles,
 } from '@/lib/fitness'
+import { mlToOz } from '@/lib/water'
 import type { Profile } from '@/types'
 
 interface LogRow { logged_at: string; total_calories: number }
 interface ActivityRow { logged_at: string; calories_burned: number; activity_name: string; duration_minutes: number | null; distance_km?: number | null; steps?: number | null }
+interface WaterRow { logged_at: string; amount_ml: number }
 
 interface GroupRow { id: string; name: string; invite_code: string; created_by: string | null; photo_url: string | null }
 interface PendingRequest { id: string; user_id: string; display_name: string; avatar_url: string | null }
@@ -25,6 +27,7 @@ interface Props {
   email: string
   logs: LogRow[]
   activities: ActivityRow[]
+  waterLogs: WaterRow[]
   group: GroupRow | null
   isOwner: boolean
   pendingRequests: PendingRequest[]
@@ -49,7 +52,7 @@ function groupByDay<T extends { logged_at: string }>(items: T[]): Record<string,
   return map
 }
 
-export default function ProfileClient({ profile, email, logs, activities, group, isOwner, pendingRequests }: Props) {
+export default function ProfileClient({ profile, email, logs, activities, waterLogs, group, isOwner, pendingRequests }: Props) {
   const [tab, setTab] = useState<'stats' | 'history'>('stats')
   const [useMetric, setUseMetric] = useState(true)
   // Origin is only known on the client — set after mount so SSR and first client
@@ -214,6 +217,18 @@ export default function ProfileClient({ profile, email, logs, activities, group,
 
   const maxCalories = Math.max(...chartData.map(d => Math.max(d.caloriesIn, d.burned)), 500)
 
+  // Last 7 days hydration (oz/day vs target) — mirrors the calorie chart.
+  const waterByDay = groupByDay(waterLogs)
+  const waterTargetOz = mlToOz(profile.water_daily_target_ml ?? 2500)
+  const waterChart = days.map(day => ({
+    day: day.slice(5),
+    oz: mlToOz(waterByDay[day]?.reduce((s, w) => s + (w.amount_ml || 0), 0) ?? 0),
+  }))
+  const maxWaterOz = Math.max(...waterChart.map(d => d.oz), waterTargetOz, 1)
+  const waterLoggedDays = waterChart.filter(d => d.oz > 0).length
+  const waterDaysHit = waterChart.filter(d => d.oz >= waterTargetOz).length
+  const avgWaterOz = waterLoggedDays ? Math.round(waterChart.reduce((s, d) => s + d.oz, 0) / waterLoggedDays) : 0
+
   return (
     <div className="min-h-screen bg-stone-950 pb-[calc(6rem+env(safe-area-inset-bottom))]">
       {/* Header */}
@@ -283,6 +298,49 @@ export default function ProfileClient({ profile, email, logs, activities, group,
               Target: <span className="text-white">{profile.calorie_target} kcal</span>
             </div>
           )}
+        </div>
+      </div>
+
+      {/* 7-day hydration chart */}
+      <div className="mx-4 bg-stone-900 border border-stone-800 rounded-2xl p-4 mb-6">
+        <div className="flex items-center justify-between mb-4">
+          <p className="text-stone-400 text-xs uppercase tracking-wider">7-day hydration</p>
+          {waterLoggedDays > 0 && (
+            <p className="text-stone-400 text-xs">{waterDaysHit}/7 days on target</p>
+          )}
+        </div>
+        <div className="relative flex items-end gap-1.5 h-24">
+          {/* Target line */}
+          <div
+            className="absolute left-0 right-0 border-t border-dashed border-sky-500/50"
+            style={{ bottom: `${(waterTargetOz / maxWaterOz) * 80}px` }}
+            aria-hidden="true"
+          />
+          {waterChart.map((d, i) => (
+            <div key={i} className="flex-1 flex flex-col items-center gap-0.5">
+              <div className="w-full flex flex-col justify-end" style={{ height: '80px' }}>
+                {d.oz > 0 && (
+                  <div
+                    className={`w-full rounded-sm ${d.oz >= waterTargetOz ? 'bg-sky-500' : 'bg-sky-700/70'}`}
+                    style={{ height: `${(d.oz / maxWaterOz) * 100}%` }}
+                    title={`${d.oz} oz`}
+                  />
+                )}
+              </div>
+              <span className="text-stone-400 text-[11px]">{d.day}</span>
+            </div>
+          ))}
+        </div>
+        <div className="flex items-center gap-4 mt-3">
+          <div className="flex items-center gap-1.5">
+            <div className="w-2.5 h-2.5 rounded-sm bg-sky-500" />
+            <span className="text-stone-400 text-xs">
+              {waterLoggedDays > 0 ? `${avgWaterOz} oz/day avg` : 'No water logged yet'}
+            </span>
+          </div>
+          <div className="ml-auto text-stone-400 text-xs">
+            Target: <span className="text-white">{waterTargetOz} oz</span>
+          </div>
         </div>
       </div>
 
