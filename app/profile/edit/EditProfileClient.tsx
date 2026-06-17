@@ -153,7 +153,7 @@ export default function EditProfileClient({ profile }: Props) {
   const sectionHdr = 'text-stone-400 text-xs uppercase tracking-wider mb-3'
 
   return (
-    <div className="min-h-screen bg-stone-950 pb-28">
+    <div className="min-h-screen bg-stone-950">
       {/* Header */}
       <div className="px-4 pt-12 pb-4 flex items-center gap-3">
         <button onClick={() => router.back()} className="text-stone-400 hover:text-white transition-colors">
@@ -516,8 +516,9 @@ export default function EditProfileClient({ profile }: Props) {
 
       </div>
 
-      {/* Sticky save button */}
-      <div className="fixed bottom-0 left-0 right-0 px-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))] pt-3 bg-gradient-to-t from-stone-950 via-stone-950/95 to-transparent">
+      {/* Sticky (not fixed) so it pins to the viewport bottom while scrolling
+          without the iOS position:fixed drift. The long form always scrolls. */}
+      <div className="sticky bottom-0 px-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))] pt-3 bg-gradient-to-t from-stone-950 via-stone-950/95 to-transparent">
         <button
           onClick={handleSave}
           disabled={saving || saved}
