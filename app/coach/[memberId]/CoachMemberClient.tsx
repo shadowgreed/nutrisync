@@ -2,17 +2,35 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, Trash2, Lock, AlertCircle, Sparkles, Send, RotateCcw, X, Check, ArrowUp, ArrowDown, Flame } from 'lucide-react'
+import { ArrowLeft, Trash2, Lock, AlertCircle, Sparkles, Send, RotateCcw, X, Check, ArrowUp, ArrowDown, Flame, Utensils } from 'lucide-react'
 import type { AttentionLevel, ClientSignal } from '@/lib/copilot'
 import type { WeeklyReport } from '@/lib/weekly'
 import { mlToOz, type WaterWeek } from '@/lib/water'
 import { GOAL_LABELS, GOAL_EMOJIS } from '@/lib/fitness'
 import { DRAFT_TONES, type DraftTone } from '@/lib/copilot-tones'
-import type { Diet, Goal } from '@/types'
+import { foodFixesFor } from '@/lib/nutrients'
+import type { Diet, Goal, NutrientKey } from '@/types'
 import CoachDietSetting from './CoachDietSetting'
 
 export interface CoachNote { id: string; body: string; created_at: string }
 export interface PendingDraft { id: string; kind: 'nudge' | 'praise' | 'weekly_checkin'; draft_text: string; status: string; created_at: string }
+export interface MiniPost { id: string; meal_type: string; caption: string | null; total_calories: number | null; photo_url: string | null; logged_at: string }
+
+const MEAL_EMOJI: Record<string, string> = {
+  breakfast: '🍳', lunch: '🥗', dinner: '🍽️', snack: '🍎',
+}
+
+/** Compact relative time for the mini feed, e.g. "3h ago", "2d ago". */
+function relTime(iso: string, now = Date.now()): string {
+  const mins = Math.max(0, Math.round((now - new Date(iso).getTime()) / 60000))
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins}m ago`
+  const hrs = Math.round(mins / 60)
+  if (hrs < 24) return `${hrs}h ago`
+  const days = Math.round(hrs / 24)
+  if (days < 7) return `${days}d ago`
+  return `${Math.round(days / 7)}w ago`
+}
 
 const KIND_LABEL: Record<PendingDraft['kind'], string> = {
   nudge: 'Nudge', praise: 'Praise', weekly_checkin: 'Weekly check-in',
@@ -70,14 +88,57 @@ function Stat({ label, value, sub, delta }: { label: string; value: string; sub?
   )
 }
 
+// A single flagged signal. For a nutrient gap it also offers a one-tap
+// "Suggest foods" reveal — the same whole-food fixes used by "Close my gaps" —
+// so the coach has concrete suggestions to weave into a message.
+function SignalItem({ signal }: { signal: ClientSignal }) {
+  const [showFoods, setShowFoods] = useState(false)
+  const gapKey = signal.code === 'nutrient_gap' && typeof signal.data.key === 'string'
+    ? (signal.data.key as NutrientKey)
+    : null
+  const foods = gapKey ? foodFixesFor(gapKey) : []
+
+  return (
+    <li className={`text-sm rounded-xl px-3 py-2 border ${
+      signal.severity === 'warn'
+        ? 'bg-amber-950/40 border-amber-900/50 text-amber-100'
+        : 'bg-stone-900 border-stone-800 text-stone-300'
+    }`}>
+      <div className="flex items-center gap-2">
+        <AlertCircle size={15} className="shrink-0 opacity-80" />
+        <span className="flex-1">{signal.label}</span>
+        {gapKey && foods.length > 0 && (
+          <button
+            onClick={() => setShowFoods(v => !v)}
+            className="shrink-0 inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-300 hover:text-emerald-200"
+          >
+            <Utensils size={12} /> {showFoods ? 'Hide' : 'Suggest foods'}
+          </button>
+        )}
+      </div>
+      {showFoods && foods.length > 0 && (
+        <ul className="mt-2 ml-6 space-y-1">
+          {foods.map((f, i) => (
+            <li key={i} className="text-[12px] text-stone-300">
+              <span className="font-medium text-stone-100">{f.name}</span>
+              <span className="text-stone-500"> · {f.serving}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </li>
+  )
+}
+
 export default function CoachMemberClient({
-  member, groupId, coachId, memberDiet, dietOverride, attention, signals, report, priorReport, streak, water, priorWater, goal, initialNotes, initialDraft,
+  member, groupId, coachId, memberDiet, dietOverride, attention, signals, report, priorReport, streak, water, priorWater, goal, posts, initialNotes, initialDraft,
 }: {
   member: Member; groupId: string; coachId: string
   memberDiet: Diet | null; dietOverride: Diet | null
   attention: AttentionLevel
   signals: ClientSignal[]; report: WeeklyReport; priorReport: WeeklyReport | null
   streak: number; water: WaterWeek; priorWater: WaterWeek | null; goal: string | null
+  posts: MiniPost[]
   initialNotes: CoachNote[]; initialDraft: PendingDraft | null
 }) {
   const [notes, setNotes] = useState<CoachNote[]>(initialNotes)
@@ -234,16 +295,7 @@ export default function CoachMemberClient({
       {signals.length > 0 && (
         <section className="px-4 mb-4">
           <ul className="space-y-1.5">
-            {signals.map((s, i) => (
-              <li key={i} className={`flex items-center gap-2 text-sm rounded-xl px-3 py-2 border ${
-                s.severity === 'warn'
-                  ? 'bg-amber-950/40 border-amber-900/50 text-amber-100'
-                  : 'bg-stone-900 border-stone-800 text-stone-300'
-              }`}>
-                <AlertCircle size={15} className="shrink-0 opacity-80" />
-                {s.label}
-              </li>
-            ))}
+            {signals.map((s, i) => <SignalItem key={i} signal={s} />)}
           </ul>
         </section>
       )}
@@ -268,6 +320,34 @@ export default function CoachMemberClient({
           />
         </div>
       </section>
+
+      {/* Recent posts — a glance at what the client is actually sharing */}
+      {posts.length > 0 && (
+        <section className="px-4 mb-5">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-stone-400 text-xs uppercase tracking-wider">Recent posts</p>
+            <Link href="/feed" className="text-emerald-400 hover:text-emerald-300 text-[11px] font-semibold">View feed</Link>
+          </div>
+          <ul className="space-y-2">
+            {posts.map(p => (
+              <li key={p.id} className="flex items-center gap-3 bg-stone-900 border border-stone-800 rounded-2xl p-2.5">
+                {p.photo_url
+                  ? <img src={p.photo_url} alt="" className="w-12 h-12 rounded-xl object-cover shrink-0" />
+                  : <div className="w-12 h-12 rounded-xl bg-stone-800 flex items-center justify-center text-xl shrink-0">{MEAL_EMOJI[p.meal_type] ?? '🍽️'}</div>}
+                <div className="min-w-0 flex-1">
+                  <p className="text-stone-200 text-sm truncate">
+                    {p.caption?.trim() || <span className="capitalize">{p.meal_type}</span>}
+                  </p>
+                  <p className="text-stone-500 text-[11px]">
+                    {relTime(p.logged_at)}
+                    {p.total_calories ? ` · ${p.total_calories.toLocaleString()} kcal` : ''}
+                  </p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <CoachDietSetting
         groupId={groupId} coachId={coachId} memberId={member.id}

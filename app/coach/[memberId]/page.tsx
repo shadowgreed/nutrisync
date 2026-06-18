@@ -4,7 +4,7 @@ import { groupForCoachMember, assessMember, getDietOverride } from '@/lib/coach-
 import { effectiveDiet, isDiet } from '@/lib/diets'
 import { buildWaterWeek } from '@/lib/water'
 import type { Diet } from '@/types'
-import CoachMemberClient, { type CoachNote, type PendingDraft } from './CoachMemberClient'
+import CoachMemberClient, { type CoachNote, type PendingDraft, type MiniPost } from './CoachMemberClient'
 
 export const dynamic = 'force-dynamic'
 
@@ -47,7 +47,7 @@ export default async function CoachMemberPage({ params }: { params: Promise<{ me
   // Pull 14 days of water so we can also build the prior week for the trend arrow.
   const fourteenDaysAgo = new Date(now - 14 * 24 * 60 * 60 * 1000).toISOString()
 
-  const [{ attention, signals, report, streak, priorReport }, { data: noteRows }, { data: draftRow }, { data: waterRows }] = await Promise.all([
+  const [{ attention, signals, report, streak, priorReport }, { data: noteRows }, { data: draftRow }, { data: waterRows }, { data: postRows }] = await Promise.all([
     assessMember(supabase, memberId, profile.calorie_target ?? 2000, diet),
     supabase.from('coach_client_notes')
       .select('id, body, created_at')
@@ -61,6 +61,14 @@ export default async function CoachMemberPage({ params }: { params: Promise<{ me
     supabase.from('water_logs')
       .select('logged_at, amount_ml')
       .eq('user_id', memberId).gte('logged_at', fourteenDaysAgo),
+    // The member's 3 most recent posts shared to the group feed (RLS lets the
+    // coach, a fellow group member, read shared logs). A glance at what they're
+    // actually eating, to ground the check-in.
+    supabase.from('food_logs')
+      .select('id, meal_type, caption, total_calories, photo_url, logged_at')
+      .eq('user_id', memberId).eq('shared_to_feed', true)
+      .order('logged_at', { ascending: false })
+      .limit(3),
   ])
 
   const allWater = (waterRows ?? []) as { logged_at: string; amount_ml: number }[]
@@ -86,6 +94,7 @@ export default async function CoachMemberPage({ params }: { params: Promise<{ me
       water={water}
       priorWater={priorWater}
       goal={profile.goal}
+      posts={(postRows ?? []) as MiniPost[]}
       initialNotes={(noteRows ?? []) as CoachNote[]}
       initialDraft={(draftRow as PendingDraft | null) ?? null}
     />
