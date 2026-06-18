@@ -2,7 +2,10 @@ import Anthropic from '@anthropic-ai/sdk'
 import type { ClientSignal } from './copilot'
 import type { WeeklyReport } from './weekly'
 import { dietLabel } from './diets'
+import { TONE_GUIDANCE, type DraftTone } from './copilot-tones'
 import type { Diet } from '@/types'
+
+export { DRAFT_TONES, isDraftTone, type DraftTone } from './copilot-tones'
 
 // ── Coach Copilot: the only AI in the feature ─────────────────────────────────
 // draftCheckin() turns ALREADY-COMPUTED facts (from lib/copilot.ts) into a short,
@@ -29,6 +32,7 @@ export interface DraftRequest {
   signals: ClientSignal[]
   report: WeeklyReport
   diet?: Diet | null
+  tone?: DraftTone
 }
 
 // A deterministic message so the queue is never empty/broken if the API is down.
@@ -77,11 +81,13 @@ export async function draftCheckin(req: DraftRequest): Promise<{ text: string }>
     flags: req.signals.map(s => s.label),
   }
 
+  const toneLine = TONE_GUIDANCE[req.tone ?? 'auto']
+
   try {
     const response = await client.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 300,
-      system: SYSTEM,
+      system: toneLine ? `${SYSTEM}\n\n${toneLine}` : SYSTEM,
       messages: [{ role: 'user', content: `Draft the ${req.kind} message from this client data:\n${JSON.stringify(facts)}` }],
     })
     const raw = response.content[0]?.type === 'text' ? response.content[0].text.trim() : ''

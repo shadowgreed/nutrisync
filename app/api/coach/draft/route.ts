@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { rateLimit } from '@/lib/ratelimit'
 import { groupForCoachMember, assessMember, getDietOverride } from '@/lib/coach-server'
 import { chooseKind, draftCheckin } from '@/lib/copilot-ai'
+import { isDraftTone } from '@/lib/copilot-tones'
 import { effectiveDiet, isDiet } from '@/lib/diets'
 
 // Generate (or regenerate) a Copilot check-in draft for one member. The draft is
@@ -12,8 +13,10 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { memberId } = await req.json() as { memberId?: string }
+  const body = await req.json() as { memberId?: string; tone?: string }
+  const { memberId } = body
   if (!memberId) return NextResponse.json({ error: 'Missing memberId' }, { status: 400 })
+  const tone = isDraftTone(body.tone) ? body.tone : 'auto'
 
   // Drafting calls the LLM — keep it bounded per coach and per member.
   if (!rateLimit(`coach-draft:${user.id}`, 60, 60 * 60 * 1000)) {
@@ -49,7 +52,7 @@ export async function POST(req: NextRequest) {
     coachName: coach?.display_name ?? 'Coach',
     coachStyle: coach?.coach_style,
     memberFirstName: (member.display_name ?? 'there').trim().split(/\s+/)[0],
-    kind, signals, report, diet,
+    kind, signals, report, diet, tone,
   })
 
   // One live draft per coach↔member: clear any existing pending one first.
