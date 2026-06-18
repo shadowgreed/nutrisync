@@ -93,7 +93,7 @@ export function assessClient(opts: {
       signals.push({
         code: 'nutrient_gap', severity: 'info',
         label: `${worstUnexpected.emoji} ${worstUnexpected.label} low (${worstUnexpected.pct}%)`,
-        data: { nutrient: worstUnexpected.label, pct: worstUnexpected.pct },
+        data: { nutrient: worstUnexpected.label, key: worstUnexpected.key, pct: worstUnexpected.pct },
       })
     }
 

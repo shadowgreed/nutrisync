@@ -2,13 +2,14 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, Trash2, Lock, AlertCircle, Sparkles, Send, RotateCcw, X, Check, ArrowUp, ArrowDown, Flame } from 'lucide-react'
+import { ArrowLeft, Trash2, Lock, AlertCircle, Sparkles, Send, RotateCcw, X, Check, ArrowUp, ArrowDown, Flame, Utensils } from 'lucide-react'
 import type { AttentionLevel, ClientSignal } from '@/lib/copilot'
 import type { WeeklyReport } from '@/lib/weekly'
 import { mlToOz, type WaterWeek } from '@/lib/water'
 import { GOAL_LABELS, GOAL_EMOJIS } from '@/lib/fitness'
 import { DRAFT_TONES, type DraftTone } from '@/lib/copilot-tones'
-import type { Diet, Goal } from '@/types'
+import { foodFixesFor } from '@/lib/nutrients'
+import type { Diet, Goal, NutrientKey } from '@/types'
 import CoachDietSetting from './CoachDietSetting'
 
 export interface CoachNote { id: string; body: string; created_at: string }
@@ -67,6 +68,48 @@ function Stat({ label, value, sub, delta }: { label: string; value: string; sub?
       )}
       {sub && <p className="text-stone-500 text-[11px] mt-0.5">{sub}</p>}
     </div>
+  )
+}
+
+// A single flagged signal. For a nutrient gap it also offers a one-tap
+// "Suggest foods" reveal — the same whole-food fixes used by "Close my gaps" —
+// so the coach has concrete suggestions to weave into a message.
+function SignalItem({ signal }: { signal: ClientSignal }) {
+  const [showFoods, setShowFoods] = useState(false)
+  const gapKey = signal.code === 'nutrient_gap' && typeof signal.data.key === 'string'
+    ? (signal.data.key as NutrientKey)
+    : null
+  const foods = gapKey ? foodFixesFor(gapKey) : []
+
+  return (
+    <li className={`text-sm rounded-xl px-3 py-2 border ${
+      signal.severity === 'warn'
+        ? 'bg-amber-950/40 border-amber-900/50 text-amber-100'
+        : 'bg-stone-900 border-stone-800 text-stone-300'
+    }`}>
+      <div className="flex items-center gap-2">
+        <AlertCircle size={15} className="shrink-0 opacity-80" />
+        <span className="flex-1">{signal.label}</span>
+        {gapKey && foods.length > 0 && (
+          <button
+            onClick={() => setShowFoods(v => !v)}
+            className="shrink-0 inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-300 hover:text-emerald-200"
+          >
+            <Utensils size={12} /> {showFoods ? 'Hide' : 'Suggest foods'}
+          </button>
+        )}
+      </div>
+      {showFoods && foods.length > 0 && (
+        <ul className="mt-2 ml-6 space-y-1">
+          {foods.map((f, i) => (
+            <li key={i} className="text-[12px] text-stone-300">
+              <span className="font-medium text-stone-100">{f.name}</span>
+              <span className="text-stone-500"> · {f.serving}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </li>
   )
 }
 
@@ -234,16 +277,7 @@ export default function CoachMemberClient({
       {signals.length > 0 && (
         <section className="px-4 mb-4">
           <ul className="space-y-1.5">
-            {signals.map((s, i) => (
-              <li key={i} className={`flex items-center gap-2 text-sm rounded-xl px-3 py-2 border ${
-                s.severity === 'warn'
-                  ? 'bg-amber-950/40 border-amber-900/50 text-amber-100'
-                  : 'bg-stone-900 border-stone-800 text-stone-300'
-              }`}>
-                <AlertCircle size={15} className="shrink-0 opacity-80" />
-                {s.label}
-              </li>
-            ))}
+            {signals.map((s, i) => <SignalItem key={i} signal={s} />)}
           </ul>
         </section>
       )}
