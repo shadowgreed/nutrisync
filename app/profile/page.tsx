@@ -7,16 +7,16 @@ export default async function ProfilePage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', user.id)
-    .single()
-
   // Activity history for the profile's History tab (charts now live on Trends).
   const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
 
-  const [{ data: activities }, { data: membership }] = await Promise.all([
+  // All in parallel — profile doesn't gate the other queries (one round trip).
+  const [{ data: profile }, { data: activities }, { data: membership }] = await Promise.all([
+    supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', user.id)
+      .single(),
     supabase
       .from('activity_logs')
       .select('logged_at, calories_burned, activity_name, duration_minutes, distance_km, steps')

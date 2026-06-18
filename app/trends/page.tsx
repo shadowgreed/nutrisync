@@ -9,13 +9,6 @@ export default async function TrendsPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  // select('*') tolerates a missing target_weight_kg column (pre-migration-014)
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', user.id)
-    .single()
-
   const since30 = new Date()
   since30.setHours(0, 0, 0, 0)
   since30.setDate(since30.getDate() - 29)
@@ -23,7 +16,14 @@ export default async function TrendsPage() {
   const since90 = new Date()
   since90.setDate(since90.getDate() - 90)
 
-  const [{ data: logs }, weightRes, { data: activityRows }, { data: waterRows }] = await Promise.all([
+  // All in parallel — profile doesn't gate the other queries (one round trip).
+  const [{ data: profile }, { data: logs }, weightRes, { data: activityRows }, { data: waterRows }] = await Promise.all([
+    // select('*') tolerates a missing target_weight_kg column (pre-migration-014)
+    supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', user.id)
+      .single(),
     supabase
       .from('food_logs')
       .select('logged_at, total_calories, macro_totals, nutrient_totals')
