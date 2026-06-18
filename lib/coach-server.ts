@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { assessClient, type ClientStatus } from './copilot'
+import { buildWeeklyReport, type WeeklyReport } from './weekly'
 import { computeStreak } from './streak'
 import { isDiet } from './diets'
 import type { NutrientTotals, Diet } from '@/types'
@@ -60,6 +61,9 @@ export async function groupForCoachMember(
 export interface MemberAssessment extends ClientStatus {
   streak: number
   lastLoggedAt: string | null
+  // The prior 7-day window (days 8–14 ago), for week-over-week trend arrows.
+  // null when there's no data in that window (nothing to compare against).
+  priorReport: WeeklyReport | null
 }
 
 /**
@@ -71,6 +75,7 @@ export async function assessMember(
 ): Promise<MemberAssessment> {
   const since = new Date(Date.now() - 30 * DAY_MS).toISOString()
   const sevenDaysAgo = Date.now() - 7 * DAY_MS
+  const fourteenDaysAgo = Date.now() - 14 * DAY_MS
 
   const [{ data: foods }, { data: acts }] = await Promise.all([
     supabase.from('food_logs')
@@ -96,5 +101,19 @@ export async function assessMember(
     .map(a => ({ logged_at: a.logged_at, calories_burned: a.calories_burned ?? 0 }))
 
   const status = assessClient({ foods: weekFoods, activities: weekActs, calorieTarget, lastLoggedAt, diet })
-  return { ...status, streak, lastLoggedAt }
+
+  // Prior week (days 8–14 ago) for week-over-week trend arrows. Reuses the same
+  // 30-day pull, so no extra query. buildWeeklyReport's window is `now − 6d … now`,
+  // so anchoring `now` 7 days back yields exactly the previous 7-day window.
+  const priorFoods = allFoods
+    .filter(f => { const t = new Date(f.logged_at).getTime(); return t >= fourteenDaysAgo && t < sevenDaysAgo })
+    .map(f => ({ logged_at: f.logged_at, total_calories: f.total_calories ?? 0, nutrient_totals: f.nutrient_totals ?? ({} as NutrientTotals) }))
+  const priorActs = allActs
+    .filter(a => { const t = new Date(a.logged_at).getTime(); return t >= fourteenDaysAgo && t < sevenDaysAgo })
+    .map(a => ({ logged_at: a.logged_at, calories_burned: a.calories_burned ?? 0 }))
+  const priorReport = (priorFoods.length > 0 || priorActs.length > 0)
+    ? buildWeeklyReport({ foods: priorFoods, activities: priorActs, calorieTarget, now: new Date(sevenDaysAgo) })
+    : null
+
+  return { ...status, streak, lastLoggedAt, priorReport }
 }

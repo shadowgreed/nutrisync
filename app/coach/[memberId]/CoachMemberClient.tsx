@@ -2,11 +2,12 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, Trash2, Lock, AlertCircle, Sparkles, Send, RotateCcw, X, Check } from 'lucide-react'
+import { ArrowLeft, Trash2, Lock, AlertCircle, Sparkles, Send, RotateCcw, X, Check, ArrowUp, ArrowDown, Flame } from 'lucide-react'
 import type { AttentionLevel, ClientSignal } from '@/lib/copilot'
 import type { WeeklyReport } from '@/lib/weekly'
 import { mlToOz, type WaterWeek } from '@/lib/water'
-import type { Diet } from '@/types'
+import { GOAL_LABELS, GOAL_EMOJIS } from '@/lib/fitness'
+import type { Diet, Goal } from '@/types'
 import CoachDietSetting from './CoachDietSetting'
 
 export interface CoachNote { id: string; body: string; created_at: string }
@@ -28,23 +29,54 @@ function initials(name: string): string {
   return name.split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase() || '?'
 }
 
-function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
+// Week-over-week trend for a stat card. `tone` colors the arrow: 'good' green,
+// 'bad' red, 'neutral' stone (used for calories, where up/down isn't inherently
+// better — it depends on the member's goal).
+interface Delta { dir: 'up' | 'down'; pct: number | null; tone: 'good' | 'bad' | 'neutral' }
+
+/**
+ * Compare this week's value to last week's. `higherIsBetter` decides the color
+ * (null = neutral). Returns null when there's nothing to compare (no prior data
+ * or no change), so unchanged/first-week cards simply show no arrow.
+ */
+function makeDelta(current: number, prior: number | null, higherIsBetter: boolean | null): Delta | null {
+  if (prior === null) return null
+  const diff = current - prior
+  if (diff === 0) return null
+  const dir: Delta['dir'] = diff > 0 ? 'up' : 'down'
+  const pct = prior > 0 ? Math.round((diff / prior) * 100) : null
+  const tone: Delta['tone'] = higherIsBetter === null ? 'neutral' : (diff > 0) === higherIsBetter ? 'good' : 'bad'
+  return { dir, pct, tone }
+}
+
+const DELTA_TONE: Record<Delta['tone'], string> = {
+  good: 'text-emerald-400', bad: 'text-red-400', neutral: 'text-stone-400',
+}
+
+function Stat({ label, value, sub, delta }: { label: string; value: string; sub?: string; delta?: Delta | null }) {
   return (
     <div className="bg-stone-900 border border-stone-800 rounded-2xl p-3 text-center">
       <p className="text-stone-400 text-[11px] uppercase tracking-wider">{label}</p>
       <p className="text-white text-2xl font-extrabold tabular-nums mt-1">{value}</p>
+      {delta && (
+        <p className={`flex items-center justify-center gap-0.5 text-[11px] font-semibold mt-0.5 ${DELTA_TONE[delta.tone]}`}>
+          {delta.dir === 'up' ? <ArrowUp size={11} /> : <ArrowDown size={11} />}
+          {delta.pct !== null ? `${delta.pct > 0 ? '+' : ''}${delta.pct}%` : 'vs last wk'}
+        </p>
+      )}
       {sub && <p className="text-stone-500 text-[11px] mt-0.5">{sub}</p>}
     </div>
   )
 }
 
 export default function CoachMemberClient({
-  member, groupId, coachId, memberDiet, dietOverride, attention, signals, report, streak, water, initialNotes, initialDraft,
+  member, groupId, coachId, memberDiet, dietOverride, attention, signals, report, priorReport, streak, water, priorWater, goal, initialNotes, initialDraft,
 }: {
   member: Member; groupId: string; coachId: string
   memberDiet: Diet | null; dietOverride: Diet | null
   attention: AttentionLevel
-  signals: ClientSignal[]; report: WeeklyReport; streak: number; water: WaterWeek
+  signals: ClientSignal[]; report: WeeklyReport; priorReport: WeeklyReport | null
+  streak: number; water: WaterWeek; priorWater: WaterWeek | null; goal: string | null
   initialNotes: CoachNote[]; initialDraft: PendingDraft | null
 }) {
   const [notes, setNotes] = useState<CoachNote[]>(initialNotes)
@@ -52,6 +84,30 @@ export default function CoachMemberClient({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const meta = ATTENTION_LABEL[attention]
+
+  // ── Week-over-week trend arrows on the summary cards ───────────────────────
+  // Prior-week values are null when there's no comparable data, which yields no
+  // arrow. Calories are tone-neutral (over/under depends on the member's goal);
+  // nutrients, active days and hydration are "higher is better".
+  const priorCals = priorReport && priorReport.daysLogged ? priorReport.calories.avgPerDay : null
+  const priorNut = priorReport && priorReport.daysLogged ? priorReport.nutrients.onTrack : null
+  const priorActive = priorReport ? priorReport.activities.activeDays : null
+  const calDelta = report.daysLogged ? makeDelta(report.calories.avgPerDay, priorCals, null) : null
+  const nutDelta = report.daysLogged ? makeDelta(report.nutrients.onTrack, priorNut, true) : null
+  const actDelta = makeDelta(report.activities.activeDays, priorActive, true)
+  const waterDelta = water.daysLogged ? makeDelta(water.daysHit, priorWater ? priorWater.daysHit : null, true) : null
+
+  // ── Header context line — goal + streak, adapted to available data ─────────
+  const goalLabel = goal && goal in GOAL_LABELS
+    ? `${GOAL_EMOJIS[goal as Goal]} ${GOAL_LABELS[goal as Goal]}`
+    : null
+  const contextBits = [
+    goalLabel,
+    streak > 0 ? `${streak} day streak` : null,
+  ].filter(Boolean) as string[]
+  // The single most important reason this member surfaced (most severe signal first).
+  const topReason = [...signals].sort((a, b) =>
+    (b.severity === 'warn' ? 1 : 0) - (a.severity === 'warn' ? 1 : 0))[0] ?? null
 
   // ── Copilot draft state ────────────────────────────────────────────────────
   const [pending, setPending] = useState<PendingDraft | null>(initialDraft)
@@ -141,10 +197,29 @@ export default function CoachMemberClient({
             : <div className="w-10 h-10 rounded-full bg-emerald-900/50 border border-emerald-800/50 flex items-center justify-center text-emerald-300 text-sm font-semibold">{initials(member.display_name)}</div>}
           <div className="min-w-0">
             <h1 className="text-lg font-bold truncate">{member.display_name}</h1>
-            <span className={`inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${meta.chip}`}>{meta.label}</span>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className={`inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${meta.chip}`}>{meta.label}</span>
+              {streak > 0 && (
+                <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-orange-300">
+                  <Flame size={11} /> {streak}
+                </span>
+              )}
+            </div>
           </div>
         </div>
       </header>
+
+      {/* Context line — goal, streak, and the headline reason this client surfaced */}
+      {(contextBits.length > 0 || topReason) && (
+        <div className="px-4 mb-3 space-y-1">
+          {contextBits.length > 0 && (
+            <p className="text-stone-400 text-xs">{contextBits.join(' · ')}</p>
+          )}
+          {topReason && attention !== 'on_track' && (
+            <p className="text-stone-200 text-sm font-medium">{topReason.label}</p>
+          )}
+        </div>
+      )}
 
       {/* Signals — why this member is flagged */}
       {signals.length > 0 && (
@@ -171,13 +246,15 @@ export default function CoachMemberClient({
           <Stat
             label="Calories"
             value={report.daysLogged ? report.calories.avgPerDay.toLocaleString() : '—'}
+            delta={calDelta}
             sub={report.daysLogged ? `of ${report.calories.target.toLocaleString()}/day` : 'no logs'}
           />
-          <Stat label="Nutrients" value={`${report.nutrients.onTrack}/${report.nutrients.total}`} sub="on track" />
-          <Stat label="Active" value={`${report.activities.activeDays}/${report.activities.goalDays}`} sub={`${streak}🔥 streak`} />
+          <Stat label="Nutrients" value={`${report.nutrients.onTrack}/${report.nutrients.total}`} delta={nutDelta} sub="on track" />
+          <Stat label="Active" value={`${report.activities.activeDays}/${report.activities.goalDays}`} delta={actDelta} sub="active days" />
           <Stat
             label="Water"
             value={`${water.daysHit}/${water.goalDays}`}
+            delta={waterDelta}
             sub={water.daysLogged ? `${mlToOz(water.avgMl)} oz/day · ${mlToOz(water.targetMl)} oz goal` : 'no logs'}
           />
         </div>
