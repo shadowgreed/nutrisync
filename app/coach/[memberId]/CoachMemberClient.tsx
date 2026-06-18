@@ -14,6 +14,23 @@ import CoachDietSetting from './CoachDietSetting'
 
 export interface CoachNote { id: string; body: string; created_at: string }
 export interface PendingDraft { id: string; kind: 'nudge' | 'praise' | 'weekly_checkin'; draft_text: string; status: string; created_at: string }
+export interface MiniPost { id: string; meal_type: string; caption: string | null; total_calories: number | null; photo_url: string | null; logged_at: string }
+
+const MEAL_EMOJI: Record<string, string> = {
+  breakfast: '🍳', lunch: '🥗', dinner: '🍽️', snack: '🍎',
+}
+
+/** Compact relative time for the mini feed, e.g. "3h ago", "2d ago". */
+function relTime(iso: string, now = Date.now()): string {
+  const mins = Math.max(0, Math.round((now - new Date(iso).getTime()) / 60000))
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins}m ago`
+  const hrs = Math.round(mins / 60)
+  if (hrs < 24) return `${hrs}h ago`
+  const days = Math.round(hrs / 24)
+  if (days < 7) return `${days}d ago`
+  return `${Math.round(days / 7)}w ago`
+}
 
 const KIND_LABEL: Record<PendingDraft['kind'], string> = {
   nudge: 'Nudge', praise: 'Praise', weekly_checkin: 'Weekly check-in',
@@ -114,13 +131,14 @@ function SignalItem({ signal }: { signal: ClientSignal }) {
 }
 
 export default function CoachMemberClient({
-  member, groupId, coachId, memberDiet, dietOverride, attention, signals, report, priorReport, streak, water, priorWater, goal, initialNotes, initialDraft,
+  member, groupId, coachId, memberDiet, dietOverride, attention, signals, report, priorReport, streak, water, priorWater, goal, posts, initialNotes, initialDraft,
 }: {
   member: Member; groupId: string; coachId: string
   memberDiet: Diet | null; dietOverride: Diet | null
   attention: AttentionLevel
   signals: ClientSignal[]; report: WeeklyReport; priorReport: WeeklyReport | null
   streak: number; water: WaterWeek; priorWater: WaterWeek | null; goal: string | null
+  posts: MiniPost[]
   initialNotes: CoachNote[]; initialDraft: PendingDraft | null
 }) {
   const [notes, setNotes] = useState<CoachNote[]>(initialNotes)
@@ -302,6 +320,34 @@ export default function CoachMemberClient({
           />
         </div>
       </section>
+
+      {/* Recent posts — a glance at what the client is actually sharing */}
+      {posts.length > 0 && (
+        <section className="px-4 mb-5">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-stone-400 text-xs uppercase tracking-wider">Recent posts</p>
+            <Link href="/feed" className="text-emerald-400 hover:text-emerald-300 text-[11px] font-semibold">View feed</Link>
+          </div>
+          <ul className="space-y-2">
+            {posts.map(p => (
+              <li key={p.id} className="flex items-center gap-3 bg-stone-900 border border-stone-800 rounded-2xl p-2.5">
+                {p.photo_url
+                  ? <img src={p.photo_url} alt="" className="w-12 h-12 rounded-xl object-cover shrink-0" />
+                  : <div className="w-12 h-12 rounded-xl bg-stone-800 flex items-center justify-center text-xl shrink-0">{MEAL_EMOJI[p.meal_type] ?? '🍽️'}</div>}
+                <div className="min-w-0 flex-1">
+                  <p className="text-stone-200 text-sm truncate">
+                    {p.caption?.trim() || <span className="capitalize">{p.meal_type}</span>}
+                  </p>
+                  <p className="text-stone-500 text-[11px]">
+                    {relTime(p.logged_at)}
+                    {p.total_calories ? ` · ${p.total_calories.toLocaleString()} kcal` : ''}
+                  </p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <CoachDietSetting
         groupId={groupId} coachId={coachId} memberId={member.id}
