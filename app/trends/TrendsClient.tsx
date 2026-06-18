@@ -198,88 +198,6 @@ export default function TrendsClient({ series30, calorieTarget, macroTargets, we
         </div>
       </div>
 
-      {/* Weight — promoted near the top (the motivational payoff for goal users) */}
-      <div className="mx-4 mb-4 bg-stone-900 border border-stone-800 rounded-2xl p-4">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <Scale size={15} className="text-sky-400" />
-            <p className="text-white font-semibold text-sm">Weight</p>
-          </div>
-          {weightInRange.length >= 2 && (
-            <span className={`text-xs font-semibold ${weightDelta < 0 ? 'text-emerald-400' : weightDelta > 0 ? 'text-orange-400' : 'text-stone-400'}`}>
-              {weightDelta > 0 ? '+' : ''}{(weightDelta * 2.20462).toFixed(1)} lbs · {range}d
-            </span>
-          )}
-        </div>
-
-        {weightInRange.length >= 2 ? (
-          <>
-            <svg
-              viewBox={`0 0 ${W} ${H}`}
-              className="w-full h-28"
-              role="img"
-              aria-label={`Weight from ${kgToLbs(cVals[0])} to ${kgToLbs(cVals[cVals.length - 1])} lbs over the last ${range} days`}
-            >
-              <polyline points={polyline} fill="none" stroke="rgb(56 189 248)" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
-              {pts.map((p, i) => (
-                <circle key={i} cx={p.x} cy={p.y} r="2.5" fill="rgb(56 189 248)" />
-              ))}
-            </svg>
-            {/* Axis endpoints so the line is actually readable */}
-            <div className="flex justify-between text-xs text-stone-400 mt-1">
-              <span>{fmtDate(weightInRange[0].logged_at)} · {kgToLbs(weightInRange[0].weight_kg)} lbs</span>
-              <span>{fmtDate(weightInRange[weightInRange.length - 1].logged_at)} · {kgToLbs(weightInRange[weightInRange.length - 1].weight_kg)} lbs</span>
-            </div>
-          </>
-        ) : (
-          <p className="text-stone-400 text-xs mb-3">
-            {currentWeightKg ? `Current: ${kgToLbs(currentWeightKg)} lbs. ` : ''}Log your weight regularly to see your {range}-day trend.
-          </p>
-        )}
-
-        {/* Goal weight progress + milestone celebration */}
-        {goal && (
-          <div className={`mt-3 rounded-xl px-4 py-3 border ${goal.reached ? 'bg-amber-950/40 border-amber-700/50' : 'bg-stone-800/50 border-stone-700'}`}>
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-stone-300 text-xs font-medium">Goal: {goal.targetLbs} lbs</span>
-              <span className={`text-xs font-semibold ${goal.reached ? 'text-amber-300' : 'text-sky-300'} tabular-nums`}>
-                {goal.reached ? 'Reached 🏆' : `${goal.remainingLbs.toFixed(1)} lbs to go`}
-              </span>
-            </div>
-            <div className="relative h-2 rounded-full bg-stone-700 overflow-hidden">
-              <div className={`h-full rounded-full transition-all ${goal.reached ? 'bg-amber-400' : 'bg-gradient-to-r from-sky-600 to-sky-400'}`} style={{ width: `${Math.max(2, goal.pct)}%` }} />
-              {[25, 50, 75].map(m => (
-                <span key={m} className="absolute top-0 bottom-0 w-px bg-stone-900/70" style={{ left: `${m}%` }} />
-              ))}
-            </div>
-            <p className={`text-xs mt-2 ${goal.reached ? 'text-amber-300' : 'text-stone-300'}`}>
-              {MILESTONE_MSG[goal.milestone]} <span className="text-stone-400">({goal.pct}%)</span>
-            </p>
-          </div>
-        )}
-
-        {/* Log weight */}
-        <form onSubmit={logWeight} className="flex gap-2 mt-3">
-          <input
-            value={weightInput}
-            onChange={e => setWeightInput(e.target.value)}
-            type="number"
-            step="0.1"
-            inputMode="decimal"
-            placeholder={currentWeightKg ? `${kgToLbs(currentWeightKg)} lbs` : 'Weight (lbs)'}
-            className="flex-1 bg-stone-800 border border-stone-700 rounded-xl px-3 py-2.5 text-white text-sm placeholder-stone-600 focus:outline-none focus:ring-1 focus:ring-sky-500"
-          />
-          <button
-            type="submit"
-            disabled={savingWeight || !weightInput}
-            className="flex items-center gap-1 bg-sky-700 hover:bg-sky-600 disabled:opacity-40 text-white text-sm font-semibold px-3 rounded-xl transition-colors"
-          >
-            <Plus size={14} /> Log
-          </button>
-        </form>
-        {weightError && <p className="text-red-400 text-xs mt-2">{weightError}</p>}
-      </div>
-
       {/* Calorie bar chart */}
       <div className="mx-4 mb-4 bg-stone-900 border border-stone-800 rounded-2xl p-4">
         <p className="text-white font-semibold text-sm mb-3">Calories logged</p>
@@ -421,6 +339,88 @@ export default function TrendsClient({ series30, calorieTarget, macroTargets, we
             <p className="text-stone-400 text-xs pt-1">Days you reached 100% of the daily target.</p>
           </div>
         )}
+      </div>
+
+      {/* Weight — at the bottom of the page */}
+      <div className="mx-4 mb-4 bg-stone-900 border border-stone-800 rounded-2xl p-4">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <Scale size={15} className="text-sky-400" />
+            <p className="text-white font-semibold text-sm">Weight</p>
+          </div>
+          {weightInRange.length >= 2 && (
+            <span className={`text-xs font-semibold ${weightDelta < 0 ? 'text-emerald-400' : weightDelta > 0 ? 'text-orange-400' : 'text-stone-400'}`}>
+              {weightDelta > 0 ? '+' : ''}{(weightDelta * 2.20462).toFixed(1)} lbs · {range}d
+            </span>
+          )}
+        </div>
+
+        {weightInRange.length >= 2 ? (
+          <>
+            <svg
+              viewBox={`0 0 ${W} ${H}`}
+              className="w-full h-28"
+              role="img"
+              aria-label={`Weight from ${kgToLbs(cVals[0])} to ${kgToLbs(cVals[cVals.length - 1])} lbs over the last ${range} days`}
+            >
+              <polyline points={polyline} fill="none" stroke="rgb(56 189 248)" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+              {pts.map((p, i) => (
+                <circle key={i} cx={p.x} cy={p.y} r="2.5" fill="rgb(56 189 248)" />
+              ))}
+            </svg>
+            {/* Axis endpoints so the line is actually readable */}
+            <div className="flex justify-between text-xs text-stone-400 mt-1">
+              <span>{fmtDate(weightInRange[0].logged_at)} · {kgToLbs(weightInRange[0].weight_kg)} lbs</span>
+              <span>{fmtDate(weightInRange[weightInRange.length - 1].logged_at)} · {kgToLbs(weightInRange[weightInRange.length - 1].weight_kg)} lbs</span>
+            </div>
+          </>
+        ) : (
+          <p className="text-stone-400 text-xs mb-3">
+            {currentWeightKg ? `Current: ${kgToLbs(currentWeightKg)} lbs. ` : ''}Log your weight regularly to see your {range}-day trend.
+          </p>
+        )}
+
+        {/* Goal weight progress + milestone celebration */}
+        {goal && (
+          <div className={`mt-3 rounded-xl px-4 py-3 border ${goal.reached ? 'bg-amber-950/40 border-amber-700/50' : 'bg-stone-800/50 border-stone-700'}`}>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-stone-300 text-xs font-medium">Goal: {goal.targetLbs} lbs</span>
+              <span className={`text-xs font-semibold ${goal.reached ? 'text-amber-300' : 'text-sky-300'} tabular-nums`}>
+                {goal.reached ? 'Reached 🏆' : `${goal.remainingLbs.toFixed(1)} lbs to go`}
+              </span>
+            </div>
+            <div className="relative h-2 rounded-full bg-stone-700 overflow-hidden">
+              <div className={`h-full rounded-full transition-all ${goal.reached ? 'bg-amber-400' : 'bg-gradient-to-r from-sky-600 to-sky-400'}`} style={{ width: `${Math.max(2, goal.pct)}%` }} />
+              {[25, 50, 75].map(m => (
+                <span key={m} className="absolute top-0 bottom-0 w-px bg-stone-900/70" style={{ left: `${m}%` }} />
+              ))}
+            </div>
+            <p className={`text-xs mt-2 ${goal.reached ? 'text-amber-300' : 'text-stone-300'}`}>
+              {MILESTONE_MSG[goal.milestone]} <span className="text-stone-400">({goal.pct}%)</span>
+            </p>
+          </div>
+        )}
+
+        {/* Log weight */}
+        <form onSubmit={logWeight} className="flex gap-2 mt-3">
+          <input
+            value={weightInput}
+            onChange={e => setWeightInput(e.target.value)}
+            type="number"
+            step="0.1"
+            inputMode="decimal"
+            placeholder={currentWeightKg ? `${kgToLbs(currentWeightKg)} lbs` : 'Weight (lbs)'}
+            className="flex-1 bg-stone-800 border border-stone-700 rounded-xl px-3 py-2.5 text-white text-sm placeholder-stone-600 focus:outline-none focus:ring-1 focus:ring-sky-500"
+          />
+          <button
+            type="submit"
+            disabled={savingWeight || !weightInput}
+            className="flex items-center gap-1 bg-sky-700 hover:bg-sky-600 disabled:opacity-40 text-white text-sm font-semibold px-3 rounded-xl transition-colors"
+          >
+            <Plus size={14} /> Log
+          </button>
+        </form>
+        {weightError && <p className="text-red-400 text-xs mt-2">{weightError}</p>}
       </div>
 
       <BottomNav active="trends" />
