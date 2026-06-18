@@ -7,6 +7,7 @@ import type { AttentionLevel, ClientSignal } from '@/lib/copilot'
 import type { WeeklyReport } from '@/lib/weekly'
 import { mlToOz, type WaterWeek } from '@/lib/water'
 import { GOAL_LABELS, GOAL_EMOJIS } from '@/lib/fitness'
+import { DRAFT_TONES, type DraftTone } from '@/lib/copilot-tones'
 import type { Diet, Goal } from '@/types'
 import CoachDietSetting from './CoachDietSetting'
 
@@ -109,6 +110,13 @@ export default function CoachMemberClient({
   const topReason = [...signals].sort((a, b) =>
     (b.severity === 'warn' ? 1 : 0) - (a.severity === 'warn' ? 1 : 0))[0] ?? null
 
+  // One-line summary of exactly what a draft would be based on this week.
+  const copilotContext = report.daysLogged
+    ? [`${report.daysLogged}/7 days logged`,
+       `${report.calories.avgPerDay.toLocaleString()} kcal/day`,
+       topReason ? topReason.label : null].filter(Boolean).join(' · ')
+    : 'No meals logged this week yet'
+
   // ── Copilot draft state ────────────────────────────────────────────────────
   const [pending, setPending] = useState<PendingDraft | null>(initialDraft)
   const [draftText, setDraftText] = useState(initialDraft?.draft_text ?? '')
@@ -116,6 +124,7 @@ export default function CoachMemberClient({
   const [sending, setSending] = useState(false)
   const [sentOk, setSentOk] = useState(false)
   const [copilotError, setCopilotError] = useState('')
+  const [tone, setTone] = useState<DraftTone>('auto')
 
   async function generateDraft() {
     if (generating) return
@@ -123,7 +132,7 @@ export default function CoachMemberClient({
     try {
       const res = await fetch('/api/coach/draft', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ memberId: member.id }),
+        body: JSON.stringify({ memberId: member.id, tone }),
       })
       const json = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(json.error ?? 'Could not draft a message')
@@ -279,15 +288,37 @@ export default function CoachMemberClient({
                 <Check size={15} /> Sent to {member.display_name}.
               </p>
             )}
-            <p className="text-stone-300 text-sm mb-3">
+            {/* What this draft will be based on */}
+            <p className="text-stone-300 text-sm">
               Draft a personalized check-in from {member.display_name}&apos;s week. You review and edit it before anything sends.
             </p>
+            <p className="text-stone-500 text-[11px] mt-1.5 mb-3">Based on: {copilotContext}</p>
+
+            {/* Tone chips */}
+            <p className="text-stone-400 text-[11px] uppercase tracking-wider mb-1.5">Tone</p>
+            <div className="flex flex-wrap gap-1.5 mb-3">
+              {DRAFT_TONES.map(t => (
+                <button
+                  key={t.value}
+                  onClick={() => setTone(t.value)}
+                  disabled={generating}
+                  className={`text-[12px] font-medium px-2.5 py-1 rounded-full border transition-colors disabled:opacity-50 ${
+                    tone === t.value
+                      ? 'bg-emerald-600 border-emerald-500 text-white'
+                      : 'bg-stone-950 border-stone-700 text-stone-300 hover:border-stone-500'
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+
             <button
               onClick={generateDraft}
               disabled={generating}
               className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors"
             >
-              <Sparkles size={15} /> {generating ? 'Drafting…' : sentOk ? 'Draft another' : 'Draft a check-in'}
+              <Sparkles size={15} /> {generating ? 'Drafting…' : sentOk ? 'Draft another' : 'Draft check-in (this week’s data)'}
             </button>
           </div>
         ) : (
