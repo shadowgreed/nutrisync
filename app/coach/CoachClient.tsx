@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { ArrowLeft, ChevronRight, EyeOff, Sparkles, Crown } from 'lucide-react'
+import { ArrowLeft, ChevronRight, EyeOff, Sparkles, Crown, Bell } from 'lucide-react'
 import { BottomNav } from '../dashboard/DashboardClient'
 import CoachStyleSetting from './CoachStyleSetting'
 import type { AttentionLevel } from '@/lib/copilot'
@@ -61,6 +61,21 @@ export default function CoachClient({
         </div>
       </header>
 
+      {/* Prominent "today" banner — the first thing a coach should act on. */}
+      {needs > 0 && (
+        <div className="px-4 mb-3">
+          <div className="flex items-start gap-3 bg-amber-950/40 border border-amber-800/50 rounded-2xl px-4 py-3">
+            <Bell size={18} className="text-amber-300 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-amber-100 text-sm font-semibold">
+                {needs} client{needs === 1 ? '' : 's'} need{needs === 1 ? 's' : ''} a check-in today
+              </p>
+              <p className="text-amber-200/70 text-xs mt-0.5">Tap a flagged client below to review their week and draft a check-in.</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <CoachStyleSetting userId={coachId} initial={coachStyle} />
 
       {members.length === 0 ? (
@@ -75,7 +90,7 @@ export default function CoachClient({
             <div className="bg-stone-900 border border-stone-800 rounded-2xl px-4 py-3 flex items-center justify-between">
               <span className="text-stone-300 text-sm">{members.length} member{members.length === 1 ? '' : 's'}</span>
               <span className={`text-sm font-semibold ${needs ? 'text-amber-300' : 'text-emerald-300'}`}>
-                {needs ? `${needs} need${needs === 1 ? 's' : ''} a check-in` : 'Everyone on track 🎉'}
+                {needs ? `${needs} flagged` : 'Everyone on track 🎉'}
               </span>
             </div>
             {pendingDrafts > 0 && (
