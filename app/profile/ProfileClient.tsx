@@ -111,7 +111,7 @@ export default function ProfileClient({
             )}
           </div>
         </div>
-        <Link href="/profile/edit" aria-label="Edit profile & settings" className="text-stone-400 hover:text-white transition-colors">
+        <Link href="/settings" aria-label="Settings" className="text-stone-400 hover:text-white transition-colors">
           <Settings size={20} />
         </Link>
       </div>
