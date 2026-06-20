@@ -33,6 +33,10 @@ export interface DraftRequest {
   report: WeeklyReport
   diet?: Diet | null
   tone?: DraftTone
+  // A short description of the coach's learned voice (e.g. "Supportive,
+  // Encouraging"). Used only when tone is 'auto' to bias wording toward how the
+  // coach actually writes. The coach always edits before sending.
+  voiceHint?: string | null
 }
 
 // A deterministic message so the queue is never empty/broken if the API is down.
@@ -81,7 +85,9 @@ export async function draftCheckin(req: DraftRequest): Promise<{ text: string }>
     flags: req.signals.map(s => s.label),
   }
 
+  // An explicit tone chip wins; otherwise ('auto') lean on the coach's learned voice.
   const toneLine = TONE_GUIDANCE[req.tone ?? 'auto']
+    ?? (req.voiceHint ? `Tone: match this coach's natural voice — they tend to write ${req.voiceHint}.` : null)
 
   try {
     const response = await client.messages.create({
