@@ -39,10 +39,11 @@ export default async function FeedPage() {
     ? { id: founded[0].id as string, name: founded[0].name as string }
     : null
 
-  // Get group member user IDs
+  // Get group member user IDs (role included so we can mark the coach in the
+  // group roster shown when you tap the group header).
   const { data: allMembers } = await supabase
     .from('group_members')
-    .select('group_id, user_id, profiles(id, display_name, avatar_url, privacy_mode, dark_mode_until)')
+    .select('group_id, user_id, role, profiles(id, display_name, avatar_url, privacy_mode, dark_mode_until)')
     .in('group_id', groupIds)
 
   const memberUserIds = [...new Set(allMembers?.map(m => m.user_id) ?? [])]
@@ -151,6 +152,23 @@ export default async function FeedPage() {
   const nameMap: Record<string, string> = {}
   for (const [uid, p] of Object.entries(profileMap)) nameMap[uid] = p.display_name
 
+  // Roster for the header group — shown when you tap the group name/logo. The
+  // coach (role === 'coach') is flagged so the UI can highlight them.
+  const headerGroupId = myGroups?.[0]?.id as string | undefined
+  const groupMembers = (allMembers ?? [])
+    .filter(m => m.group_id === headerGroupId && m.profiles && typeof m.profiles === 'object' && !Array.isArray(m.profiles))
+    .map(m => {
+      const p = m.profiles as unknown as { display_name: string | null; avatar_url: string | null }
+      return {
+        user_id: m.user_id as string,
+        display_name: p.display_name ?? 'Member',
+        avatar_url: p.avatar_url ?? null,
+        is_coach: m.role === 'coach',
+      }
+    })
+    // Coach first, then everyone else alphabetically.
+    .sort((a, b) => (b.is_coach ? 1 : 0) - (a.is_coach ? 1 : 0) || a.display_name.localeCompare(b.display_name))
+
   return (
     <FeedClient
       entries={feedEntries}
@@ -159,6 +177,7 @@ export default async function FeedPage() {
       currentUserId={user.id}
       nameMap={nameMap}
       headerGroup={headerGroup}
+      groupMembers={groupMembers}
       founderGroup={founderGroup}
       moderatableUserIds={moderatableUserIds}
     />
