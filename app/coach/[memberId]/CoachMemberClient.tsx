@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, Trash2, Lock, AlertCircle, Sparkles, Send, RotateCcw, X, Check, ArrowUp, ArrowDown, Flame, Utensils } from 'lucide-react'
+import { ArrowLeft, Trash2, Lock, AlertCircle, Sparkles, Send, RotateCcw, X, Check, ArrowUp, ArrowDown, Flame, Utensils, Copy } from 'lucide-react'
 import type { AttentionLevel, ClientSignal } from '@/lib/copilot'
 import type { WeeklyReport } from '@/lib/weekly'
 import { mlToOz, type WaterWeek } from '@/lib/water'
@@ -241,8 +241,74 @@ function BehaviorPatterns({ intel }: { intel: MemberIntel }) {
   )
 }
 
+export interface InterventionEntry { kind: 'nudge' | 'praise' | 'weekly_checkin'; created_at: string }
+
+const KIND_TOPIC: Record<InterventionEntry['kind'], string> = {
+  nudge: 'Nudge', praise: 'Praise', weekly_checkin: 'Weekly check-in',
+}
+
+// One-tap coaching plays with impact, estimated outcome and a copyable message.
+function RecommendedActions({ actions }: { actions: MemberIntel['recommendedActions'] }) {
+  const [copied, setCopied] = useState<number | null>(null)
+  if (actions.length === 0) return null
+  const impactStyle: Record<string, string> = {
+    High: 'bg-red-900/40 text-red-200 border-red-800/50',
+    Medium: 'bg-amber-900/40 text-amber-200 border-amber-800/50',
+    Low: 'bg-stone-800 text-stone-300 border-stone-700',
+  }
+  function copy(i: number, text: string) {
+    navigator.clipboard.writeText(text); setCopied(i); setTimeout(() => setCopied(null), 1800)
+  }
+  return (
+    <section className="px-4 mb-5">
+      <p className="text-stone-400 text-xs uppercase tracking-wider mb-2">Recommended actions</p>
+      <ul className="space-y-2">
+        {actions.map((a, i) => (
+          <li key={i} className="bg-stone-900 border border-stone-800 rounded-2xl p-3.5">
+            <div className="flex items-center justify-between gap-2 mb-1">
+              <p className="text-white text-sm font-semibold">{a.title}</p>
+              <span className={`shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${impactStyle[a.impact]}`}>{a.impact} impact</span>
+            </div>
+            <p className="text-stone-400 text-xs mb-2">{a.outcome}</p>
+            <div className="bg-stone-950 border border-stone-800 rounded-xl px-3 py-2">
+              <p className="text-stone-300 text-[13px] leading-snug">{a.message}</p>
+            </div>
+            <button
+              onClick={() => copy(i, a.message)}
+              className="mt-2 inline-flex items-center gap-1.5 text-emerald-300 hover:text-emerald-200 text-xs font-semibold"
+            >
+              {copied === i ? <Check size={13} /> : <Copy size={13} />} {copied === i ? 'Copied' : 'Copy message'}
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
+// Past check-ins the coach has sent — prevents repetitive coaching.
+function InterventionHistory({ history }: { history: InterventionEntry[] }) {
+  if (history.length === 0) return null
+  return (
+    <section className="px-4 mb-5">
+      <p className="text-stone-400 text-xs uppercase tracking-wider mb-2">Intervention history</p>
+      <ul className="bg-stone-900 border border-stone-800 rounded-2xl divide-y divide-stone-800">
+        {history.map((h, i) => (
+          <li key={i} className="flex items-center justify-between px-4 py-2.5">
+            <div>
+              <p className="text-stone-200 text-sm">{KIND_TOPIC[h.kind]}</p>
+              <p className="text-stone-500 text-[11px]">{new Date(h.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
+            </div>
+            <span className="text-emerald-400/80 text-xs">Check-in sent</span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
 export default function CoachMemberClient({
-  member, groupId, coachId, memberDiet, dietOverride, attention, signals, report, priorReport, streak, water, priorWater, goal, intel, posts, initialNotes, initialDraft,
+  member, groupId, coachId, memberDiet, dietOverride, attention, signals, report, priorReport, streak, water, priorWater, goal, intel, history, posts, initialNotes, initialDraft,
 }: {
   member: Member; groupId: string; coachId: string
   memberDiet: Diet | null; dietOverride: Diet | null
@@ -250,6 +316,7 @@ export default function CoachMemberClient({
   signals: ClientSignal[]; report: WeeklyReport; priorReport: WeeklyReport | null
   streak: number; water: WaterWeek; priorWater: WaterWeek | null; goal: string | null
   intel: MemberIntel
+  history: InterventionEntry[]
   posts: MiniPost[]
   initialNotes: CoachNote[]; initialDraft: PendingDraft | null
 }) {
@@ -405,6 +472,9 @@ export default function CoachMemberClient({
 
       {/* AI summary — what's happening, why, the risk, the recommended action */}
       {intel.hasData && <AiSummaryCard intel={intel} memberName={member.display_name} />}
+
+      {/* Recommended actions — one-tap coaching plays */}
+      {intel.hasData && <RecommendedActions actions={intel.recommendedActions} />}
 
       {/* Signals — why this member is flagged */}
       {signals.length > 0 && (
@@ -566,6 +636,9 @@ export default function CoachMemberClient({
         {copilotError && <p className="text-red-400 text-xs mt-2">{copilotError}</p>}
         <p className="text-stone-600 text-[11px] mt-2">Copilot drafts; you send it in your own voice. Nothing reaches {member.display_name} until you hit Send.</p>
       </section>
+
+      {/* Intervention history — what's already been sent */}
+      <InterventionHistory history={history} />
 
       {/* Private coach notes */}
       <section className="px-4">
