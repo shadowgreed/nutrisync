@@ -9,8 +9,8 @@ import {
   milesToKm, stepsToKm, kmToMiles,
 } from '@/lib/fitness'
 
-export default function LogClient({ weightKg }: { weightKg: number }) {
-  const [tab, setTab] = useState<'food' | 'activity'>('food')
+export default function LogClient({ weightKg, initialTab = 'food' }: { weightKg: number; initialTab?: 'food' | 'activity' }) {
+  const [tab, setTab] = useState<'food' | 'activity'>(initialTab)
   const [activityName, setActivityName] = useState('')
   const [duration, setDuration] = useState('')
   const [distanceMi, setDistanceMi] = useState('')
