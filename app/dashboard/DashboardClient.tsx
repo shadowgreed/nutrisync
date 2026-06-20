@@ -71,6 +71,18 @@ export default function DashboardClient({
     try { seen = localStorage.getItem(WEEKLY_SEEN_KEY) } catch { /* ignore */ }
     if (seen !== currentWeekKey()) router.push('/weekly')
   }, [router])
+
+  // Deep link from the quick-log FAB (/dashboard?log=water): scroll to the water
+  // card and briefly highlight it so the bottle quick-adds are right there.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('log') !== 'water') return
+    const el = document.getElementById('water-card')
+    if (!el) return
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    el.classList.add('ring-2', 'ring-sky-500')
+    const t = setTimeout(() => el.classList.remove('ring-2', 'ring-sky-500'), 2200)
+    return () => clearTimeout(t)
+  }, [])
   const [waterLogs, setWaterLogs] = useState<WaterLog[]>(
     initialWaterLogs.filter(w => !w.logged_at || localDayKey(w.logged_at) === todayKey),
   )
@@ -305,7 +317,7 @@ export default function DashboardClient({
       </div>
 
       {/* ── Water section ── */}
-      <div className="mx-4 mb-4 bg-stone-900 border border-stone-800 rounded-2xl p-4">
+      <div id="water-card" className="mx-4 mb-4 bg-stone-900 border border-stone-800 rounded-2xl p-4 scroll-mt-20 transition-shadow">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <Droplets size={16} className="text-sky-400" />
