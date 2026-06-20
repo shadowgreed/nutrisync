@@ -10,8 +10,8 @@ import { Plus, X, Utensils, Dumbbell, Droplet, Scale } from 'lucide-react'
 const ACTIONS = [
   { label: 'Log meal', href: '/log', icon: Utensils, color: 'bg-emerald-600' },
   { label: 'Log activity', href: '/log?tab=activity', icon: Dumbbell, color: 'bg-orange-600' },
-  { label: 'Log water', href: '/dashboard', icon: Droplet, color: 'bg-sky-600' },
-  { label: 'Log weight', href: '/trends', icon: Scale, color: 'bg-violet-600' },
+  { label: 'Log water', href: '/dashboard?log=water', icon: Droplet, color: 'bg-sky-600' },
+  { label: 'Log weight', href: '/trends?log=weight', icon: Scale, color: 'bg-violet-600' },
 ]
 
 export default function LogFab() {

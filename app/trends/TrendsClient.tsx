@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { Scale, TrendingUp, Plus, Utensils, Flame, Droplets } from 'lucide-react'
 import { BottomNav } from '../dashboard/DashboardClient'
@@ -33,6 +33,22 @@ export default function TrendsClient({ series30, calorieTarget, macroTargets, we
   const [weightInput, setWeightInput] = useState('')
   const [savingWeight, setSavingWeight] = useState(false)
   const [weightError, setWeightError] = useState('')
+  const weightInputRef = useRef<HTMLInputElement>(null)
+
+  // Deep link from the quick-log FAB (/trends?log=weight): scroll to the weight
+  // card, highlight it and focus the input so the coach/user can log right away.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('log') !== 'weight') return
+    const el = document.getElementById('weight-card')
+    if (!el) return
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    el.classList.add('ring-2', 'ring-violet-500')
+    const t = setTimeout(() => {
+      el.classList.remove('ring-2', 'ring-violet-500')
+      weightInputRef.current?.focus()
+    }, 600)
+    return () => clearTimeout(t)
+  }, [])
 
   const series = series30.slice(-range)
   const summary = summarize(series)
@@ -343,7 +359,7 @@ export default function TrendsClient({ series30, calorieTarget, macroTargets, we
       </div>
 
       {/* Weight — at the bottom of the page */}
-      <div className="mx-4 mb-4 bg-stone-900 border border-stone-800 rounded-2xl p-4">
+      <div id="weight-card" className="mx-4 mb-4 bg-stone-900 border border-stone-800 rounded-2xl p-4 scroll-mt-20 transition-shadow">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <Scale size={15} className="text-sky-400" />
@@ -405,6 +421,7 @@ export default function TrendsClient({ series30, calorieTarget, macroTargets, we
         {/* Log weight */}
         <form onSubmit={logWeight} className="flex gap-2 mt-3">
           <input
+            ref={weightInputRef}
             value={weightInput}
             onChange={e => setWeightInput(e.target.value)}
             type="number"
