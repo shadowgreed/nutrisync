@@ -4,6 +4,7 @@ import { rateLimit } from '@/lib/ratelimit'
 import { groupForCoachMember, assessMember, getDietOverride } from '@/lib/coach-server'
 import { chooseKind, draftCheckin } from '@/lib/copilot-ai'
 import { isDraftTone } from '@/lib/copilot-tones'
+import { inferVoice } from '@/lib/coach-voice'
 import { effectiveDiet, isDiet } from '@/lib/diets'
 
 // Generate (or regenerate) a Copilot check-in draft for one member. The draft is
@@ -45,14 +46,27 @@ export async function POST(req: NextRequest) {
   const { signals, report } = await assessMember(supabase, memberId, member.calorie_target ?? 2000, diet)
   const kind = chooseKind(signals)
 
-  const { data: coach } = await supabase
-    .from('profiles').select('display_name, coach_style').eq('id', user.id).single<{ display_name: string | null; coach_style: string | null }>()
+  const [{ data: coach }, { data: sentRows }] = await Promise.all([
+    supabase.from('profiles').select('display_name, coach_style').eq('id', user.id).single<{ display_name: string | null; coach_style: string | null }>(),
+    // The coach's recent sent check-ins → learned voice (only when tone is 'auto').
+    supabase.from('coach_message_drafts')
+      .select('draft_text')
+      .eq('coach_id', user.id).in('status', ['sent', 'edited_sent'])
+      .order('created_at', { ascending: false }).limit(40),
+  ])
+
+  // Build a voice hint once there's enough signal (≥3 sent messages); below that
+  // we don't impose a guess and just fall back to the coach's saved style.
+  const voice = inferVoice(((sentRows ?? []) as { draft_text: string | null }[]).map(r => r.draft_text ?? ''))
+  const voiceHint = voice.sampleSize >= 3
+    ? [voice.profile, ...voice.traits].join(', ').toLowerCase()
+    : null
 
   const { text } = await draftCheckin({
     coachName: coach?.display_name ?? 'Coach',
     coachStyle: coach?.coach_style,
     memberFirstName: (member.display_name ?? 'there').trim().split(/\s+/)[0],
-    kind, signals, report, diet, tone,
+    kind, signals, report, diet, tone, voiceHint,
   })
 
   // One live draft per coach↔member: clear any existing pending one first.
