@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { calculateMacroTargets } from '@/lib/macros'
 import ProfileClient from './ProfileClient'
 
 export default async function ProfilePage() {
@@ -9,9 +10,12 @@ export default async function ProfilePage() {
 
   // Activity history for the profile's History tab (charts now live on Trends).
   const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+  // 48h windows for food + water so the client can filter to its own local
+  // "today" (the server is UTC and doesn't know the viewer's timezone).
+  const since48 = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString()
 
   // All in parallel — profile doesn't gate the other queries (one round trip).
-  const [{ data: profile }, { data: activities }, { data: membership }] = await Promise.all([
+  const [{ data: profile }, { data: activities }, { data: membership }, { data: foodLogs }, { data: waterLogs }] = await Promise.all([
     supabase
       .from('profiles')
       .select('*')
@@ -29,6 +33,16 @@ export default async function ProfilePage() {
       .eq('user_id', user.id)
       .limit(1)
       .single(),
+    supabase
+      .from('food_logs')
+      .select('logged_at, total_calories, macro_totals')
+      .eq('user_id', user.id)
+      .gte('logged_at', since48),
+    supabase
+      .from('water_logs')
+      .select('logged_at, amount_ml')
+      .eq('user_id', user.id)
+      .gte('logged_at', since48),
   ])
 
   const groupRow = (membership?.groups as unknown as
@@ -57,12 +71,24 @@ export default async function ProfilePage() {
     }
   }
 
+  // Macro targets (for the protein goal in the Goal & Progress card).
+  const macroTargets = calculateMacroTargets(
+    profile?.calorie_target ?? 2000,
+    profile?.weight_kg ?? null,
+    profile?.goal ?? null,
+  )
+
   return (
     <ProfileClient
       profile={profile}
       email={user.email ?? ''}
       activities={activities ?? []}
       group={group}
+      foodLogs={(foodLogs ?? []) as { logged_at: string; total_calories: number | null; macro_totals: { protein_g?: number } | null }[]}
+      waterLogs={(waterLogs ?? []) as { logged_at: string; amount_ml: number }[]}
+      calorieTarget={profile?.calorie_target ?? null}
+      proteinTarget={macroTargets.protein_g}
+      waterTargetMl={profile?.water_daily_target_ml ?? 2500}
     />
   )
 }
