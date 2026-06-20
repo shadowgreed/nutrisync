@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react'
 import { Settings, Users, ChevronRight } from 'lucide-react'
 import AvatarUpload from '@/components/AvatarUpload'
 import { BottomNav } from '../dashboard/DashboardClient'
+import LogFab from '@/components/LogFab'
 import { mlToOz } from '@/lib/water'
 import {
   calculateBMR, calculateTDEE, calculateBMI, bmiCategory,
@@ -266,6 +267,7 @@ export default function ProfileClient({
         </div>
       )}
 
+      <LogFab />
       <BottomNav active="profile" />
     </div>
   )

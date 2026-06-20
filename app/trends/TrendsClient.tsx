@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Scale, TrendingUp, Plus, Utensils, Flame, Droplets } from 'lucide-react'
 import { BottomNav } from '../dashboard/DashboardClient'
+import LogFab from '@/components/LogFab'
 import { summarize, microConsistency, type DayTotal } from '@/lib/trends'
 import { MACRO_KEYS, MACRO_META } from '@/lib/macros'
 import { kgToLbs, lbsToKg } from '@/lib/fitness'
@@ -423,6 +424,7 @@ export default function TrendsClient({ series30, calorieTarget, macroTargets, we
         {weightError && <p className="text-red-400 text-xs mt-2">{weightError}</p>}
       </div>
 
+      <LogFab />
       <BottomNav active="trends" />
     </div>
   )

@@ -3,10 +3,13 @@ import { createClient } from '@/lib/supabase/server'
 import { BottomNav } from '../dashboard/DashboardClient'
 import LogClient from './LogClient'
 
-export default async function LogPage() {
+export default async function LogPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
+
+  const { tab } = await searchParams
+  const initialTab = tab === 'activity' ? 'activity' : 'food'
 
   const { data: profile } = await supabase
     .from('profiles')
@@ -21,7 +24,7 @@ export default async function LogPage() {
         <h1 className="text-white text-2xl font-bold mt-0.5">Log</h1>
       </div>
       <div className="px-4">
-        <LogClient weightKg={profile?.weight_kg ?? 70} />
+        <LogClient weightKg={profile?.weight_kg ?? 70} initialTab={initialTab} />
       </div>
       <BottomNav active="log" />
     </div>
