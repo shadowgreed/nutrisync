@@ -52,7 +52,11 @@ function message(n: AppNotification): string {
     case 'group_join': return `${who} joined your group`
     case 'meal':       return `${who} logged ${(n.data?.meal_type as string) ?? 'a meal'}`
     case 'weekly_report': return 'Your weekly report is ready — see how your week went 📊'
-    case 'cheer':      return `${who} cheered you on — keep it up! 👏`
+    case 'cheer': {
+      const label = n.data?.label as string | undefined
+      const emoji = (n.data?.emoji as string | undefined) ?? '👏'
+      return label ? `${who} sent you ${emoji} ${label}` : `${who} cheered you on — keep it up! 👏`
+    }
     case 'coach_message': return `${who} sent you a check-in: “${(n.data?.text as string) ?? ''}”`
     case 'coach_nudge':   return `${who} sent your group a nudge 📣`
     // Requesters aren't group members yet, so their profile isn't readable under
