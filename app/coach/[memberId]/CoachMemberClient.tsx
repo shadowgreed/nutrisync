@@ -10,6 +10,7 @@ import { GOAL_LABELS, GOAL_EMOJIS } from '@/lib/fitness'
 import { DRAFT_TONES, type DraftTone } from '@/lib/copilot-tones'
 import { foodFixesFor } from '@/lib/nutrients'
 import { SEVERITY_STYLE, type MemberIntel, type TrendData } from '@/lib/coach-intel'
+import type { VoiceProfile } from '@/lib/coach-voice'
 import { ShieldCheck, AlertTriangle, Target as TargetIcon, Minus } from 'lucide-react'
 import type { Diet, Goal, NutrientKey } from '@/types'
 import CoachDietSetting from './CoachDietSetting'
@@ -424,7 +425,7 @@ function QuickAction({ icon, label, onClick, active }: { icon: ReactNode; label:
 }
 
 export default function CoachMemberClient({
-  member, groupId, coachId, memberDiet, dietOverride, attention, signals, report, priorReport, streak, water, priorWater, goal, intel, trends, history, reviewedAt, posts, initialNotes, initialDraft,
+  member, groupId, coachId, memberDiet, dietOverride, attention, signals, report, priorReport, streak, water, priorWater, goal, intel, trends, history, reviewedAt, voice, posts, initialNotes, initialDraft,
 }: {
   member: Member; groupId: string; coachId: string
   memberDiet: Diet | null; dietOverride: Diet | null
@@ -435,6 +436,7 @@ export default function CoachMemberClient({
   trends: TrendData
   history: InterventionEntry[]
   reviewedAt: string | null
+  voice: VoiceProfile
   posts: MiniPost[]
   initialNotes: CoachNote[]; initialDraft: PendingDraft | null
 }) {
@@ -718,8 +720,18 @@ export default function CoachMemberClient({
             </p>
             <p className="text-stone-500 text-[11px] mt-1.5 mb-3">Based on: {copilotContext}</p>
 
+            {/* Adaptive voice — learned from your sent check-ins */}
+            {voice.sampleSize > 0 && (
+              <div className="flex items-center gap-1.5 mb-3 text-[11px]">
+                <span className="inline-flex items-center gap-1 bg-stone-800 border border-stone-700 rounded-full px-2 py-0.5 text-stone-200 font-medium">
+                  🎙 {voice.profile}{voice.traits.length ? ` · ${voice.traits.join(' · ')}` : ''}
+                </span>
+                <span className="text-stone-500">{voice.confidence}% · {voice.sampleSize} check-in{voice.sampleSize === 1 ? '' : 's'}</span>
+              </div>
+            )}
+
             {/* Tone chips */}
-            <p className="text-stone-400 text-[11px] uppercase tracking-wider mb-1.5">Tone</p>
+            <p className="text-stone-400 text-[11px] uppercase tracking-wider mb-1.5">Tone <span className="text-stone-600 normal-case">(overrides your voice)</span></p>
             <div className="flex flex-wrap gap-1.5 mb-3">
               {DRAFT_TONES.map(t => (
                 <button

@@ -5,6 +5,7 @@ import { effectiveDiet, isDiet } from '@/lib/diets'
 import { buildWaterWeek } from '@/lib/water'
 import { calculateMacroTargets } from '@/lib/macros'
 import { buildIntel, buildDailyTrends, type IntelFood, type IntelWater, type IntelActivity, type WeightPoint } from '@/lib/coach-intel'
+import { inferVoice } from '@/lib/coach-voice'
 import type { Diet, NutrientTotals, Goal } from '@/types'
 import CoachMemberClient, { type CoachNote, type PendingDraft, type MiniPost } from './CoachMemberClient'
 
@@ -55,7 +56,7 @@ export default async function CoachMemberPage({ params }: { params: Promise<{ me
     { attention, signals, report, streak, priorReport },
     { data: noteRows }, { data: draftRow }, { data: waterRows }, { data: postRows },
     { data: intelFoodRows }, { data: intelActRows }, { data: weightRows },
-    { data: historyRows }, { data: settingsRow },
+    { data: historyRows }, { data: settingsRow }, { data: voiceRows },
   ] = await Promise.all([
     assessMember(supabase, memberId, profile.calorie_target ?? 2000, diet),
     supabase.from('coach_client_notes')
@@ -100,7 +101,15 @@ export default async function CoachMemberPage({ params }: { params: Promise<{ me
       .select('reviewed_at')
       .eq('coach_id', user.id).eq('member_id', memberId)
       .maybeSingle(),
+    // The coach's recent sent check-ins (across all clients) → adaptive voice.
+    supabase.from('coach_message_drafts')
+      .select('draft_text')
+      .eq('coach_id', user.id).in('status', ['sent', 'edited_sent'])
+      .order('created_at', { ascending: false })
+      .limit(40),
   ])
+
+  const voice = inferVoice(((voiceRows ?? []) as { draft_text: string | null }[]).map(r => r.draft_text ?? ''))
 
   const allWater = (waterRows ?? []) as { logged_at: string; amount_ml: number }[]
   const waterTarget = profile.water_daily_target_ml ?? 2500
@@ -166,6 +175,7 @@ export default async function CoachMemberPage({ params }: { params: Promise<{ me
       trends={trends}
       history={(historyRows ?? []) as { kind: 'nudge' | 'praise' | 'weekly_checkin'; created_at: string }[]}
       reviewedAt={(settingsRow as { reviewed_at: string | null } | null)?.reviewed_at ?? null}
+      voice={voice}
       posts={(postRows ?? []) as MiniPost[]}
       initialNotes={(noteRows ?? []) as CoachNote[]}
       initialDraft={(draftRow as PendingDraft | null) ?? null}
