@@ -25,25 +25,36 @@ export default async function ProfilePage() {
       .order('logged_at', { ascending: false }),
     supabase
       .from('group_members')
-      .select('group_id, groups(id, name, invite_code, created_by, photo_url)')
+      .select('group_id, groups(id, name, photo_url)')
       .eq('user_id', user.id)
       .limit(1)
       .single(),
   ])
 
   const groupRow = (membership?.groups as unknown as
-    { id: string; name: string; invite_code: string; created_by: string | null; photo_url: string | null } | null) ?? null
-  const group = groupRow ? { ...groupRow, id: membership!.group_id as string } : null
-  const isOwner = !!group && group.created_by === user.id
+    { id: string; name: string; photo_url: string | null } | null) ?? null
 
-  // The founder also gets the list of pending join requests to approve/deny.
-  // Via SECURITY DEFINER RPC: requesters aren't members yet, so their profiles
-  // aren't readable under the scoped profiles policy (migration 025).
-  let pendingRequests: { id: string; user_id: string; display_name: string; avatar_url: string | null }[] = []
-  if (isOwner && group) {
-    const { data: reqs } = await supabase.rpc('get_group_pending_requests', { p_group_id: group.id })
-    pendingRequests = ((reqs ?? []) as { id: string; user_id: string; display_name: string | null; avatar_url: string | null }[])
-      .map(r => ({ id: r.id, user_id: r.user_id, display_name: r.display_name ?? 'Someone', avatar_url: r.avatar_url }))
+  // Read-only group summary for Profile: image, name, member count, coach name.
+  // Management (invites/approvals/leave) now lives at /group/manage.
+  let group: { id: string; name: string; photo_url: string | null; memberCount: number; coachName: string | null } | null = null
+  if (groupRow) {
+    const groupId = membership!.group_id as string
+    const { data: memberRows } = await supabase
+      .from('group_members')
+      .select('role, profiles(display_name)')
+      .eq('group_id', groupId)
+    const members = memberRows ?? []
+    const coachRow = members.find(m => m.role === 'coach') ?? null
+    const coachProfile = coachRow && coachRow.profiles && typeof coachRow.profiles === 'object' && !Array.isArray(coachRow.profiles)
+      ? (coachRow.profiles as unknown as { display_name: string | null })
+      : null
+    group = {
+      id: groupId,
+      name: groupRow.name,
+      photo_url: groupRow.photo_url,
+      memberCount: members.length,
+      coachName: coachProfile?.display_name ?? null,
+    }
   }
 
   return (
@@ -52,8 +63,6 @@ export default async function ProfilePage() {
       email={user.email ?? ''}
       activities={activities ?? []}
       group={group}
-      isOwner={isOwner}
-      pendingRequests={pendingRequests}
     />
   )
 }
