@@ -9,7 +9,7 @@ import { mlToOz, type WaterWeek } from '@/lib/water'
 import { GOAL_LABELS, GOAL_EMOJIS } from '@/lib/fitness'
 import { DRAFT_TONES, type DraftTone } from '@/lib/copilot-tones'
 import { foodFixesFor } from '@/lib/nutrients'
-import { SEVERITY_STYLE, type MemberIntel } from '@/lib/coach-intel'
+import { SEVERITY_STYLE, type MemberIntel, type TrendData } from '@/lib/coach-intel'
 import { ShieldCheck, AlertTriangle, Target as TargetIcon, Minus } from 'lucide-react'
 import type { Diet, Goal, NutrientKey } from '@/types'
 import CoachDietSetting from './CoachDietSetting'
@@ -241,6 +241,108 @@ function BehaviorPatterns({ intel }: { intel: MemberIntel }) {
   )
 }
 
+// ── Trend Analysis — calories / protein / hydration bars + weight line ───────
+function MiniBars({ values, labels, target, colorFor }: {
+  values: number[]; labels: string[]; target: number; colorFor: (v: number) => string
+}) {
+  const max = Math.max(...values, target, 1) * 1.1
+  const targetTop = `${Math.max(0, 100 - (target / max) * 100)}%`
+  return (
+    <div className="relative h-20 flex items-end gap-px">
+      {target > 0 && (
+        <div className="absolute left-0 right-0 border-t border-dashed border-stone-600/70" style={{ top: targetTop }} />
+      )}
+      {values.map((v, i) => (
+        <div
+          key={i}
+          title={`${labels[i]}: ${v.toLocaleString()}`}
+          className={`flex-1 rounded-sm ${v > 0 ? colorFor(v) : 'bg-stone-800'}`}
+          style={{ height: `${Math.max(v > 0 ? 4 : 2, (v / max) * 100)}%` }}
+        />
+      ))}
+    </div>
+  )
+}
+
+function WeightLine({ points }: { points: { date: string; kg: number }[] }) {
+  if (points.length < 2) {
+    return <p className="text-stone-500 text-xs py-6 text-center">Not enough weight logs in range.</p>
+  }
+  const W = 320, H = 72, pad = 8
+  const vals = points.map(p => p.kg)
+  const min = Math.min(...vals), max = Math.max(...vals), span = max - min || 1
+  const pts = points.map((p, i) => {
+    const x = pad + (points.length === 1 ? 0.5 : i / (points.length - 1)) * (W - 2 * pad)
+    const y = pad + (1 - (p.kg - min) / span) * (H - 2 * pad)
+    return `${x.toFixed(1)},${y.toFixed(1)}`
+  }).join(' ')
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-[72px]" preserveAspectRatio="none">
+      <polyline points={pts} fill="none" stroke="rgb(139 92 246)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+function TrendAnalysis({ trends }: { trends: TrendData }) {
+  const [range, setRange] = useState<14 | 30>(14)
+  const days = trends.days.slice(-range)
+  const labels = days.map(d => d.label)
+  const cal = days.map(d => d.calories)
+  const prot = days.map(d => d.protein)
+  const wat = days.map(d => d.waterOz)
+  const weights = trends.weights.filter(w => {
+    const floor = Date.now() - range * 86400000
+    return new Date(w.date).getTime() >= floor
+  })
+  const loggedCals = cal.filter(v => v > 0)
+  const avg = (xs: number[]) => xs.length ? Math.round(xs.reduce((s, v) => s + v, 0) / xs.length) : 0
+
+  const calColor = (v: number) => Math.abs(v - trends.calorieTarget) <= trends.calorieTarget * 0.15 ? 'bg-emerald-500' : 'bg-amber-500'
+  const goalColor = (target: number) => (v: number) => v >= target ? 'bg-emerald-500' : v >= target * 0.6 ? 'bg-amber-400' : 'bg-stone-600'
+
+  return (
+    <section className="px-4 mb-5">
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-stone-400 text-xs uppercase tracking-wider">Trend analysis</p>
+        <div className="flex bg-stone-800 rounded-lg p-0.5">
+          {([14, 30] as const).map(r => (
+            <button key={r} onClick={() => setRange(r)}
+              className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors ${range === r ? 'bg-stone-600 text-white' : 'text-stone-400'}`}>
+              {r}d
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="space-y-3">
+        <TrendCard title="Calories" sub={`avg ${avg(loggedCals).toLocaleString()} · target ${trends.calorieTarget.toLocaleString()}`}>
+          <MiniBars values={cal} labels={labels} target={trends.calorieTarget} colorFor={calColor} />
+        </TrendCard>
+        <TrendCard title="Protein" sub={`avg ${avg(prot.filter(v => v > 0))}g · target ${trends.proteinTarget}g`}>
+          <MiniBars values={prot} labels={labels} target={trends.proteinTarget} colorFor={goalColor(trends.proteinTarget)} />
+        </TrendCard>
+        <TrendCard title="Hydration" sub={`avg ${avg(wat.filter(v => v > 0))} oz · target ${trends.waterTargetOz} oz`}>
+          <MiniBars values={wat} labels={labels} target={trends.waterTargetOz} colorFor={goalColor(trends.waterTargetOz)} />
+        </TrendCard>
+        <TrendCard title="Weight" sub={weights.length >= 2 ? `${weights[0].kg.toFixed(1)} → ${weights[weights.length - 1].kg.toFixed(1)} kg` : ''}>
+          <WeightLine points={weights} />
+        </TrendCard>
+      </div>
+    </section>
+  )
+}
+
+function TrendCard({ title, sub, children }: { title: string; sub: string; children: ReactNode }) {
+  return (
+    <div className="bg-stone-900 border border-stone-800 rounded-2xl p-3">
+      <div className="flex items-baseline justify-between mb-2">
+        <p className="text-stone-200 text-sm font-medium">{title}</p>
+        <p className="text-stone-500 text-[11px]">{sub}</p>
+      </div>
+      {children}
+    </div>
+  )
+}
+
 export interface InterventionEntry { kind: 'nudge' | 'praise' | 'weekly_checkin'; created_at: string }
 
 const KIND_TOPIC: Record<InterventionEntry['kind'], string> = {
@@ -322,7 +424,7 @@ function QuickAction({ icon, label, onClick, active }: { icon: ReactNode; label:
 }
 
 export default function CoachMemberClient({
-  member, groupId, coachId, memberDiet, dietOverride, attention, signals, report, priorReport, streak, water, priorWater, goal, intel, history, reviewedAt, posts, initialNotes, initialDraft,
+  member, groupId, coachId, memberDiet, dietOverride, attention, signals, report, priorReport, streak, water, priorWater, goal, intel, trends, history, reviewedAt, posts, initialNotes, initialDraft,
 }: {
   member: Member; groupId: string; coachId: string
   memberDiet: Diet | null; dietOverride: Diet | null
@@ -330,6 +432,7 @@ export default function CoachMemberClient({
   signals: ClientSignal[]; report: WeeklyReport; priorReport: WeeklyReport | null
   streak: number; water: WaterWeek; priorWater: WaterWeek | null; goal: string | null
   intel: MemberIntel
+  trends: TrendData
   history: InterventionEntry[]
   reviewedAt: string | null
   posts: MiniPost[]
@@ -558,6 +661,9 @@ export default function CoachMemberClient({
 
       {/* Behaviour patterns — per-meal consistency */}
       {intel.hasData && <BehaviorPatterns intel={intel} />}
+
+      {/* Trend analysis — calories / protein / hydration / weight */}
+      {intel.hasData && <TrendAnalysis trends={trends} />}
 
       {/* Recent posts — a glance at what the client is actually sharing */}
       {posts.length > 0 && (
