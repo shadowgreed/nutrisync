@@ -121,4 +121,3 @@ ALTER TABLE notifications ADD CONSTRAINT notifications_type_check
   CHECK (type IN ('reaction', 'comment', 'challenge', 'group_join', 'meal',
                   'weekly_report', 'cheer', 'join_request', 'reply',
                   'coach_message', 'coach_nudge'));
-</content>
