@@ -348,3 +348,67 @@ export const SEVERITY_STYLE: Record<Severity, { bar: string; text: string; dot: 
   watch:    { bar: 'bg-amber-400',   text: 'text-amber-300',   dot: 'bg-amber-400',   label: 'Watch' },
   good:     { bar: 'bg-emerald-500', text: 'text-emerald-400', dot: 'bg-emerald-500', label: 'Good' },
 }
+
+// ── Daily trend series for the Trend Analysis charts ─────────────────────────
+const ML_PER_OZ = 29.5735
+
+export interface DailyPoint { date: string; label: string; calories: number; protein: number; waterOz: number; logged: boolean }
+export interface WeightPoint { date: string; kg: number }
+export interface TrendData {
+  days: DailyPoint[]          // most-recent last, length = `span`
+  weights: WeightPoint[]
+  calorieTarget: number
+  proteinTarget: number
+  waterTargetOz: number
+}
+
+export function buildDailyTrends(opts: {
+  foods: IntelFood[]
+  water: IntelWater[]
+  weights: WeightPoint[]
+  calorieTarget: number
+  proteinTarget: number
+  waterTargetMl: number
+  span?: number
+  now?: number
+}): TrendData {
+  const span = opts.span ?? 30
+  const now = opts.now ?? Date.now()
+  const start = new Date(now); start.setHours(0, 0, 0, 0); start.setDate(start.getDate() - (span - 1))
+
+  const calByDay = new Map<string, number>()
+  const protByDay = new Map<string, number>()
+  const watByDay = new Map<string, number>()
+  for (const f of opts.foods) {
+    const k = dayKey(f.logged_at)
+    calByDay.set(k, (calByDay.get(k) ?? 0) + (f.total_calories || 0))
+    protByDay.set(k, (protByDay.get(k) ?? 0) + (f.protein_g || 0))
+  }
+  for (const w of opts.water) {
+    const k = dayKey(w.logged_at)
+    watByDay.set(k, (watByDay.get(k) ?? 0) + (w.amount_ml || 0))
+  }
+
+  const days: DailyPoint[] = []
+  for (let i = 0; i < span; i++) {
+    const d = new Date(start); d.setDate(start.getDate() + i)
+    const key = d.toISOString().slice(0, 10)
+    const cal = Math.round(calByDay.get(key) ?? 0)
+    days.push({
+      date: key,
+      label: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      calories: cal,
+      protein: Math.round(protByDay.get(key) ?? 0),
+      waterOz: Math.round((watByDay.get(key) ?? 0) / ML_PER_OZ),
+      logged: cal > 0,
+    })
+  }
+
+  return {
+    days,
+    weights: [...opts.weights].sort((a, b) => a.date.localeCompare(b.date)),
+    calorieTarget: opts.calorieTarget || 2000,
+    proteinTarget: Math.round(opts.proteinTarget || 0),
+    waterTargetOz: Math.round((opts.waterTargetMl || 2500) / ML_PER_OZ),
+  }
+}

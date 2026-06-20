@@ -4,7 +4,7 @@ import { groupForCoachMember, assessMember, getDietOverride } from '@/lib/coach-
 import { effectiveDiet, isDiet } from '@/lib/diets'
 import { buildWaterWeek } from '@/lib/water'
 import { calculateMacroTargets } from '@/lib/macros'
-import { buildIntel, type IntelFood, type IntelWater, type IntelActivity } from '@/lib/coach-intel'
+import { buildIntel, buildDailyTrends, type IntelFood, type IntelWater, type IntelActivity, type WeightPoint } from '@/lib/coach-intel'
 import type { Diet, NutrientTotals, Goal } from '@/types'
 import CoachMemberClient, { type CoachNote, type PendingDraft, type MiniPost } from './CoachMemberClient'
 
@@ -86,8 +86,9 @@ export default async function CoachMemberPage({ params }: { params: Promise<{ me
       .select('logged_at, calories_burned')
       .eq('user_id', memberId).gte('logged_at', thirtyDaysAgo),
     supabase.from('weight_logs')
-      .select('logged_at')
-      .eq('user_id', memberId).gte('logged_at', thirtyDaysAgo).limit(1),
+      .select('logged_at, weight_kg')
+      .eq('user_id', memberId).gte('logged_at', thirtyDaysAgo)
+      .order('logged_at', { ascending: true }),
     // Intervention history — past check-ins this coach has actually sent.
     supabase.from('coach_message_drafts')
       .select('kind, created_at')
@@ -133,6 +134,19 @@ export default async function CoachMemberPage({ params }: { params: Promise<{ me
     waterTargetMl: waterTarget,
   })
 
+  const weights: WeightPoint[] = ((weightRows ?? []) as { logged_at: string; weight_kg: number | null }[])
+    .filter(w => w.weight_kg != null)
+    .map(w => ({ date: w.logged_at.slice(0, 10), kg: Number(w.weight_kg) }))
+  const trends = buildDailyTrends({
+    foods: intelFoods,
+    water: allWater as IntelWater[],
+    weights,
+    calorieTarget: profile.calorie_target ?? 2000,
+    proteinTarget,
+    waterTargetMl: waterTarget,
+    span: 30,
+  })
+
   return (
     <CoachMemberClient
       member={{ id: profile.id, display_name: profile.display_name ?? 'Member', avatar_url: profile.avatar_url }}
@@ -149,6 +163,7 @@ export default async function CoachMemberPage({ params }: { params: Promise<{ me
       priorWater={priorWater}
       goal={profile.goal}
       intel={intel}
+      trends={trends}
       history={(historyRows ?? []) as { kind: 'nudge' | 'praise' | 'weekly_checkin'; created_at: string }[]}
       reviewedAt={(settingsRow as { reviewed_at: string | null } | null)?.reviewed_at ?? null}
       posts={(postRows ?? []) as MiniPost[]}
