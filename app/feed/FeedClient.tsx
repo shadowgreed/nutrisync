@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Trophy, Users, ArrowUp } from 'lucide-react'
+import { Trophy, Users, ArrowUp, X, Crown } from 'lucide-react'
 import FeedCard from '@/components/FeedCard'
 import ActivityCard from '@/components/ActivityCard'
 import MilestoneCard from '@/components/MilestoneCard'
@@ -19,8 +19,20 @@ interface Props {
   currentUserId: string
   nameMap: Record<string, string>
   headerGroup: { name: string; photo_url: string | null; count: number } | null
+  groupMembers: GroupMember[]
   founderGroup: { id: string; name: string } | null
   moderatableUserIds: string[]
+}
+
+export interface GroupMember {
+  user_id: string
+  display_name: string
+  avatar_url: string | null
+  is_coach: boolean
+}
+
+function memberInitials(name: string): string {
+  return name.split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase() || '?'
 }
 
 // "Today" / "Yesterday" / "Mon, Jun 9" for the day separators.
@@ -34,8 +46,9 @@ function dayLabel(iso: string): string {
   return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
 }
 
-export default function FeedClient({ entries: initial, activities, milestones, currentUserId, nameMap, headerGroup, founderGroup, moderatableUserIds }: Props) {
+export default function FeedClient({ entries: initial, activities, milestones, currentUserId, nameMap, headerGroup, groupMembers, founderGroup, moderatableUserIds }: Props) {
   const router = useRouter()
+  const [showMembers, setShowMembers] = useState(false)
   const [entries, setEntries] = useState<FeedEntry[]>(initial)
   const [activityList, setActivityList] = useState<FeedActivityEntry[]>(activities)
   const canModerate = (userId: string) => moderatableUserIds.includes(userId)
@@ -303,7 +316,13 @@ export default function FeedClient({ entries: initial, activities, milestones, c
   return (
     <div className="min-h-screen bg-stone-950 pb-[calc(6rem+env(safe-area-inset-bottom))]">
       <div className="px-4 pt-12 pb-4 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3 min-w-0">
+        <button
+          type="button"
+          onClick={() => groupMembers.length > 0 && setShowMembers(true)}
+          disabled={groupMembers.length === 0}
+          aria-label="View group members"
+          className="flex items-center gap-3 min-w-0 text-left rounded-2xl -m-1 p-1 enabled:hover:bg-stone-900/60 enabled:active:scale-[0.99] transition-colors"
+        >
           <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-emerald-700 to-emerald-900 flex items-center justify-center overflow-hidden shrink-0">
             {headerGroup?.photo_url
               ? <img src={headerGroup.photo_url} alt="" className="w-full h-full object-cover" />
@@ -311,9 +330,15 @@ export default function FeedClient({ entries: initial, activities, milestones, c
           </div>
           <div className="min-w-0">
             <h1 className="text-white text-xl font-bold truncate">{headerGroup?.name ?? 'Group feed'}</h1>
-            <p className="text-stone-400 text-xs">{headerGroup && headerGroup.count > 1 ? `${headerGroup.count} groups` : 'This week'}</p>
+            <p className="text-stone-400 text-xs">
+              {headerGroup && headerGroup.count > 1
+                ? `${headerGroup.count} groups`
+                : groupMembers.length > 0
+                  ? `${groupMembers.length} member${groupMembers.length === 1 ? '' : 's'}`
+                  : 'This week'}
+            </p>
           </div>
-        </div>
+        </button>
         <div className="flex items-center gap-1 shrink-0">
           <Link
             href="/challenges"
@@ -325,6 +350,61 @@ export default function FeedClient({ entries: initial, activities, milestones, c
           <NotificationBell />
         </div>
       </div>
+
+      {/* Group members sheet — coach highlighted, then everyone else */}
+      {showMembers && (
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm"
+          onClick={() => setShowMembers(false)}
+        >
+          <div
+            className="w-full sm:max-w-md bg-stone-900 border-t sm:border border-stone-800 rounded-t-3xl sm:rounded-3xl max-h-[80vh] flex flex-col"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-5 pt-5 pb-3 shrink-0">
+              <div className="min-w-0">
+                <h2 className="text-white text-lg font-bold truncate">{headerGroup?.name ?? 'Group'}</h2>
+                <p className="text-stone-400 text-xs">{groupMembers.length} member{groupMembers.length === 1 ? '' : 's'}</p>
+              </div>
+              <button onClick={() => setShowMembers(false)} aria-label="Close" className="shrink-0 text-stone-400 hover:text-white p-1">
+                <X size={22} />
+              </button>
+            </div>
+
+            <ul className="px-3 pb-[calc(1.25rem+env(safe-area-inset-bottom))] overflow-y-auto space-y-1">
+              {groupMembers.map(m => (
+                <li key={m.user_id}>
+                  <div className={`flex items-center gap-3 rounded-2xl px-3 py-2.5 ${
+                    m.is_coach ? 'bg-emerald-900/30 border border-emerald-800/50' : ''
+                  }`}>
+                    <div className="relative shrink-0">
+                      {m.avatar_url
+                        ? <img src={m.avatar_url} alt="" className={`w-11 h-11 rounded-full object-cover ${m.is_coach ? 'ring-2 ring-emerald-500' : ''}`} />
+                        : <div className={`w-11 h-11 rounded-full flex items-center justify-center text-sm font-semibold ${
+                            m.is_coach
+                              ? 'bg-emerald-800/60 text-emerald-200 ring-2 ring-emerald-500'
+                              : 'bg-stone-800 text-stone-300'
+                          }`}>{memberInitials(m.display_name)}</div>}
+                      {m.is_coach && (
+                        <span className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-emerald-500 border-2 border-stone-900 flex items-center justify-center">
+                          <Crown size={11} className="text-stone-900" />
+                        </span>
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className={`truncate ${m.is_coach ? 'text-white font-bold' : 'text-stone-200 font-medium'}`}>
+                        {m.display_name}
+                        {m.user_id === currentUserId && <span className="text-stone-500 font-normal"> (you)</span>}
+                      </p>
+                      {m.is_coach && <p className="text-emerald-300 text-xs font-semibold">Coach</p>}
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
 
       {/* Live "new posts" pill */}
       {(newCount > 0 || hasUpdates) && (
