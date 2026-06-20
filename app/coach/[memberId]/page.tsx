@@ -55,7 +55,7 @@ export default async function CoachMemberPage({ params }: { params: Promise<{ me
     { attention, signals, report, streak, priorReport },
     { data: noteRows }, { data: draftRow }, { data: waterRows }, { data: postRows },
     { data: intelFoodRows }, { data: intelActRows }, { data: weightRows },
-    { data: historyRows },
+    { data: historyRows }, { data: settingsRow },
   ] = await Promise.all([
     assessMember(supabase, memberId, profile.calorie_target ?? 2000, diet),
     supabase.from('coach_client_notes')
@@ -94,6 +94,11 @@ export default async function CoachMemberPage({ params }: { params: Promise<{ me
       .eq('coach_id', user.id).eq('member_id', memberId).in('status', ['sent', 'edited_sent'])
       .order('created_at', { ascending: false })
       .limit(8),
+    // When the coach last marked this client reviewed (tolerate pre-migration-040).
+    supabase.from('coach_client_settings')
+      .select('reviewed_at')
+      .eq('coach_id', user.id).eq('member_id', memberId)
+      .maybeSingle(),
   ])
 
   const allWater = (waterRows ?? []) as { logged_at: string; amount_ml: number }[]
@@ -145,6 +150,7 @@ export default async function CoachMemberPage({ params }: { params: Promise<{ me
       goal={profile.goal}
       intel={intel}
       history={(historyRows ?? []) as { kind: 'nudge' | 'praise' | 'weekly_checkin'; created_at: string }[]}
+      reviewedAt={(settingsRow as { reviewed_at: string | null } | null)?.reviewed_at ?? null}
       posts={(postRows ?? []) as MiniPost[]}
       initialNotes={(noteRows ?? []) as CoachNote[]}
       initialDraft={(draftRow as PendingDraft | null) ?? null}

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import Link from 'next/link'
 import { ArrowLeft, Trash2, Lock, AlertCircle, Sparkles, Send, RotateCcw, X, Check, ArrowUp, ArrowDown, Flame, Utensils, Copy } from 'lucide-react'
 import type { AttentionLevel, ClientSignal } from '@/lib/copilot'
@@ -307,8 +307,22 @@ function InterventionHistory({ history }: { history: InterventionEntry[] }) {
   )
 }
 
+function QuickAction({ icon, label, onClick, active }: { icon: ReactNode; label: string; onClick: () => void; active?: boolean }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex-1 flex flex-col items-center justify-center gap-0.5 py-1.5 rounded-xl transition-colors ${
+        active ? 'text-emerald-400' : 'text-stone-300 hover:text-white hover:bg-stone-900'
+      }`}
+    >
+      {icon}
+      <span className="text-[10px] font-medium">{label}</span>
+    </button>
+  )
+}
+
 export default function CoachMemberClient({
-  member, groupId, coachId, memberDiet, dietOverride, attention, signals, report, priorReport, streak, water, priorWater, goal, intel, history, posts, initialNotes, initialDraft,
+  member, groupId, coachId, memberDiet, dietOverride, attention, signals, report, priorReport, streak, water, priorWater, goal, intel, history, reviewedAt, posts, initialNotes, initialDraft,
 }: {
   member: Member; groupId: string; coachId: string
   memberDiet: Diet | null; dietOverride: Diet | null
@@ -317,6 +331,7 @@ export default function CoachMemberClient({
   streak: number; water: WaterWeek; priorWater: WaterWeek | null; goal: string | null
   intel: MemberIntel
   history: InterventionEntry[]
+  reviewedAt: string | null
   posts: MiniPost[]
   initialNotes: CoachNote[]; initialDraft: PendingDraft | null
 }) {
@@ -434,8 +449,40 @@ export default function CoachMemberClient({
     }).catch(() => {})
   }
 
+  // ── Quick-actions bar ───────────────────────────────────────────────────────
+  const [reviewed, setReviewed] = useState<string | null>(reviewedAt)
+  const [reviewing, setReviewing] = useState(false)
+  const reviewedToday = !!reviewed && new Date(reviewed).toDateString() === new Date().toDateString()
+
+  async function markReviewed() {
+    if (reviewing) return
+    setReviewing(true)
+    try {
+      const res = await fetch('/api/coach/review', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ memberId: member.id }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (res.ok) setReviewed(json.reviewed_at ?? new Date().toISOString())
+    } finally {
+      setReviewing(false)
+    }
+  }
+
+  function scrollTo(id: string) {
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+  function focusNote() {
+    scrollTo('coach-notes')
+    setTimeout(() => document.getElementById('coach-note-input')?.focus(), 350)
+  }
+  function draftFromBar() {
+    scrollTo('copilot')
+    if (!pending) generateDraft()
+  }
+
   return (
-    <div className="min-h-screen bg-stone-950 text-white pb-16">
+    <div className="min-h-screen bg-stone-950 text-white pb-28">
       <header className="px-4 pt-12 pb-3 flex items-center gap-3">
         <Link href="/coach" aria-label="Back to roster" className="text-stone-300 hover:text-white">
           <ArrowLeft size={22} />
@@ -478,7 +525,7 @@ export default function CoachMemberClient({
 
       {/* Signals — why this member is flagged */}
       {signals.length > 0 && (
-        <section className="px-4 mb-4">
+        <section id="key-issues" className="px-4 mb-4 scroll-mt-16">
           <ul className="space-y-1.5">
             {signals.map((s, i) => <SignalItem key={i} signal={s} />)}
           </ul>
@@ -546,7 +593,7 @@ export default function CoachMemberClient({
       />
 
       {/* Copilot — draft a check-in the coach reviews & sends */}
-      <section className="px-4 mb-5">
+      <section id="copilot" className="px-4 mb-5 scroll-mt-16">
         <div className="flex items-center gap-1.5 mb-2">
           <Sparkles size={13} className="text-emerald-400" />
           <p className="text-stone-400 text-xs uppercase tracking-wider">Copilot</p>
@@ -641,7 +688,7 @@ export default function CoachMemberClient({
       <InterventionHistory history={history} />
 
       {/* Private coach notes */}
-      <section className="px-4">
+      <section id="coach-notes" className="px-4 scroll-mt-16">
         <div className="flex items-center gap-1.5 mb-2">
           <Lock size={13} className="text-stone-500" />
           <p className="text-stone-400 text-xs uppercase tracking-wider">Private notes</p>
@@ -650,6 +697,7 @@ export default function CoachMemberClient({
 
         <div className="flex gap-2 mb-3">
           <textarea
+            id="coach-note-input"
             value={draft}
             onChange={e => setDraft(e.target.value.slice(0, 2000))}
             placeholder={`Note about ${member.display_name}…`}
@@ -678,6 +726,22 @@ export default function CoachMemberClient({
           {notes.length === 0 && <li className="text-stone-500 text-sm">No notes yet.</li>}
         </ul>
       </section>
+
+      {/* Sticky quick-actions bar — message / draft / suggest foods / note / reviewed */}
+      <div className="fixed bottom-0 left-0 right-0 z-40 bg-stone-950/95 backdrop-blur border-t border-stone-800 px-2 py-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))]">
+        <div className="flex items-stretch gap-1 max-w-xl mx-auto">
+          <QuickAction icon={<Send size={16} />} label="Message" onClick={draftFromBar} />
+          <QuickAction icon={<Sparkles size={16} />} label="Draft" onClick={draftFromBar} />
+          <QuickAction icon={<Utensils size={16} />} label="Foods" onClick={() => scrollTo(signals.length ? 'key-issues' : 'copilot')} />
+          <QuickAction icon={<Lock size={16} />} label="Note" onClick={focusNote} />
+          <QuickAction
+            icon={reviewedToday ? <Check size={16} /> : <ShieldCheck size={16} />}
+            label={reviewedToday ? 'Reviewed' : reviewing ? '…' : 'Review'}
+            onClick={markReviewed}
+            active={reviewedToday}
+          />
+        </div>
+      </div>
     </div>
   )
 }
