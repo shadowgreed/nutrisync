@@ -3,7 +3,9 @@ import { createClient } from '@/lib/supabase/server'
 import { groupForCoachMember, assessMember, getDietOverride } from '@/lib/coach-server'
 import { effectiveDiet, isDiet } from '@/lib/diets'
 import { buildWaterWeek } from '@/lib/water'
-import type { Diet } from '@/types'
+import { calculateMacroTargets } from '@/lib/macros'
+import { buildIntel, type IntelFood, type IntelWater, type IntelActivity } from '@/lib/coach-intel'
+import type { Diet, NutrientTotals, Goal } from '@/types'
 import CoachMemberClient, { type CoachNote, type PendingDraft, type MiniPost } from './CoachMemberClient'
 
 export const dynamic = 'force-dynamic'
@@ -13,6 +15,7 @@ interface MemberProfile {
   display_name: string | null
   avatar_url: string | null
   calorie_target: number | null
+  weight_kg: number | null
   privacy_mode: string | null
   coach_visible: boolean | null
   diet: string | null
@@ -31,7 +34,7 @@ export default async function CoachMemberPage({ params }: { params: Promise<{ me
 
   const [{ data: profile }, dietOverride] = await Promise.all([
     supabase.from('profiles')
-      .select('id, display_name, avatar_url, calorie_target, privacy_mode, coach_visible, diet, water_daily_target_ml, goal')
+      .select('id, display_name, avatar_url, calorie_target, weight_kg, privacy_mode, coach_visible, diet, water_daily_target_ml, goal')
       .eq('id', memberId)
       .single<MemberProfile>(),
     getDietOverride(supabase, user.id, memberId),
@@ -44,10 +47,15 @@ export default async function CoachMemberPage({ params }: { params: Promise<{ me
 
   const now = Date.now()
   const sevenDaysAgo = new Date(now - 7 * 24 * 60 * 60 * 1000)
-  // Pull 14 days of water so we can also build the prior week for the trend arrow.
-  const fourteenDaysAgo = new Date(now - 14 * 24 * 60 * 60 * 1000).toISOString()
+  // 30 days of food/water/activity powers the intelligence engine (week +
+  // prior-week comparison, behaviour patterns, compliance trends).
+  const thirtyDaysAgo = new Date(now - 30 * 24 * 60 * 60 * 1000).toISOString()
 
-  const [{ attention, signals, report, streak, priorReport }, { data: noteRows }, { data: draftRow }, { data: waterRows }, { data: postRows }] = await Promise.all([
+  const [
+    { attention, signals, report, streak, priorReport },
+    { data: noteRows }, { data: draftRow }, { data: waterRows }, { data: postRows },
+    { data: intelFoodRows }, { data: intelActRows }, { data: weightRows },
+  ] = await Promise.all([
     assessMember(supabase, memberId, profile.calorie_target ?? 2000, diet),
     supabase.from('coach_client_notes')
       .select('id, body, created_at')
@@ -60,7 +68,7 @@ export default async function CoachMemberPage({ params }: { params: Promise<{ me
       .limit(1).maybeSingle(),
     supabase.from('water_logs')
       .select('logged_at, amount_ml')
-      .eq('user_id', memberId).gte('logged_at', fourteenDaysAgo),
+      .eq('user_id', memberId).gte('logged_at', thirtyDaysAgo),
     // The member's 3 most recent posts shared to the group feed (RLS lets the
     // coach, a fellow group member, read shared logs). A glance at what they're
     // actually eating, to ground the check-in.
@@ -69,6 +77,16 @@ export default async function CoachMemberPage({ params }: { params: Promise<{ me
       .eq('user_id', memberId).eq('shared_to_feed', true)
       .order('logged_at', { ascending: false })
       .limit(3),
+    // Full 30-day food/activity/weight for the intelligence engine.
+    supabase.from('food_logs')
+      .select('logged_at, total_calories, macro_totals, nutrient_totals, meal_type')
+      .eq('user_id', memberId).gte('logged_at', thirtyDaysAgo),
+    supabase.from('activity_logs')
+      .select('logged_at, calories_burned')
+      .eq('user_id', memberId).gte('logged_at', thirtyDaysAgo),
+    supabase.from('weight_logs')
+      .select('logged_at')
+      .eq('user_id', memberId).gte('logged_at', thirtyDaysAgo).limit(1),
   ])
 
   const allWater = (waterRows ?? []) as { logged_at: string; amount_ml: number }[]
@@ -78,6 +96,30 @@ export default async function CoachMemberPage({ params }: { params: Promise<{ me
   // 7-day filter lands on the previous week. null when nothing was logged then.
   const priorWaterWeek = buildWaterWeek(allWater, waterTarget, sevenDaysAgo)
   const priorWater = priorWaterWeek.daysLogged > 0 ? priorWaterWeek : null
+
+  // ── Deterministic intelligence (compliance, behaviour, confidence, summary) ──
+  const proteinTarget = calculateMacroTargets(
+    profile.calorie_target ?? 2000, profile.weight_kg ?? null, (profile.goal as Goal | null) ?? null,
+  ).protein_g
+  const intelFoods: IntelFood[] = ((intelFoodRows ?? []) as { logged_at: string; total_calories: number | null; macro_totals: { protein_g?: number } | null; nutrient_totals: NutrientTotals | null; meal_type: string | null }[])
+    .map(f => ({
+      logged_at: f.logged_at,
+      total_calories: f.total_calories ?? 0,
+      protein_g: f.macro_totals?.protein_g ?? 0,
+      nutrient_totals: f.nutrient_totals ?? ({} as NutrientTotals),
+      meal_type: f.meal_type,
+    }))
+  const intel = buildIntel({
+    name: profile.display_name ?? 'Member',
+    goal: profile.goal,
+    foods: intelFoods,
+    water: allWater as IntelWater[],
+    activities: ((intelActRows ?? []) as { logged_at: string; calories_burned: number | null }[]).map(a => ({ logged_at: a.logged_at, calories_burned: a.calories_burned ?? 0 })) as IntelActivity[],
+    hasWeight: (weightRows ?? []).length > 0,
+    calorieTarget: profile.calorie_target ?? 2000,
+    proteinTarget,
+    waterTargetMl: waterTarget,
+  })
 
   return (
     <CoachMemberClient
@@ -94,6 +136,7 @@ export default async function CoachMemberPage({ params }: { params: Promise<{ me
       water={water}
       priorWater={priorWater}
       goal={profile.goal}
+      intel={intel}
       posts={(postRows ?? []) as MiniPost[]}
       initialNotes={(noteRows ?? []) as CoachNote[]}
       initialDraft={(draftRow as PendingDraft | null) ?? null}

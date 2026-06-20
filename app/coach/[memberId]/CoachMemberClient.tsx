@@ -9,6 +9,8 @@ import { mlToOz, type WaterWeek } from '@/lib/water'
 import { GOAL_LABELS, GOAL_EMOJIS } from '@/lib/fitness'
 import { DRAFT_TONES, type DraftTone } from '@/lib/copilot-tones'
 import { foodFixesFor } from '@/lib/nutrients'
+import { SEVERITY_STYLE, type MemberIntel } from '@/lib/coach-intel'
+import { ShieldCheck, AlertTriangle, Target as TargetIcon, Minus } from 'lucide-react'
 import type { Diet, Goal, NutrientKey } from '@/types'
 import CoachDietSetting from './CoachDietSetting'
 
@@ -130,14 +132,124 @@ function SignalItem({ signal }: { signal: ClientSignal }) {
   )
 }
 
+// ── AI summary card — the most important component: what's happening, why,
+// the risk and the recommended action, all computed deterministically.
+function AiSummaryCard({ intel, memberName }: { intel: MemberIntel; memberName: string }) {
+  const { summary, confidence } = intel
+  return (
+    <section className="px-4 mb-4">
+      <div className="bg-gradient-to-br from-emerald-950/50 to-stone-900 border border-emerald-900/50 rounded-2xl p-4">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-1.5">
+            <Sparkles size={14} className="text-emerald-400" />
+            <p className="text-emerald-300 text-xs uppercase tracking-wider font-semibold">AI summary</p>
+          </div>
+          <span className="flex items-center gap-1 text-[11px] text-stone-400" title={confidence.reasons.join(' · ')}>
+            <ShieldCheck size={12} /> {confidence.pct}% confidence
+          </span>
+        </div>
+        <p className="text-white text-sm font-medium leading-snug">{summary.headline}</p>
+        {summary.causes.length > 0 && (
+          <ul className="mt-2 space-y-0.5">
+            {summary.causes.map((c, i) => (
+              <li key={i} className="text-stone-300 text-[13px] flex items-start gap-1.5">
+                <span className="text-stone-500 mt-1.5 w-1 h-1 rounded-full bg-stone-500 shrink-0" /> {c}
+              </li>
+            ))}
+          </ul>
+        )}
+        {summary.risk && (
+          <p className="mt-2 flex items-start gap-1.5 text-amber-200 text-[13px]">
+            <AlertTriangle size={13} className="shrink-0 mt-0.5" /> <span><span className="font-semibold">Risk:</span> {summary.risk}</span>
+          </p>
+        )}
+        {summary.recommendation && (
+          <p className="mt-2 flex items-start gap-1.5 text-emerald-200 text-[13px]">
+            <TargetIcon size={13} className="shrink-0 mt-0.5" /> <span><span className="font-semibold">Do next:</span> {summary.recommendation}</span>
+          </p>
+        )}
+        {summary.causes.length === 0 && !summary.risk && (
+          <p className="mt-1 text-stone-400 text-xs">{memberName.split(/\s+/)[0]} is on track this week — keep the encouragement coming.</p>
+        )}
+      </div>
+    </section>
+  )
+}
+
+function TrendArrow({ trend, deltaPts }: { trend: 'up' | 'down' | 'flat' | null; deltaPts: number | null }) {
+  if (trend === null || deltaPts === null) return null
+  if (trend === 'flat') return <span className="inline-flex items-center text-stone-500 text-[11px]"><Minus size={11} /></span>
+  const up = trend === 'up'
+  return (
+    <span className={`inline-flex items-center gap-0.5 text-[11px] ${up ? 'text-emerald-400' : 'text-red-400'}`}>
+      {up ? <ArrowUp size={11} /> : <ArrowDown size={11} />}{Math.abs(deltaPts)}pts
+    </span>
+  )
+}
+
+// ── Compliance dashboard — adherence % per area, with trend + severity ───────
+function ComplianceDashboard({ intel }: { intel: MemberIntel }) {
+  return (
+    <section className="px-4 mb-5">
+      <p className="text-stone-400 text-xs uppercase tracking-wider mb-2">Compliance</p>
+      <div className="bg-stone-900 border border-stone-800 rounded-2xl p-4 space-y-3">
+        {intel.compliance.map(m => {
+          const s = SEVERITY_STYLE[m.severity]
+          return (
+            <div key={m.key}>
+              <div className="flex items-center justify-between mb-1">
+                <span className="flex items-center gap-1.5 text-sm text-stone-200">
+                  <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} /> {m.label}
+                </span>
+                <span className="flex items-center gap-2">
+                  <TrendArrow trend={m.trend} deltaPts={m.deltaPts} />
+                  <span className={`text-sm font-bold tabular-nums ${s.text}`}>{m.pct}%</span>
+                </span>
+              </div>
+              <div className="h-2 rounded-full bg-stone-800 overflow-hidden">
+                <div className={`h-full rounded-full ${s.bar}`} style={{ width: `${m.pct}%` }} />
+              </div>
+              <p className="text-stone-500 text-[11px] mt-0.5">{m.detail}</p>
+            </div>
+          )
+        })}
+      </div>
+    </section>
+  )
+}
+
+// ── Behaviour patterns — per-meal logging consistency ────────────────────────
+function BehaviorPatterns({ intel }: { intel: MemberIntel }) {
+  return (
+    <section className="px-4 mb-5">
+      <p className="text-stone-400 text-xs uppercase tracking-wider mb-2">Behaviour patterns</p>
+      <div className="bg-stone-900 border border-stone-800 rounded-2xl divide-y divide-stone-800">
+        {intel.behavior.map(b => {
+          const s = SEVERITY_STYLE[b.severity]
+          return (
+            <div key={b.label} className="flex items-center justify-between px-4 py-2.5">
+              <span className="text-sm text-stone-200">{b.label}</span>
+              <span className="flex items-center gap-2">
+                <span className="text-stone-400 text-xs tabular-nums">{b.logged}/{b.of} days</span>
+                <span className={`text-[11px] font-semibold ${s.text}`}>{b.note}</span>
+              </span>
+            </div>
+          )
+        })}
+      </div>
+    </section>
+  )
+}
+
 export default function CoachMemberClient({
-  member, groupId, coachId, memberDiet, dietOverride, attention, signals, report, priorReport, streak, water, priorWater, goal, posts, initialNotes, initialDraft,
+  member, groupId, coachId, memberDiet, dietOverride, attention, signals, report, priorReport, streak, water, priorWater, goal, intel, posts, initialNotes, initialDraft,
 }: {
   member: Member; groupId: string; coachId: string
   memberDiet: Diet | null; dietOverride: Diet | null
   attention: AttentionLevel
   signals: ClientSignal[]; report: WeeklyReport; priorReport: WeeklyReport | null
   streak: number; water: WaterWeek; priorWater: WaterWeek | null; goal: string | null
+  intel: MemberIntel
   posts: MiniPost[]
   initialNotes: CoachNote[]; initialDraft: PendingDraft | null
 }) {
@@ -291,6 +403,9 @@ export default function CoachMemberClient({
         </div>
       )}
 
+      {/* AI summary — what's happening, why, the risk, the recommended action */}
+      {intel.hasData && <AiSummaryCard intel={intel} memberName={member.display_name} />}
+
       {/* Signals — why this member is flagged */}
       {signals.length > 0 && (
         <section className="px-4 mb-4">
@@ -320,6 +435,12 @@ export default function CoachMemberClient({
           />
         </div>
       </section>
+
+      {/* Compliance dashboard — adherence %, trend and severity per area */}
+      {intel.hasData && <ComplianceDashboard intel={intel} />}
+
+      {/* Behaviour patterns — per-meal consistency */}
+      {intel.hasData && <BehaviorPatterns intel={intel} />}
 
       {/* Recent posts — a glance at what the client is actually sharing */}
       {posts.length > 0 && (
