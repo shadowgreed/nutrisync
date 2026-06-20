@@ -29,6 +29,9 @@ interface Props {
   calorieTarget: number | null
   proteinTarget: number
   waterTargetMl: number
+  streak: number
+  reactionsReceived: number
+  commentsReceived: number
 }
 
 const TAB_KEY = 'ns_profile_tab'
@@ -46,6 +49,7 @@ function activityMetric(a: ActivityRow): string {
 
 export default function ProfileClient({
   profile, email, activities, group, foodLogs, waterLogs, calorieTarget, proteinTarget, waterTargetMl,
+  streak, reactionsReceived, commentsReceived,
 }: Props) {
   const [tab, setTab] = useState<'stats' | 'history'>('stats')
   const [useMetric, setUseMetric] = useState(true)
@@ -133,6 +137,16 @@ export default function ProfileClient({
               valueText={`${mlToOz(waterMl)} / ${mlToOz(waterTargetMl)} oz`}
             />
           </div>
+        </div>
+      </div>
+
+      {/* Community activity — reinforce accountability */}
+      <div className="px-4 mb-4">
+        <p className="text-stone-400 text-xs uppercase tracking-wider mb-3">Community</p>
+        <div className="grid grid-cols-3 gap-2">
+          <CommunityStat emoji="🔥" value={streak} label={`day streak`} />
+          <CommunityStat emoji="👍" value={reactionsReceived} label="reactions" />
+          <CommunityStat emoji="💬" value={commentsReceived} label="comments" />
         </div>
       </div>
 
@@ -253,6 +267,17 @@ export default function ProfileClient({
       )}
 
       <BottomNav active="profile" />
+    </div>
+  )
+}
+
+// A community metric tile: big emoji + count + label.
+function CommunityStat({ emoji, value, label }: { emoji: string; value: number; label: string }) {
+  return (
+    <div className="bg-stone-900 border border-stone-800 rounded-2xl p-3 text-center">
+      <p className="text-xl leading-none mb-1" aria-hidden="true">{emoji}</p>
+      <p className="text-white text-xl font-extrabold tabular-nums">{value.toLocaleString()}</p>
+      <p className="text-stone-400 text-[11px]">{label}</p>
     </div>
   )
 }
