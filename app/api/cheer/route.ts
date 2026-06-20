@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { rateLimit } from '@/lib/ratelimit'
 import { sendPushToUser } from '@/lib/push'
+import { getCheerReaction } from '@/lib/reactions'
 
 // Send an encouragement ("cheer") to a group co-member: in-app notification +
 // best-effort web push. Notifications RLS only allows inserting your own rows,
@@ -12,10 +13,13 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { userId } = await req.json() as { userId?: string }
+  const { userId, reactionId } = await req.json() as { userId?: string; reactionId?: string }
   if (!userId || userId === user.id) {
     return NextResponse.json({ error: 'Invalid target' }, { status: 400 })
   }
+  // Look the reaction up by id so we store our own emoji/label, never the
+  // caller's. Unknown/absent id falls back to a plain cheer.
+  const reaction = getCheerReaction(reactionId)
   // Cheers create notifications + pushes — keep them special, not spammable.
   if (!rateLimit(`cheer:${user.id}`, 20, 60 * 60 * 1000)) {
     return NextResponse.json({ error: "You've cheered a lot this hour — save some for later! 👏" }, { status: 429 })
@@ -37,7 +41,12 @@ export async function POST(req: NextRequest) {
 
   const { error } = await admin
     .from('notifications')
-    .insert({ user_id: userId, actor_id: user.id, type: 'cheer', data: {} })
+    .insert({
+      user_id: userId,
+      actor_id: user.id,
+      type: 'cheer',
+      data: reaction ? { reaction_id: reaction.id, emoji: reaction.emoji, label: reaction.label } : {},
+    })
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   // Push is best-effort — never fail the cheer over it.
@@ -49,8 +58,8 @@ export async function POST(req: NextRequest) {
       .from('notifications').select('id', { count: 'exact', head: true })
       .eq('user_id', userId).eq('read', false)
     await sendPushToUser(supabase, userId, {
-      title: '👏 Cheer received',
-      body: `${who} cheered you on — keep it up!`,
+      title: reaction ? `${reaction.emoji} ${reaction.label}` : '👏 Cheer received',
+      body: reaction ? `${who} sent you a “${reaction.label}”` : `${who} cheered you on — keep it up!`,
       url: '/notifications',
       tag: `cheer-${user.id}`,
       count: unread ?? undefined,
