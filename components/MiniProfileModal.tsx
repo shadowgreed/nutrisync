@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { X, Flame, CalendarCheck, Target, Utensils, Dumbbell, UserMinus, ChevronDown, Trophy } from 'lucide-react'
+import { X, CalendarCheck, Target, Utensils, Dumbbell, UserMinus, ChevronDown, Trophy } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { computeStreak } from '@/lib/streak'
 import { GOAL_LABELS, GOAL_EMOJIS, kgToLbs } from '@/lib/fitness'
@@ -131,6 +131,7 @@ export default function MiniProfileModal({ userId, name, onClose, moderation = n
     const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString()
     const sixtyAgo = new Date(Date.now() - 60 * 86400000).toISOString()
     ;(async () => {
+      try {
       const [
         { data: profile },
         { data: logs60 },
@@ -196,7 +197,11 @@ export default function MiniProfileModal({ userId, name, onClose, moderation = n
           .slice(0, 3),
         achievement: achievementFromMilestone(milestone) ?? deriveAchievement(streak, totalMeals, activeDays, lbsToGo),
       })
-      setLoading(false)
+      } catch {
+        /* Network/load failure — stop the skeleton so the cheer actions still work. */
+      } finally {
+        setLoading(false)
+      }
     })()
   }, [userId])
 
@@ -330,18 +335,20 @@ export default function MiniProfileModal({ userId, name, onClose, moderation = n
               </section>
 
               {/* ── Section 3: Progress Snapshot ─────────────────────────────── */}
+              {/* Streak lives in the header badge (its single home), so it isn't
+                  repeated here — Remove Duplicate Statistics requirement. */}
               <section aria-label="Progress snapshot" className="bg-stone-800/60 rounded-xl p-3 space-y-1.5">
                 <h3 className="text-stone-400 text-[11px] font-semibold uppercase tracking-wide mb-1">Progress Snapshot</h3>
                 <div className="flex items-center gap-2 text-xs">
-                  <Flame size={13} className="text-orange-400 shrink-0" aria-hidden="true" />
-                  <span className="text-stone-200">{data.streak} day streak</span>
-                </div>
-                <div className="flex items-center gap-2 text-xs">
                   <CalendarCheck size={13} className="text-emerald-400 shrink-0" aria-hidden="true" />
-                  <span className="text-stone-200">Logged {data.mealsThisWeek} meal{data.mealsThisWeek === 1 ? '' : 's'} this week</span>
+                  <span className="text-stone-200">Logged on {data.daysThisWeek} of 7 days this week</span>
                 </div>
                 <div className="flex items-center gap-2 text-xs">
                   <Utensils size={13} className="text-emerald-400 shrink-0" aria-hidden="true" />
+                  <span className="text-stone-200">{data.mealsThisWeek} meal{data.mealsThisWeek === 1 ? '' : 's'} this week</span>
+                </div>
+                <div className="flex items-center gap-2 text-xs">
+                  <Trophy size={13} className="text-amber-400 shrink-0" aria-hidden="true" />
                   <span className="text-stone-200">{data.totalMeals} meals total</span>
                 </div>
               </section>
