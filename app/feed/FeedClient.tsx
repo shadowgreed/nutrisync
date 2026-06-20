@@ -10,6 +10,7 @@ import MilestoneCard from '@/components/MilestoneCard'
 import NotificationBell from '@/components/NotificationBell'
 import { createClient } from '@/lib/supabase/client'
 import { BottomNav } from '../dashboard/DashboardClient'
+import LogFab from '@/components/LogFab'
 import type { FeedEntry, FeedActivityEntry, FeedMilestoneEntry, Comment } from '@/types'
 
 interface Props {
@@ -478,6 +479,7 @@ export default function FeedClient({ entries: initial, activities, milestones, c
           })
         )}
       </div>
+      <LogFab />
       <BottomNav active="feed" />
     </div>
   )

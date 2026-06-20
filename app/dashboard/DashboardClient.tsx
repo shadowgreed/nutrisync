@@ -10,6 +10,7 @@ import MacroDetailModal from '@/components/MacroDetailModal'
 import InfoTip from '@/components/InfoTip'
 import NotificationBell from '@/components/NotificationBell'
 import InstallPrompt from '@/components/InstallPrompt'
+import LogFab from '@/components/LogFab'
 import { formatOz } from '@/lib/water'
 import { WEEKLY_SEEN_KEY, currentWeekKey } from '@/lib/weekly'
 import { sumTotals, emptyTotals, buildGapCorrections } from '@/lib/nutrients'
@@ -504,6 +505,7 @@ export default function DashboardClient({
         <MacroDetailModal macroKey={activeMacro} foods={todayFoods} onClose={() => setActiveMacro(null)} />
       )}
 
+      <LogFab />
       <BottomNav active="dashboard" />
     </div>
   )

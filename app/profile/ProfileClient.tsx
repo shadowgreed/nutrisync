@@ -1,10 +1,12 @@
 'use client'
 
 import Link from 'next/link'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Settings, Users, ChevronRight } from 'lucide-react'
 import AvatarUpload from '@/components/AvatarUpload'
 import { BottomNav } from '../dashboard/DashboardClient'
+import LogFab from '@/components/LogFab'
+import { mlToOz } from '@/lib/water'
 import {
   calculateBMR, calculateTDEE, calculateBMI, bmiCategory,
   GOAL_LABELS, GOAL_EMOJIS,
@@ -13,6 +15,8 @@ import {
 import type { Profile } from '@/types'
 
 interface ActivityRow { logged_at: string; calories_burned: number; activity_name: string; duration_minutes: number | null; distance_km?: number | null; steps?: number | null }
+interface FoodRow { logged_at: string; total_calories: number | null; macro_totals: { protein_g?: number } | null }
+interface WaterRow { logged_at: string; amount_ml: number }
 
 interface GroupSummary { id: string; name: string; photo_url: string | null; memberCount: number; coachName: string | null }
 
@@ -21,7 +25,19 @@ interface Props {
   email: string
   activities: ActivityRow[]
   group: GroupSummary | null
+  foodLogs: FoodRow[]
+  waterLogs: WaterRow[]
+  calorieTarget: number | null
+  proteinTarget: number
+  waterTargetMl: number
+  streak: number
+  reactionsReceived: number
+  commentsReceived: number
 }
+
+const TAB_KEY = 'ns_profile_tab'
+// Local-day key in the viewer's timezone (server is UTC). Mirrors the dashboard.
+const localDayKey = (ts: string | number | Date) => new Date(ts).toLocaleDateString('en-CA')
 
 // Human label for an activity's "amount": distance / steps for distance activities,
 // otherwise duration.
@@ -32,11 +48,35 @@ function activityMetric(a: ActivityRow): string {
   return ''
 }
 
-export default function ProfileClient({ profile, email, activities, group }: Props) {
+export default function ProfileClient({
+  profile, email, activities, group, foodLogs, waterLogs, calorieTarget, proteinTarget, waterTargetMl,
+  streak, reactionsReceived, commentsReceived,
+}: Props) {
   const [tab, setTab] = useState<'stats' | 'history'>('stats')
   const [useMetric, setUseMetric] = useState(true)
 
-  // Calculated values
+  // Persist the Stats/History selection across visits (FR-008).
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(TAB_KEY)
+      if (saved === 'history' || saved === 'stats') setTab(saved)
+    } catch { /* ignore */ }
+  }, [])
+  function selectTab(t: 'stats' | 'history') {
+    setTab(t)
+    try { localStorage.setItem(TAB_KEY, t) } catch { /* ignore */ }
+  }
+
+  // ── Today's progress (Goal & Progress card) ────────────────────────────────
+  const todayKey = localDayKey(Date.now())
+  const todayFoods = foodLogs.filter(f => localDayKey(f.logged_at) === todayKey)
+  const todayWater = waterLogs.filter(w => localDayKey(w.logged_at) === todayKey)
+  const caloriesIn = Math.round(todayFoods.reduce((s, f) => s + (f.total_calories || 0), 0))
+  const proteinIn = Math.round(todayFoods.reduce((s, f) => s + (f.macro_totals?.protein_g || 0), 0))
+  const waterMl = todayWater.reduce((s, w) => s + (w.amount_ml || 0), 0)
+  const calTarget = calorieTarget ?? 2000
+
+  // Calculated body metrics
   const age = profile.birth_year ? new Date().getFullYear() - profile.birth_year : null
   const bmr = (profile.weight_kg && profile.height_cm && age && profile.biological_sex)
     ? calculateBMR(profile.weight_kg, profile.height_cm, age, profile.biological_sex as 'male' | 'female' | 'prefer_not_to_say')
@@ -48,10 +88,18 @@ export default function ProfileClient({ profile, email, activities, group }: Pro
     ? calculateBMI(profile.weight_kg, profile.height_cm)
     : null
 
+  const metrics: { label: string; value: string }[] = []
+  if (bmi) metrics.push({ label: 'BMI', value: `${bmi} · ${bmiCategory(bmi)}` })
+  if (profile.weight_kg) metrics.push({ label: 'Weight', value: formatWeight(profile.weight_kg, useMetric) })
+  if (profile.height_cm) metrics.push({ label: 'Height', value: formatHeight(profile.height_cm, useMetric) })
+  if (tdee) metrics.push({ label: 'Daily burn (TDEE)', value: `${tdee} kcal` })
+  if (profile.calorie_target) metrics.push({ label: 'Goal calories', value: `${profile.calorie_target} kcal` })
+  if (profile.activity_level) metrics.push({ label: 'Activity level', value: profile.activity_level.replace('_', ' ') })
+
   return (
     <div className="min-h-screen bg-stone-950 pb-[calc(6rem+env(safe-area-inset-bottom))]">
       {/* Header */}
-      <div className="px-4 pt-12 pb-6 flex items-start justify-between">
+      <div className="px-4 pt-12 pb-5 flex items-start justify-between">
         <div className="flex items-center gap-4">
           <AvatarUpload initialUrl={profile.avatar_url} name={profile.display_name} size="md" />
           <div>
@@ -64,9 +112,43 @@ export default function ProfileClient({ profile, email, activities, group }: Pro
             )}
           </div>
         </div>
-        <Link href="/profile/edit" aria-label="Edit profile & settings" className="text-stone-400 hover:text-white transition-colors">
+        <Link href="/settings" aria-label="Settings" className="text-stone-400 hover:text-white transition-colors">
           <Settings size={20} />
         </Link>
+      </div>
+
+      {/* Goal & Progress — today at a glance (FR-003) */}
+      <div className="px-4 mb-4">
+        <p className="text-stone-400 text-xs uppercase tracking-wider mb-3">Today</p>
+        <div className="bg-stone-900 border border-stone-800 rounded-2xl p-4">
+          <div className="grid grid-cols-3 gap-2">
+            <RingStat
+              label="Calories" color="rgb(16 185 129)"
+              current={caloriesIn} target={calTarget}
+              valueText={`${caloriesIn.toLocaleString()} / ${calTarget.toLocaleString()}`}
+            />
+            <RingStat
+              label="Protein" color="rgb(244 63 94)"
+              current={proteinIn} target={proteinTarget}
+              valueText={`${proteinIn}g / ${proteinTarget}g`}
+            />
+            <RingStat
+              label="Water" color="rgb(56 189 248)"
+              current={waterMl} target={waterTargetMl}
+              valueText={`${mlToOz(waterMl)} / ${mlToOz(waterTargetMl)} oz`}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Community activity — reinforce accountability */}
+      <div className="px-4 mb-4">
+        <p className="text-stone-400 text-xs uppercase tracking-wider mb-3">Community</p>
+        <div className="grid grid-cols-3 gap-2">
+          <CommunityStat emoji="🔥" value={streak} label={`day streak`} />
+          <CommunityStat emoji="👍" value={reactionsReceived} label="reactions" />
+          <CommunityStat emoji="💬" value={commentsReceived} label="comments" />
+        </div>
       </div>
 
       {/* Group summary — read-only; management lives at /group/manage */}
@@ -119,7 +201,7 @@ export default function ProfileClient({ profile, email, activities, group }: Pro
         {(['stats', 'history'] as const).map(t => (
           <button
             key={t}
-            onClick={() => setTab(t)}
+            onClick={() => selectTab(t)}
             className={`flex-1 py-2.5 rounded-xl text-sm font-medium capitalize transition-colors ${
               tab === t ? 'bg-emerald-700 text-white' : 'bg-stone-800 text-stone-400'
             }`}
@@ -129,11 +211,11 @@ export default function ProfileClient({ profile, email, activities, group }: Pro
         ))}
       </div>
 
-      {/* Stats tab */}
+      {/* Stats tab — health metrics grid (FR-004) */}
       {tab === 'stats' && (
-        <div className="px-4 space-y-3">
+        <div className="px-4">
           {/* Unit toggle */}
-          <div className="flex bg-stone-900 border border-stone-800 rounded-xl p-1 mb-1">
+          <div className="flex bg-stone-900 border border-stone-800 rounded-xl p-1 mb-3">
             <button
               onClick={() => setUseMetric(true)}
               className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-colors ${
@@ -152,19 +234,17 @@ export default function ProfileClient({ profile, email, activities, group }: Pro
             </button>
           </div>
 
-          {bmi && (
-            <StatRow label="BMI" value={`${bmi} — ${bmiCategory(bmi)}`} />
-          )}
-          {profile.weight_kg && (
-            <StatRow label="Weight" value={formatWeight(profile.weight_kg, useMetric)} />
-          )}
-          {profile.height_cm && (
-            <StatRow label="Height" value={formatHeight(profile.height_cm, useMetric)} />
-          )}
-          {tdee && <StatRow label="Est. daily burn (TDEE)" value={`${tdee} kcal`} />}
-          {profile.calorie_target && <StatRow label="Calorie target" value={`${profile.calorie_target} kcal`} />}
-          {profile.activity_level && (
-            <StatRow label="Activity level" value={profile.activity_level.replace('_', ' ')} />
+          {metrics.length > 0 ? (
+            <div className="grid grid-cols-2 gap-2">
+              {metrics.map(m => (
+                <div key={m.label} className="bg-stone-900 border border-stone-800 rounded-2xl px-4 py-3">
+                  <p className="text-stone-400 text-[11px] uppercase tracking-wider">{m.label}</p>
+                  <p className="text-white text-base font-semibold capitalize mt-1">{m.value}</p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-center text-stone-400 py-8 text-sm">Add your stats in profile settings to see metrics here.</p>
           )}
         </div>
       )}
@@ -187,16 +267,47 @@ export default function ProfileClient({ profile, email, activities, group }: Pro
         </div>
       )}
 
+      <LogFab />
       <BottomNav active="profile" />
     </div>
   )
 }
 
-function StatRow({ label, value }: { label: string; value: string }) {
+// A community metric tile: big emoji + count + label.
+function CommunityStat({ emoji, value, label }: { emoji: string; value: number; label: string }) {
   return (
-    <div className="flex items-center justify-between bg-stone-900 border border-stone-800 rounded-xl px-4 py-3">
-      <span className="text-stone-400 text-sm">{label}</span>
-      <span className="text-white text-sm font-medium capitalize">{value}</span>
+    <div className="bg-stone-900 border border-stone-800 rounded-2xl p-3 text-center">
+      <p className="text-xl leading-none mb-1" aria-hidden="true">{emoji}</p>
+      <p className="text-white text-xl font-extrabold tabular-nums">{value.toLocaleString()}</p>
+      <p className="text-stone-400 text-[11px]">{label}</p>
+    </div>
+  )
+}
+
+// A small circular progress ring with the percent centered, a metric label and
+// the "current / target" text below.
+function RingStat({ label, color, current, target, valueText }: {
+  label: string; color: string; current: number; target: number; valueText: string
+}) {
+  const pct = target > 0 ? Math.min(100, Math.round((current / target) * 100)) : 0
+  const size = 72, stroke = 8
+  const r = (size - stroke) / 2
+  const c = 2 * Math.PI * r
+  const offset = c * (1 - pct / 100)
+  return (
+    <div className="flex flex-col items-center text-center">
+      <div className="relative" style={{ width: size, height: size }}>
+        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="-rotate-90">
+          <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgb(41 37 36)" strokeWidth={stroke} />
+          <circle
+            cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth={stroke}
+            strokeLinecap="round" strokeDasharray={c} strokeDashoffset={offset}
+          />
+        </svg>
+        <span className="absolute inset-0 flex items-center justify-center text-white text-xs font-bold tabular-nums">{pct}%</span>
+      </div>
+      <p className="text-stone-300 text-xs font-medium mt-1.5">{label}</p>
+      <p className="text-stone-500 text-[11px] tabular-nums">{valueText}</p>
     </div>
   )
 }
