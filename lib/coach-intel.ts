@@ -362,6 +362,99 @@ export interface TrendData {
   waterTargetOz: number
 }
 
+// ── Group / roster intelligence (Coach Dashboard triage) ─────────────────────
+const SEV_ORDER: Severity[] = ['good', 'watch', 'high', 'critical']
+function worse(a: Severity, b: Severity): Severity {
+  return SEV_ORDER.indexOf(a) >= SEV_ORDER.indexOf(b) ? a : b
+}
+function sevRank2(s: Severity): number { return SEV_ORDER.indexOf(s) }
+
+export interface MemberRollup {
+  severity: Severity
+  priority: number              // higher = more urgent (review-queue order)
+  primaryIssue: string
+  loggingPct: number
+  caloriePct: number | null
+  proteinPct: number | null
+  hydrationPct: number | null
+  daysSinceLog: number | null
+}
+
+/** Roll a member's full intel + recency into a single triage verdict. */
+export function rollupMember(intel: MemberIntel, daysSinceLog: number | null): MemberRollup {
+  const loggingPct = Math.round((intel.daysLogged / 7) * 100)
+  const get = (k: ComplianceMetric['key']) => intel.compliance.find(c => c.key === k)
+  const caloriePct = get('calories')?.pct ?? null
+  const proteinPct = get('protein')?.pct ?? null
+  const hydrationPct = get('hydration')?.pct ?? null
+
+  const disengaged = daysSinceLog === null || daysSinceLog >= 4
+  // Worst compliance area (excluding "good") becomes the headline issue.
+  const ranked = [...intel.compliance].filter(c => c.severity !== 'good')
+    .sort((a, b) => sevRank2(b.severity) - sevRank2(a.severity) || a.pct - b.pct)
+  let severity: Severity = ranked.reduce<Severity>((acc, c) => worse(acc, c.severity), 'good')
+  if (disengaged) severity = 'critical'
+  else if (daysSinceLog !== null && daysSinceLog >= 2) severity = worse(severity, 'high')
+
+  let primaryIssue: string
+  if (daysSinceLog === null) primaryIssue = 'Has not logged yet'
+  else if (daysSinceLog >= 2) primaryIssue = `${daysSinceLog} days since last log`
+  else if (ranked.length > 0) primaryIssue = `${ranked[0].label} ${ranked[0].pct}%`
+  else primaryIssue = 'On track'
+
+  const priority = sevRank2(severity) * 1000 + (daysSinceLog ?? 7) * 25 + ranked.length * 10
+  return { severity, priority, primaryIssue, loggingPct, caloriePct, proteinPct, hydrationPct, daysSinceLog }
+}
+
+export interface GroupIntel {
+  counts: { critical: number; high: number; watch: number; healthy: number; total: number }
+  healthScore: number
+  healthLabel: string
+  insights: string[]
+  hydrationCompliancePct: number   // % of members hitting hydration this week
+}
+
+const calorieAdherence = (pct: number | null) => pct === null ? 0 : Math.max(0, 100 - Math.abs(pct - 100))
+
+export function buildGroupIntel(rollups: MemberRollup[], opts: { checkinsSent: number }): GroupIntel {
+  const total = rollups.length
+  const counts = {
+    critical: rollups.filter(r => r.severity === 'critical').length,
+    high: rollups.filter(r => r.severity === 'high').length,
+    watch: rollups.filter(r => r.severity === 'watch').length,
+    healthy: rollups.filter(r => r.severity === 'good').length,
+    total,
+  }
+
+  // Per-member health, then blended with coach engagement.
+  const avg = (xs: number[]) => xs.length ? xs.reduce((s, v) => s + v, 0) / xs.length : 0
+  const memberHealth = rollups.map(r =>
+    0.35 * r.loggingPct
+    + 0.25 * calorieAdherence(r.caloriePct)
+    + 0.25 * Math.min(100, r.proteinPct ?? 0)
+    + 0.15 * Math.min(100, r.hydrationPct ?? 0),
+  )
+  const engagementPct = total > 0 ? Math.min(100, (opts.checkinsSent / total) * 100) : 0
+  const healthScore = total === 0 ? 0 : Math.round(0.85 * avg(memberHealth) + 0.15 * engagementPct)
+  const healthLabel = healthScore >= 80 ? 'Thriving' : healthScore >= 60 ? 'Healthy' : healthScore >= 40 ? 'Needs work' : 'At risk'
+
+  const hydrationCompliancePct = total > 0
+    ? Math.round(rollups.filter(r => (r.hydrationPct ?? 0) >= 80).length / total * 100) : 0
+
+  // ── Deterministic group insights ──────────────────────────────────────────
+  const insights: string[] = []
+  const underProtein = rollups.filter(r => r.proteinPct !== null && r.proteinPct < 70).length
+  if (underProtein >= 2) insights.push(`${underProtein} members are consistently under their protein target.`)
+  const underHydration = rollups.filter(r => (r.hydrationPct ?? 0) < 50 && r.loggingPct > 0).length
+  if (underHydration >= 2) insights.push(`${underHydration} members are under-hydrated this week.`)
+  const stopped = rollups.filter(r => r.daysSinceLog === null || (r.daysSinceLog ?? 0) >= 3).length
+  if (stopped >= 1) insights.push(`${stopped} member${stopped === 1 ? ' has' : 's have'} stopped logging.`)
+  if (counts.healthy >= 1) insights.push(`${counts.healthy} member${counts.healthy === 1 ? ' is' : 's are'} on track — a quick check-in keeps momentum.`)
+  if (insights.length === 0) insights.push('Logging is steady across the group this week.')
+
+  return { counts, healthScore, healthLabel, insights: insights.slice(0, 4), hydrationCompliancePct }
+}
+
 export function buildDailyTrends(opts: {
   foods: IntelFood[]
   water: IntelWater[]

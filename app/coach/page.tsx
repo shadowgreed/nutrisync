@@ -3,12 +3,15 @@ import { createClient } from '@/lib/supabase/server'
 import { assessClient } from '@/lib/copilot'
 import { computeStreak } from '@/lib/streak'
 import { effectiveDiet, isDiet } from '@/lib/diets'
-import type { NutrientTotals, Diet } from '@/types'
+import { calculateMacroTargets } from '@/lib/macros'
+import { buildIntel, rollupMember, buildGroupIntel, type IntelFood, type IntelWater, type IntelActivity, type MemberRollup } from '@/lib/coach-intel'
+import type { NutrientTotals, Diet, Goal } from '@/types'
 import CoachClient, { type CoachGroup, type RosterMember } from './CoachClient'
 
 export const dynamic = 'force-dynamic'
 
 const DAY_MS = 24 * 60 * 60 * 1000
+const dayKey = (iso: string) => iso.slice(0, 10)
 
 interface GroupMeta { id: string; name: string; plan: 'free' | 'coach'; member_cap: number }
 interface ProfileJoin {
@@ -16,12 +19,16 @@ interface ProfileJoin {
   display_name: string | null
   avatar_url: string | null
   calorie_target: number | null
+  weight_kg: number | null
+  goal: string | null
+  water_daily_target_ml: number | null
   privacy_mode: string | null
   coach_visible: boolean | null
   diet: string | null
 }
-interface FoodRow { user_id: string; logged_at: string; total_calories: number | null; nutrient_totals: NutrientTotals | null }
+interface FoodRow { user_id: string; logged_at: string; total_calories: number | null; macro_totals: { protein_g?: number } | null; nutrient_totals: NutrientTotals | null; meal_type: string | null }
 interface ActivityRow { user_id: string; logged_at: string; calories_burned: number | null }
+interface WaterRow { user_id: string; logged_at: string; amount_ml: number | null }
 
 export default async function CoachPage() {
   const supabase = await createClient()
@@ -55,7 +62,7 @@ export default async function CoachPage() {
       .select('id', { count: 'exact', head: true })
       .eq('coach_id', user.id).eq('status', 'pending'),
     supabase.from('group_members')
-      .select('user_id, group_id, profiles(id, display_name, avatar_url, calorie_target, privacy_mode, coach_visible, diet)')
+      .select('user_id, group_id, profiles(id, display_name, avatar_url, calorie_target, weight_kg, goal, water_daily_target_ml, privacy_mode, coach_visible, diet)')
       .in('group_id', groupIds)
       .neq('user_id', user.id),
     supabase.from('coach_client_settings')
@@ -89,14 +96,23 @@ export default async function CoachPage() {
 
   const since = new Date(Date.now() - 30 * DAY_MS).toISOString()
   const sevenDaysAgo = Date.now() - 7 * DAY_MS
+  const todayKey = dayKey(new Date().toISOString())
 
-  const [{ data: foods }, { data: acts }] = await Promise.all([
+  const [{ data: foods }, { data: acts }, { data: waters }, { count: checkinsSent }] = await Promise.all([
     supabase.from('food_logs')
-      .select('user_id, logged_at, total_calories, nutrient_totals')
+      .select('user_id, logged_at, total_calories, macro_totals, nutrient_totals, meal_type')
       .in('user_id', memberIds).gte('logged_at', since),
     supabase.from('activity_logs')
       .select('user_id, logged_at, calories_burned')
       .in('user_id', memberIds).gte('logged_at', since),
+    supabase.from('water_logs')
+      .select('user_id, logged_at, amount_ml')
+      .in('user_id', memberIds).gte('logged_at', since),
+    // Check-ins the coach has sent this week (for engagement + daily overview).
+    supabase.from('coach_message_drafts')
+      .select('id', { count: 'exact', head: true })
+      .eq('coach_id', user.id).in('status', ['sent', 'edited_sent'])
+      .gte('created_at', new Date(sevenDaysAgo).toISOString()),
   ])
 
   const foodsByUser = new Map<string, FoodRow[]>()
@@ -107,9 +123,15 @@ export default async function CoachPage() {
   for (const a of (acts ?? []) as ActivityRow[]) {
     const arr = actsByUser.get(a.user_id) ?? []; arr.push(a); actsByUser.set(a.user_id, arr)
   }
+  const watersByUser = new Map<string, WaterRow[]>()
+  for (const w of (waters ?? []) as WaterRow[]) {
+    const arr = watersByUser.get(w.user_id) ?? []; arr.push(w); watersByUser.set(w.user_id, arr)
+  }
+  const mealsToday = ((foods ?? []) as FoodRow[]).filter(f => dayKey(f.logged_at) === todayKey).length
 
   let hiddenCount = 0
   const members: RosterMember[] = []
+  const rollups: MemberRollup[] = []
 
   for (const m of memberships) {
     const p = m.profile!
@@ -117,24 +139,43 @@ export default async function CoachPage() {
 
     const userFoods = foodsByUser.get(m.user_id) ?? []
     const userActs = actsByUser.get(m.user_id) ?? []
+    const userWater = watersByUser.get(m.user_id) ?? []
     const lastLoggedAt = userFoods.reduce<string | null>(
       (max, f) => (!max || f.logged_at > max ? f.logged_at : max), null)
     const streak = computeStreak(userFoods.map(f => f.logged_at))
-
-    const weekFoods = userFoods
-      .filter(f => new Date(f.logged_at).getTime() >= sevenDaysAgo)
-      .map(f => ({ logged_at: f.logged_at, total_calories: f.total_calories ?? 0, nutrient_totals: f.nutrient_totals ?? ({} as NutrientTotals) }))
-    const weekActs = userActs
-      .filter(a => new Date(a.logged_at).getTime() >= sevenDaysAgo)
-      .map(a => ({ logged_at: a.logged_at, calories_burned: a.calories_burned ?? 0 }))
+    const daysSinceLog = lastLoggedAt
+      ? Math.floor((Date.now() - new Date(lastLoggedAt).getTime()) / DAY_MS) : null
 
     const diet = effectiveDiet(isDiet(p.diet) ? p.diet : null, overrideByMember.get(m.user_id) ?? null)
-    const { attention, signals, report } = assessClient({
-      foods: weekFoods, activities: weekActs,
+    const proteinTarget = calculateMacroTargets(p.calorie_target ?? 2000, p.weight_kg, (p.goal as Goal | null) ?? null).protein_g
+
+    const intel = buildIntel({
+      name: p.display_name ?? 'Member',
+      goal: p.goal,
+      foods: userFoods.map(f => ({
+        logged_at: f.logged_at, total_calories: f.total_calories ?? 0,
+        protein_g: f.macro_totals?.protein_g ?? 0,
+        nutrient_totals: f.nutrient_totals ?? ({} as NutrientTotals), meal_type: f.meal_type,
+      })) as IntelFood[],
+      water: userWater.map(w => ({ logged_at: w.logged_at, amount_ml: w.amount_ml ?? 0 })) as IntelWater[],
+      activities: userActs.map(a => ({ logged_at: a.logged_at, calories_burned: a.calories_burned ?? 0 })) as IntelActivity[],
+      hasWeight: false,
+      calorieTarget: p.calorie_target ?? 2000,
+      proteinTarget,
+      waterTargetMl: p.water_daily_target_ml ?? 2500,
+    })
+    const rollup = rollupMember(intel, daysSinceLog)
+    rollups.push(rollup)
+
+    // Keep assessClient for the legacy attention field (roster colour dot fallback).
+    const week = sevenDaysAgo
+    const { attention } = assessClient({
+      foods: userFoods.filter(f => new Date(f.logged_at).getTime() >= week)
+        .map(f => ({ logged_at: f.logged_at, total_calories: f.total_calories ?? 0, nutrient_totals: f.nutrient_totals ?? ({} as NutrientTotals) })),
+      activities: userActs.filter(a => new Date(a.logged_at).getTime() >= week)
+        .map(a => ({ logged_at: a.logged_at, calories_burned: a.calories_burned ?? 0 })),
       calorieTarget: p.calorie_target ?? 2000, lastLoggedAt, diet,
     })
-
-    const topSignal = (signals.find(s => s.severity === 'warn') ?? signals[0])?.label ?? null
 
     members.push({
       user_id: m.user_id,
@@ -142,19 +183,28 @@ export default async function CoachPage() {
       display_name: p.display_name ?? 'Member',
       avatar_url: p.avatar_url,
       attention, streak,
-      daysLogged: report.daysLogged,
-      caloriesAvg: report.calories.avgPerDay,
-      calorieTarget: report.calories.target,
-      nutrientsOnTrack: report.nutrients.onTrack,
-      nutrientsTotal: report.nutrients.total,
-      topSignal,
+      daysLogged: intel.daysLogged,
+      caloriesAvg: intel.compliance.find(c => c.key === 'calories')?.pct ?? 0,
+      calorieTarget: p.calorie_target ?? 2000,
+      nutrientsOnTrack: 0,
+      nutrientsTotal: 0,
+      topSignal: rollup.primaryIssue,
+      severity: rollup.severity,
+      priority: rollup.priority,
+      primaryIssue: rollup.primaryIssue,
     })
   }
+
+  // Review-queue order: highest priority first, then longest streak.
+  members.sort((a, b) => b.priority - a.priority || b.streak - a.streak)
+
+  const group = buildGroupIntel(rollups, { checkinsSent: checkinsSent ?? 0 })
 
   return (
     <CoachClient
       groups={groups} members={members} hiddenCount={hiddenCount}
       pendingDrafts={pendingDrafts ?? 0} coachId={user.id} coachStyle={coachStyle}
+      group={group} mealsToday={mealsToday} checkinsSent={checkinsSent ?? 0}
     />
   )
 }
