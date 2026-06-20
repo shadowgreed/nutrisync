@@ -11,11 +11,21 @@ export default async function LogPage({ searchParams }: { searchParams: Promise<
   const { tab } = await searchParams
   const initialTab = tab === 'activity' ? 'activity' : 'food'
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('weight_kg')
-    .eq('id', user.id)
-    .single()
+  const since30 = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+  const [{ data: profile }, { data: recentActivities }] = await Promise.all([
+    supabase
+      .from('profiles')
+      .select('weight_kg')
+      .eq('id', user.id)
+      .single(),
+    // Recent activity for today's progress + the "Log again" cards.
+    supabase
+      .from('activity_logs')
+      .select('activity_name, duration_minutes, distance_km, steps, logged_at')
+      .eq('user_id', user.id)
+      .gte('logged_at', since30)
+      .order('logged_at', { ascending: false }),
+  ])
 
   return (
     <div className="min-h-screen bg-stone-950 pb-[calc(6rem+env(safe-area-inset-bottom))]">
@@ -24,7 +34,11 @@ export default async function LogPage({ searchParams }: { searchParams: Promise<
         <h1 className="text-white text-2xl font-bold mt-0.5">Log</h1>
       </div>
       <div className="px-4">
-        <LogClient weightKg={profile?.weight_kg ?? 70} initialTab={initialTab} />
+        <LogClient
+          weightKg={profile?.weight_kg ?? 70}
+          initialTab={initialTab}
+          recentActivities={(recentActivities ?? []) as { activity_name: string; duration_minutes: number | null; distance_km: number | null; steps: number | null; logged_at: string }[]}
+        />
       </div>
       <BottomNav active="log" />
     </div>
