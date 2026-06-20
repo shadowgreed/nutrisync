@@ -36,6 +36,13 @@ export interface BehaviorRow {
   severity: Severity
 }
 
+export interface RecommendedAction {
+  title: string
+  impact: 'High' | 'Medium' | 'Low'
+  outcome: string             // estimated outcome
+  message: string             // a ready-to-send suggested message (coach can copy/edit)
+}
+
 export interface MemberIntel {
   hasData: boolean
   daysLogged: number
@@ -43,6 +50,7 @@ export interface MemberIntel {
   behavior: BehaviorRow[]
   confidence: { pct: number; reasons: string[] }
   summary: { headline: string; causes: string[]; risk: string | null; recommendation: string | null }
+  recommendedActions: RecommendedAction[]
 }
 
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -248,6 +256,8 @@ export function buildIntel(opts: {
       : 'Keep the momentum going with consistent logging.'
   }
 
+  const recommendedActions = buildRecommendedActions(first, compliance, mealDays('breakfast'), hasData)
+
   return {
     hasData,
     daysLogged: days,
@@ -255,7 +265,65 @@ export function buildIntel(opts: {
     behavior,
     confidence,
     summary: { headline, causes, risk, recommendation },
+    recommendedActions,
   }
+}
+
+// One-tap coaching plays, ranked by impact, derived from the worst areas. Each
+// carries a ready-to-send message the coach can copy and edit.
+function buildRecommendedActions(
+  first: string, compliance: ComplianceMetric[], breakfastDays: number, hasData: boolean,
+): RecommendedAction[] {
+  if (!hasData) return []
+  const by = (k: ComplianceMetric['key']) => compliance.find(c => c.key === k)
+  const bad = (m?: ComplianceMetric) => !!m && (m.severity === 'critical' || m.severity === 'high')
+  const out: RecommendedAction[] = []
+
+  if (breakfastDays <= 4) {
+    out.push({
+      title: 'Breakfast consistency challenge', impact: 'High',
+      outcome: 'Steadier energy and easier protein & calorie targets',
+      message: `Hey ${first}, let's make breakfast a non-negotiable this week — even something quick. Want to try a 5-day breakfast streak together?`,
+    })
+  }
+  if (bad(by('protein'))) {
+    out.push({
+      title: 'Boost daily protein', impact: 'High',
+      outcome: 'Better satiety and lean-mass retention',
+      message: `Hi ${first}, your protein has been running a bit low. Adding a protein source to each meal (eggs, Greek yogurt, chicken) would make a big difference — want some easy swaps?`,
+    })
+  }
+  if (bad(by('hydration'))) {
+    out.push({
+      title: 'Hydration reset', impact: 'Medium',
+      outcome: 'Better appetite control and recovery',
+      message: `Hey ${first}, I noticed hydration dipped this week. Let's set a simple goal — a glass with each meal plus your bottle. How does that sound?`,
+    })
+  }
+  if (bad(by('micronutrients'))) {
+    out.push({
+      title: 'Close micronutrient gaps', impact: 'Medium',
+      outcome: 'Fewer deficiencies, better energy',
+      message: `Hi ${first}, a few key nutrients came up short this week. A couple of targeted whole foods would close most of the gap — want me to suggest some?`,
+    })
+  }
+  const cal = by('calories')
+  if (cal && cal.severity === 'critical') {
+    out.push({
+      title: 'Stabilise daily intake', impact: 'High',
+      outcome: 'More sustainable progress toward the goal',
+      message: `Hey ${first}, your intake has been swinging quite a bit. Let's aim for more even meals day to day — what's been getting in the way?`,
+    })
+  }
+  if (out.length === 0) {
+    out.push({
+      title: 'Send encouragement', impact: 'Low',
+      outcome: 'Reinforces a strong week and keeps momentum',
+      message: `${first}, awesome week — you've stayed consistent and on target. Really proud of the effort. Keep it rolling! 🎉`,
+    })
+  }
+  const rank = { High: 0, Medium: 1, Low: 2 }
+  return out.sort((a, b) => rank[a.impact] - rank[b.impact]).slice(0, 3)
 }
 
 function sevRank(s: Severity): number {

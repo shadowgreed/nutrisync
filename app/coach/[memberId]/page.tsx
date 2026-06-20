@@ -55,6 +55,7 @@ export default async function CoachMemberPage({ params }: { params: Promise<{ me
     { attention, signals, report, streak, priorReport },
     { data: noteRows }, { data: draftRow }, { data: waterRows }, { data: postRows },
     { data: intelFoodRows }, { data: intelActRows }, { data: weightRows },
+    { data: historyRows },
   ] = await Promise.all([
     assessMember(supabase, memberId, profile.calorie_target ?? 2000, diet),
     supabase.from('coach_client_notes')
@@ -87,6 +88,12 @@ export default async function CoachMemberPage({ params }: { params: Promise<{ me
     supabase.from('weight_logs')
       .select('logged_at')
       .eq('user_id', memberId).gte('logged_at', thirtyDaysAgo).limit(1),
+    // Intervention history — past check-ins this coach has actually sent.
+    supabase.from('coach_message_drafts')
+      .select('kind, created_at')
+      .eq('coach_id', user.id).eq('member_id', memberId).in('status', ['sent', 'edited_sent'])
+      .order('created_at', { ascending: false })
+      .limit(8),
   ])
 
   const allWater = (waterRows ?? []) as { logged_at: string; amount_ml: number }[]
@@ -137,6 +144,7 @@ export default async function CoachMemberPage({ params }: { params: Promise<{ me
       priorWater={priorWater}
       goal={profile.goal}
       intel={intel}
+      history={(historyRows ?? []) as { kind: 'nudge' | 'praise' | 'weekly_checkin'; created_at: string }[]}
       posts={(postRows ?? []) as MiniPost[]}
       initialNotes={(noteRows ?? []) as CoachNote[]}
       initialDraft={(draftRow as PendingDraft | null) ?? null}
