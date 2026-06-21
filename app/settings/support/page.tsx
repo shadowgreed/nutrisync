@@ -15,7 +15,7 @@ export default async function SupportPage() {
   return (
     <SettingsShell title="Support">
       <Section title="Support">
-        <LinkRow icon={<HelpCircle size={16} />} label="Help center" soon />
+        <LinkRow icon={<HelpCircle size={16} />} label="Help center" href="/help" />
         <LinkRow icon={<MessageCircle size={16} />} label="Contact support" soon />
         <LinkRow icon={<Info size={16} />} label="About us" href="/about" />
       </Section>
