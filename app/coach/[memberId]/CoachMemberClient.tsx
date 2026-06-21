@@ -350,9 +350,13 @@ const KIND_TOPIC: Record<InterventionEntry['kind'], string> = {
   nudge: 'Nudge', praise: 'Praise', weekly_checkin: 'Weekly check-in',
 }
 
-// One-tap coaching plays with impact, estimated outcome and a copyable message.
-function RecommendedActions({ actions }: { actions: MemberIntel['recommendedActions'] }) {
+// One-tap coaching plays with impact, estimated outcome and a ready message the
+// coach can send to the member directly (or copy elsewhere).
+function RecommendedActions({ actions, memberId, memberName }: {
+  actions: MemberIntel['recommendedActions']; memberId: string; memberName: string
+}) {
   const [copied, setCopied] = useState<number | null>(null)
+  const [sendState, setSendState] = useState<Record<number, 'sending' | 'sent' | 'error'>>({})
   if (actions.length === 0) return null
   const impactStyle: Record<string, string> = {
     High: 'bg-red-900/40 text-red-200 border-red-800/50',
@@ -362,28 +366,60 @@ function RecommendedActions({ actions }: { actions: MemberIntel['recommendedActi
   function copy(i: number, text: string) {
     navigator.clipboard.writeText(text); setCopied(i); setTimeout(() => setCopied(null), 1800)
   }
+  async function send(i: number, a: MemberIntel['recommendedActions'][number]) {
+    if (sendState[i] === 'sending' || sendState[i] === 'sent') return
+    setSendState(s => ({ ...s, [i]: 'sending' }))
+    try {
+      const res = await fetch('/api/coach/message', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ memberId, text: a.message, title: a.title }),
+      })
+      setSendState(s => ({ ...s, [i]: res.ok ? 'sent' : 'error' }))
+    } catch {
+      setSendState(s => ({ ...s, [i]: 'error' }))
+    }
+  }
   return (
     <section className="px-4 mb-5">
       <p className="text-stone-400 text-xs uppercase tracking-wider mb-2">Recommended actions</p>
       <ul className="space-y-2">
-        {actions.map((a, i) => (
-          <li key={i} className="bg-stone-900 border border-stone-800 rounded-2xl p-3.5">
-            <div className="flex items-center justify-between gap-2 mb-1">
-              <p className="text-white text-sm font-semibold">{a.title}</p>
-              <span className={`shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${impactStyle[a.impact]}`}>{a.impact} impact</span>
-            </div>
-            <p className="text-stone-400 text-xs mb-2">{a.outcome}</p>
-            <div className="bg-stone-950 border border-stone-800 rounded-xl px-3 py-2">
-              <p className="text-stone-300 text-[13px] leading-snug">{a.message}</p>
-            </div>
-            <button
-              onClick={() => copy(i, a.message)}
-              className="mt-2 inline-flex items-center gap-1.5 text-emerald-300 hover:text-emerald-200 text-xs font-semibold"
-            >
-              {copied === i ? <Check size={13} /> : <Copy size={13} />} {copied === i ? 'Copied' : 'Copy message'}
-            </button>
-          </li>
-        ))}
+        {actions.map((a, i) => {
+          const st = sendState[i]
+          return (
+            <li key={i} className="bg-stone-900 border border-stone-800 rounded-2xl p-3.5">
+              <div className="flex items-center justify-between gap-2 mb-1">
+                <p className="text-white text-sm font-semibold">{a.title}</p>
+                <span className={`shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${impactStyle[a.impact]}`}>{a.impact} impact</span>
+              </div>
+              <p className="text-stone-400 text-xs mb-2">{a.outcome}</p>
+              <div className="bg-stone-950 border border-stone-800 rounded-xl px-3 py-2">
+                <p className="text-stone-300 text-[13px] leading-snug">{a.message}</p>
+              </div>
+              <div className="mt-2.5 flex items-center gap-2">
+                <button
+                  onClick={() => send(i, a)}
+                  disabled={st === 'sending' || st === 'sent'}
+                  className={`inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${
+                    st === 'sent'
+                      ? 'bg-emerald-900/50 text-emerald-300 border border-emerald-700/40'
+                      : 'bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-60'
+                  }`}
+                  aria-label={st === 'sent' ? `Sent to ${memberName}` : `Send to ${memberName}`}
+                >
+                  {st === 'sent' ? <><Check size={13} /> Sent</> : st === 'sending' ? 'Sending…' : <><Send size={13} /> Send to {memberName.split(/\s+/)[0]}</>}
+                </button>
+                <button
+                  onClick={() => copy(i, a.message)}
+                  className="inline-flex items-center gap-1.5 text-stone-300 hover:text-white text-xs font-semibold px-2 py-1.5"
+                >
+                  {copied === i ? <Check size={13} /> : <Copy size={13} />} {copied === i ? 'Copied' : 'Copy'}
+                </button>
+              </div>
+              {st === 'error' && <p className="text-red-400 text-xs mt-1.5">Couldn&apos;t send — try again.</p>}
+            </li>
+          )
+        })}
       </ul>
     </section>
   )
@@ -626,7 +662,7 @@ export default function CoachMemberClient({
       {intel.hasData && <AiSummaryCard intel={intel} memberName={member.display_name} />}
 
       {/* Recommended actions — one-tap coaching plays */}
-      {intel.hasData && <RecommendedActions actions={intel.recommendedActions} />}
+      {intel.hasData && <RecommendedActions actions={intel.recommendedActions} memberId={member.id} memberName={member.display_name} />}
 
       {/* Signals — why this member is flagged */}
       {signals.length > 0 && (
