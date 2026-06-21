@@ -84,5 +84,22 @@ export default async function WeeklyPage() {
     group,
   })
 
+  // Seed a "weekly report" bell notification so the recap stays revisitable all
+  // week, independent of the Sunday cron. Idempotent: only adds one if there
+  // isn't already a weekly_report notification in the last 6 days (which also
+  // covers any the cron created). RLS permits inserting your own notification.
+  if (review.hasData) {
+    try {
+      const sixAgoISO = new Date(now - 6 * 86400000).toISOString()
+      const { count } = await supabase
+        .from('notifications')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', user.id).eq('type', 'weekly_report').gte('created_at', sixAgoISO)
+      if (!count) {
+        await supabase.from('notifications').insert({ user_id: user.id, type: 'weekly_report', data: {} })
+      }
+    } catch { /* a bell notification is best-effort — never block the recap */ }
+  }
+
   return <WeeklyReviewClient review={review} name={profile?.display_name ?? 'You'} />
 }
