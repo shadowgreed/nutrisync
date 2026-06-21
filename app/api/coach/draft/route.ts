@@ -49,9 +49,12 @@ export async function POST(req: NextRequest) {
   const [{ data: coach }, { data: sentRows }] = await Promise.all([
     supabase.from('profiles').select('display_name, coach_style').eq('id', user.id).single<{ display_name: string | null; coach_style: string | null }>(),
     // The coach's recent sent check-ins → learned voice (only when tone is 'auto').
+    // Templated sends (Recommended actions) are excluded so they don't skew it.
     supabase.from('coach_message_drafts')
       .select('draft_text')
       .eq('coach_id', user.id).in('status', ['sent', 'edited_sent'])
+      // Null-safe: keep authored drafts (no source) and drop only templated sends.
+      .or('basis->>source.is.null,basis->>source.neq.recommended_action')
       .order('created_at', { ascending: false }).limit(40),
   ])
 
