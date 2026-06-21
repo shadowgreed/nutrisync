@@ -140,6 +140,8 @@ export default function WeeklyReviewClient({ review, name }: { review: WeeklyRev
         transform: `translateY(${dragY}px) scale(${1 - Math.min(dragY / 1600, 0.05)})`,
         opacity: 1 - Math.min(dragY / 500, 0.6),
         transition: dragging ? 'none' : 'transform 0.25s ease, opacity 0.25s ease',
+        paddingTop: 'env(safe-area-inset-top)',
+        paddingBottom: 'env(safe-area-inset-bottom)',
       }}
     >
       {/* Progress segments */}
