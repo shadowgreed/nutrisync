@@ -19,6 +19,33 @@ export default function PrivacyClient({ initialPrivacyMode }: { initialPrivacyMo
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState('')
+  const [exporting, setExporting] = useState(false)
+  const [exportError, setExportError] = useState('')
+
+  async function exportData() {
+    if (exporting) return
+    setExporting(true); setExportError('')
+    try {
+      const res = await fetch('/api/export-data')
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error ?? 'Could not export your data')
+      }
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `nutrisync-export-${new Date().toISOString().slice(0, 10)}.json`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      setExportError(e instanceof Error ? e.message : 'Could not export your data')
+    } finally {
+      setExporting(false)
+    }
+  }
 
   async function setVisibility(next: Vis) {
     if (next === vis || savingVis) return
@@ -93,11 +120,19 @@ export default function PrivacyClient({ initialPrivacyMode }: { initialPrivacyMo
       {/* Data */}
       <section className="px-4 mb-5">
         <p className="text-stone-400 text-xs uppercase tracking-wider mb-2">Data</p>
-        <div className="bg-stone-900 border border-stone-800 rounded-2xl px-4 py-3 flex items-center gap-3 opacity-60">
-          <Download size={16} className="text-stone-400" />
-          <span className="flex-1 text-sm text-stone-200">Export my data</span>
-          <span className="text-[10px] font-semibold text-stone-500 bg-stone-800 border border-stone-700 px-1.5 py-0.5 rounded-full">Soon</span>
-        </div>
+        <button
+          onClick={exportData}
+          disabled={exporting}
+          className="w-full bg-stone-900 border border-stone-800 rounded-2xl px-4 py-3 flex items-center gap-3 text-left hover:bg-stone-800/50 transition-colors disabled:opacity-60"
+        >
+          <Download size={16} className="text-stone-400 shrink-0" />
+          <span className="flex-1 text-sm text-stone-200">{exporting ? 'Preparing your export…' : 'Export my data'}</span>
+          {exporting && <span className="w-4 h-4 rounded-full border-2 border-stone-600 border-t-emerald-400 animate-spin" aria-hidden="true" />}
+        </button>
+        <p className="text-stone-500 text-[11px] mt-1.5 px-1">
+          Download a JSON file of your meals, activity, water, weight, and group data.
+        </p>
+        {exportError && <p className="text-red-400 text-xs mt-1.5 px-1">{exportError}</p>}
       </section>
 
       {/* Danger zone */}
