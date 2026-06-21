@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { Scale, TrendingUp, Plus, Utensils, Flame, Droplets } from 'lucide-react'
+import Link from 'next/link'
+import { Scale, TrendingUp, Plus, Utensils, Flame, Droplets, Sparkles, ChevronRight } from 'lucide-react'
 import { BottomNav } from '../dashboard/DashboardClient'
 import LogFab from '@/components/LogFab'
 import { summarize, microConsistency, type DayTotal } from '@/lib/trends'
@@ -195,6 +196,16 @@ export default function TrendsClient({ series30, calorieTarget, macroTargets, we
           </p>
         )}
       </div>
+
+      {/* Weekly recap entry point — revisit the Sunday story any day */}
+      <Link href="/weekly" className="mx-4 mb-4 flex items-center gap-3 bg-gradient-to-br from-purple-900/40 to-stone-900 border border-purple-800/40 rounded-2xl px-4 py-3 hover:border-purple-700/60 transition-colors">
+        <Sparkles size={18} className="text-purple-300 shrink-0" aria-hidden="true" />
+        <div className="flex-1 min-w-0">
+          <p className="text-white text-sm font-semibold">Your Week in Review</p>
+          <p className="text-stone-400 text-xs">Replay this week’s recap story</p>
+        </div>
+        <ChevronRight size={16} className="text-stone-500 shrink-0" aria-hidden="true" />
+      </Link>
 
       {/* Calorie balance — avg in / burned / net over the selected range */}
       <div className="mx-4 mb-4 grid grid-cols-3 gap-3">
