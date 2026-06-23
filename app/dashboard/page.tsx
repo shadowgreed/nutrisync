@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { calculateMacroTargets } from '@/lib/macros'
 import { computeStreak } from '@/lib/streak'
+import { resolveTimeZone } from '@/lib/day'
 import DashboardClient from './DashboardClient'
 
 export default async function DashboardPage() {
@@ -23,7 +24,7 @@ export default async function DashboardPage() {
   const [{ data: profile }, { data: logs }, { data: activities }, { data: waterLogs }, { data: streakRows }] = await Promise.all([
     supabase
       .from('profiles')
-      .select('display_name, calorie_target, onboarding_done, water_bottle_ml, water_daily_target_ml, weight_kg, goal')
+      .select('display_name, calorie_target, onboarding_done, water_bottle_ml, water_daily_target_ml, weight_kg, goal, reminder_timezone')
       .eq('id', user.id)
       .single(),
     // select('*') so a missing macro_totals column (pre-migration-007) doesn't break the read
@@ -55,7 +56,8 @@ export default async function DashboardPage() {
     redirect('/onboarding')
   }
 
-  const streak = computeStreak((streakRows ?? []).map(r => r.logged_at as string))
+  const tz = resolveTimeZone(profile?.reminder_timezone as string | null)
+  const streak = computeStreak((streakRows ?? []).map(r => r.logged_at as string), { timeZone: tz })
 
   // Macro targets derived from calorie target + goal + weight (Mifflin-based)
   const macroTargets = calculateMacroTargets(

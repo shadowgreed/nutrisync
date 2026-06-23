@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { calculateMacroTargets } from '@/lib/macros'
 import { computeStreak } from '@/lib/streak'
+import { resolveTimeZone } from '@/lib/day'
 import ProfileClient from './ProfileClient'
 
 export default async function ProfilePage() {
@@ -51,7 +52,9 @@ export default async function ProfilePage() {
 
   // Logging streak + only the last 48h of food go to the client (today's rings).
   const allFood = (foodLogs60 ?? []) as { id: string; logged_at: string; total_calories: number | null; macro_totals: { protein_g?: number } | null }[]
-  const streak = computeStreak(allFood.map(f => f.logged_at))
+  const streak = computeStreak(allFood.map(f => f.logged_at), {
+    timeZone: resolveTimeZone((profile as { reminder_timezone?: string | null } | null)?.reminder_timezone),
+  })
   const foodLogs = allFood.filter(f => f.logged_at >= since48)
 
   // Community engagement received on the user's posts over the last 30 days.
