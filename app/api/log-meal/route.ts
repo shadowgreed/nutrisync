@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { logEvent } from '@/lib/analytics'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { founderSharesGroupWith } from '@/lib/moderation'
 import { sendPushToUser } from '@/lib/push'
@@ -189,5 +190,6 @@ export async function POST(req: NextRequest) {
     console.warn('streak milestone check failed (non-fatal):', e)
   }
 
+  await logEvent(supabase, user.id, 'meal_logged', { meal_type: data?.meal_type, shared: data?.shared_to_feed })
   return NextResponse.json({ log: data })
 }

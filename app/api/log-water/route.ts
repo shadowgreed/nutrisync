@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { logEvent } from '@/lib/analytics'
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
@@ -18,6 +19,7 @@ export async function POST(req: NextRequest) {
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  await logEvent(supabase, user.id, 'water_logged', { amount_ml: data?.amount_ml })
   return NextResponse.json({ log: data })
 }
 

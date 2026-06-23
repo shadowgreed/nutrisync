@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Loader2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { track } from '@/lib/analytics-client'
 
 export default function JoinByLinkPage({ params }: { params: Promise<{ code: string }> }) {
   const { code } = use(params)
@@ -20,6 +21,8 @@ export default function JoinByLinkPage({ params }: { params: Promise<{ code: str
 
       switch (row.status) {
         case 'joined':
+          track('group_joined', { via: 'code' })
+          router.replace('/feed'); router.refresh(); break
         case 'already_member':
           router.replace('/feed'); router.refresh(); break
         case 'unauthenticated':

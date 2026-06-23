@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { logEvent } from '@/lib/analytics'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { founderSharesGroupWith } from '@/lib/moderation'
 
@@ -62,5 +63,6 @@ export async function POST(req: NextRequest) {
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  await logEvent(supabase, user.id, 'activity_logged', { activity_name: data?.activity_name })
   return NextResponse.json({ activity: data })
 }

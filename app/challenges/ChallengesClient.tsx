@@ -1,10 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Trophy, Plus, X, Trash2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { track } from '@/lib/analytics-client'
 import { BottomNav } from '../dashboard/DashboardClient'
 import {
   CHALLENGE_METRICS, CHALLENGE_CATEGORIES, CATEGORY_LABELS, suggestedGoal,
@@ -133,6 +134,20 @@ export default function ChallengesClient({ group, currentUserId, challenges, nee
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
+  // Fire `challenge_completed` once per completed challenge (deduped per device).
+  useEffect(() => {
+    for (const c of challenges) {
+      if (!c.me?.done) continue
+      const key = `ns_chal_done_${c.id}`
+      try {
+        if (!localStorage.getItem(key)) {
+          localStorage.setItem(key, '1')
+          track('challenge_completed', { metric: c.metric })
+        }
+      } catch { /* ignore */ }
+    }
+  }, [challenges])
+
   function selectMetric(m: ChallengeMetric) {
     setMetric(m)
     setGoal(suggestedGoal(m, length))
@@ -174,6 +189,7 @@ export default function ChallengesClient({ group, currentUserId, challenges, nee
         : insErr.message)
       return
     }
+    track('challenge_created', { metric, length })
     setShowForm(false)
     setTitle('')
     router.refresh()
