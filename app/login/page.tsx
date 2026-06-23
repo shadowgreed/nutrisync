@@ -2,7 +2,10 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+
+const TERMS_VERSION = '2026-06-14'
 
 // NOTE: Magic-link sign-in is temporarily hidden (Supabase's built-in email is
 // rate-limited during development). Re-enable it before public sharing — the old
@@ -46,6 +49,13 @@ export default function LoginPage() {
       if (mode === 'signup') {
         const { data, error } = await supabase.auth.signUp({ email, password })
         if (error) { setError(friendlyAuthError(error.message)); return }
+        // Record consent (timestamp + terms version) for the audit trail. Best-effort.
+        try {
+          await fetch('/api/consent', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ version: TERMS_VERSION }),
+          })
+        } catch { /* non-blocking */ }
         if (!data.session) {
           // No instant session means email confirmation is on — the user must
           // click the link we just emailed before they can sign in.
@@ -100,6 +110,12 @@ export default function LoginPage() {
             className="w-full bg-stone-900 border border-stone-700 rounded-xl px-4 py-3 text-white placeholder-stone-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
           />
 
+          {mode === 'signin' && (
+            <div className="text-right -mt-1">
+              <Link href="/forgot-password" className="text-stone-400 hover:text-emerald-300 text-xs">Forgot password?</Link>
+            </div>
+          )}
+
           {error && <p className="text-red-400 text-sm">{error}</p>}
           {notice && <p className="text-amber-300 text-sm">{notice}</p>}
 
@@ -110,6 +126,13 @@ export default function LoginPage() {
           >
             {loading ? 'Please wait…' : mode === 'signup' ? 'Create account' : 'Sign in'}
           </button>
+
+          {/* Consent — required acknowledgment with clickable links (Privacy/Legal). */}
+          <p className="text-center text-stone-500 text-xs leading-relaxed">
+            By {mode === 'signup' ? 'creating an account' : 'continuing'}, you agree to our{' '}
+            <Link href="/terms" className="text-emerald-400 hover:text-emerald-300 underline">Terms of Service</Link>{' '}and{' '}
+            <Link href="/privacy" className="text-emerald-400 hover:text-emerald-300 underline">Privacy Policy</Link>.
+          </p>
         </form>
 
         <p className="text-center text-stone-400 text-sm mt-5">

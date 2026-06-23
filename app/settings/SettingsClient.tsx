@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { User, Mail, Bell, Shield, CreditCard, Plug, LifeBuoy, LogOut } from 'lucide-react'
+import { User, Mail, Bell, Shield, CreditCard, LifeBuoy, LogOut } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { SettingsShell, Section, LinkRow } from './_ui'
 
@@ -31,12 +31,8 @@ export default function SettingsClient({ email, plan }: { email: string; plan: s
         <LinkRow icon={<Shield size={16} />} label="Privacy" href="/settings/privacy" />
       </Section>
 
-      <Section title="Subscription">
+      <Section title="Plan">
         <LinkRow icon={<CreditCard size={16} />} label="Current plan" value={`${plan} plan`} href="/settings/subscription" />
-      </Section>
-
-      <Section title="Integrations">
-        <LinkRow icon={<Plug size={16} />} label="Integrations" href="/settings/integrations" />
       </Section>
 
       <Section title="Support">

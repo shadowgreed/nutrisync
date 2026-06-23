@@ -46,7 +46,8 @@ export default function PrivacyPage() {
       <ul>
         <li>Edit or remove your logs, profile details, and photos at any time.</li>
         <li>Turn notifications on or off in the app.</li>
-        <li><strong>Delete your account</strong> from Edit profile &rarr; Help. This permanently removes your profile, logs, photos, and group memberships.</li>
+        <li><strong>Export your data:</strong> download a copy of everything you&rsquo;ve logged as a JSON file from <strong>Settings &rarr; Privacy &rarr; Export my data</strong>.</li>
+        <li><strong>Delete your account</strong> from <strong>Settings &rarr; Privacy &rarr; Delete account</strong>. This permanently removes your profile, logs, photos, and group memberships.</li>
       </ul>
 
       <h2>Data retention</h2>

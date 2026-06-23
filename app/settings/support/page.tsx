@@ -16,7 +16,7 @@ export default async function SupportPage() {
     <SettingsShell title="Support">
       <Section title="Support">
         <LinkRow icon={<HelpCircle size={16} />} label="Help center" href="/help" />
-        <LinkRow icon={<MessageCircle size={16} />} label="Contact support" soon />
+        <LinkRow icon={<MessageCircle size={16} />} label="Contact support" href="mailto:hello@nutrisync.app?subject=NutriSync%20support" external />
         <LinkRow icon={<Info size={16} />} label="About us" href="/about" />
       </Section>
       <Section title="Legal">

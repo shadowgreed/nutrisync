@@ -250,7 +250,7 @@ export default function ChallengesClient({ group, currentUserId, challenges, nee
         <form onSubmit={createChallenge} className="mx-4 mb-4 bg-stone-900 border border-stone-800 rounded-2xl p-4 space-y-4">
           <div className="flex items-center justify-between">
             <p className="text-white font-semibold text-sm">New challenge</p>
-            <button type="button" onClick={() => setShowForm(false)} aria-label="Close" className="flex items-center justify-center w-9 h-9 -mr-1 text-stone-400 hover:text-white"><X size={18} /></button>
+            <button type="button" onClick={() => setShowForm(false)} aria-label="Close" className="flex items-center justify-center w-11 h-11 -mr-1 text-stone-400 hover:text-white"><X size={18} /></button>
           </div>
 
           {/* Metric, grouped by category */}
