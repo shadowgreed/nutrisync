@@ -1,5 +1,6 @@
 import { NUTRIENT_KEYS, NUTRIENT_META } from './nutrients'
 import { buildWaterWeek, mlToOz, type WeeklyWaterRow } from './water'
+import { userDayKey } from './day'
 import type { NutrientKey, NutrientTotals } from '@/types'
 
 // How many days a week we nudge people to be active for the activity slide.
@@ -55,8 +56,6 @@ export interface WeeklyReport {
   }
 }
 
-const dayKey = (ts: string) => ts.slice(0, 10)
-
 // localStorage key + the current week's id (most recent Sunday, local date) so the
 // dashboard only auto-opens the report once per week.
 export const WEEKLY_SEEN_KEY = 'ns_weekly_seen'
@@ -83,10 +82,13 @@ export function buildWeeklyReport(opts: {
   water?: WeeklyWaterRow[]
   waterTargetMl?: number
   now?: Date
+  timeZone?: string   // bucket days in the member's zone; defaults to runtime
 }): WeeklyReport {
   const { foods, activities } = opts
   const now = opts.now ?? new Date()
   const calorieTarget = opts.calorieTarget || 2000
+  const tz = opts.timeZone
+  const dayKey = (ts: string) => (tz ? userDayKey(ts, tz) : ts.slice(0, 10))
 
   const weekStart = new Date(now)
   weekStart.setDate(now.getDate() - 6)
@@ -148,7 +150,7 @@ export function buildWeeklyReport(opts: {
       : `${activeDays} of ${ACTIVE_DAYS_GOAL} active days. ${ACTIVE_DAYS_GOAL - activeDays} more next week to hit your goal. 💪`
 
   // ── Hydration ──────────────────────────────────────────────────────────────
-  const ww = buildWaterWeek(opts.water ?? [], opts.waterTargetMl ?? 2500, now)
+  const ww = buildWaterWeek(opts.water ?? [], opts.waterTargetMl ?? 2500, now, tz)
   const waterAvgOz = mlToOz(ww.avgMl)
   const waterTargetOz = mlToOz(ww.targetMl)
   const waterAccomplished = ww.daysLogged > 0 && ww.daysHit >= Math.ceil(WATER_DAYS_GOAL * 0.7)

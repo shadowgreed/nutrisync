@@ -41,14 +41,15 @@ Convert day-bucketing to `userDayKey(ts, tz)` with the user's zone, table by tab
 
 | Area | File(s) | Current | Action |
 |---|---|---|---|
-| ~~Weekly Review buckets~~ | ~~`lib/weekly-review.ts`~~ | ✅ **done** | viewer `tz` threaded from `app/weekly` |
+| ~~Weekly Review buckets~~ | ~~`lib/weekly-review.ts`~~ | ✅ **done** | viewer `tz` from `app/weekly` |
 | ~~Challenge day buckets~~ | ~~`lib/challenges.ts` + `app/challenges/page.tsx`~~ | ✅ **done** (viewer tz) | per-member tz = future refinement |
-| Weekly report (coach) | `lib/weekly.ts` (`dayKey = slice(0,10)`) | UTC | thread `tz` from coach/cron callers (`buildWeeklyReport`) |
-| Hydration buckets | `lib/water.ts` (`dayKey = slice(0,10)`) | UTC | thread `tz` |
-| Coach intel | `lib/coach-intel.ts` | UTC | thread member `tz` |
-| Trends buckets | `app/trends` (`slice(0,10)`) + `lib/trends.ts` | UTC | thread `tz` |
+| ~~Weekly report (coach)~~ | ~~`lib/weekly.ts` `buildWeeklyReport`~~ | ✅ **done** | member `tz` via `assessMember`→`assessClient` |
+| ~~Hydration buckets~~ | ~~`lib/water.ts`~~ | ✅ **done** | `waterByDay`/`buildWaterWeek` take `tz` |
+| ~~Coach intel~~ | ~~`lib/coach-intel.ts`~~ | ✅ **done** | `buildIntel`/`buildDailyTrends` take `tz`; threaded from both coach pages |
+| ~~Trends buckets~~ | ~~`lib/trends.ts` + `app/trends`~~ | ✅ **done** | `buildDailySeries` takes `tz` |
 | Peer streaks | `components/MiniProfileModal`, `app/weekly` (peer) | device-local | acceptable (relative ranking); convert opportunistically |
-| Client "today" filters | `app/dashboard/DashboardClient`, `app/log`, `app/feed`, `app/profile` | device-local (`toLocaleDateString`) | already user-correct; migrate to `userDayKey` for one source of truth |
+| Per-member challenge zones | `app/challenges/page.tsx` | viewer tz | refinement for cross-tz groups |
+| Client "today" filters | `app/dashboard/DashboardClient`, `app/log`, `app/feed`, `app/profile` | device-local | already user-correct; migrate to `userDayKey` for one source of truth |
 
 **Guidance:** server-side bucketing needs the user's `reminder_timezone` (now populated by capture); pass it through to the relevant `lib/*` function. Client-side "today" filters are already device-local (correct for the viewer) — migrate them to `lib/day` for consistency, not correctness.
 

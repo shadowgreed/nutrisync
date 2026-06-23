@@ -41,6 +41,7 @@ export function assessClient(opts: {
   lastLoggedAt: string | null
   diet?: Diet | null
   now?: Date
+  timeZone?: string
 }): ClientStatus {
   const now = opts.now ?? new Date()
   const report = buildWeeklyReport({
@@ -48,6 +49,7 @@ export function assessClient(opts: {
     activities: opts.activities,
     calorieTarget: opts.calorieTarget,
     now,
+    timeZone: opts.timeZone,
   })
   const signals: ClientSignal[] = []
 

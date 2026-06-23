@@ -1,6 +1,7 @@
 import type { NutrientTotals, MacroTotals, NutrientKey } from '@/types'
 import { emptyTotals, sumTotals, NUTRIENT_KEYS, NUTRIENT_META } from './nutrients'
 import { emptyMacros, sumMacros } from './macros'
+import { userDayKey, todayKey, prevDayKey } from './day'
 
 export interface DayTotal {
   date: string        // YYYY-MM-DD
@@ -24,12 +25,14 @@ function dayKey(d: Date): string {
   return `${y}-${m}-${day}`
 }
 
-/** Build a zero-filled daily series for the last `rangeDays` days (oldest → today). */
-export function buildDailySeries(logs: LogLike[], rangeDays: number): DayTotal[] {
+/** Build a zero-filled daily series for the last `rangeDays` days (oldest →
+ *  today), bucketed in `timeZone` (the viewer's; defaults to runtime). */
+export function buildDailySeries(logs: LogLike[], rangeDays: number, timeZone?: string): DayTotal[] {
+  const dk = (ts: string) => (timeZone ? userDayKey(ts, timeZone) : dayKey(new Date(ts)))
   const byDay = new Map<string, { calories: number; macros: MacroTotals; nutrients: NutrientTotals }>()
 
   for (const log of logs) {
-    const key = dayKey(new Date(log.logged_at))
+    const key = dk(log.logged_at)
     const cur = byDay.get(key) ?? { calories: 0, macros: emptyMacros(), nutrients: emptyTotals() }
     cur.calories += log.total_calories ?? 0
     cur.macros = sumMacros(cur.macros, (log.macro_totals as MacroTotals) ?? emptyMacros())
@@ -37,24 +40,22 @@ export function buildDailySeries(logs: LogLike[], rangeDays: number): DayTotal[]
     byDay.set(key, cur)
   }
 
-  const series: DayTotal[] = []
-  const cursor = new Date()
-  cursor.setHours(0, 0, 0, 0)
-  cursor.setDate(cursor.getDate() - (rangeDays - 1))
+  // Consecutive day keys, today back to (rangeDays-1) days ago, then oldest→today.
+  const keys: string[] = []
+  let k = timeZone ? todayKey(timeZone) : dayKey(new Date())
+  for (let i = 0; i < rangeDays; i++) { keys.push(k); k = prevDayKey(k) }
+  keys.reverse()
 
-  for (let i = 0; i < rangeDays; i++) {
-    const key = dayKey(cursor)
+  return keys.map(key => {
     const entry = byDay.get(key)
-    series.push({
+    return {
       date: key,
-      label: cursor.toLocaleDateString([], { weekday: 'short', day: 'numeric' }),
+      label: new Date(key + 'T12:00:00Z').toLocaleDateString([], { weekday: 'short', day: 'numeric', timeZone: 'UTC' }),
       calories: Math.round(entry?.calories ?? 0),
       macros: entry?.macros ?? emptyMacros(),
       nutrients: entry?.nutrients ?? emptyTotals(),
-    })
-    cursor.setDate(cursor.getDate() + 1)
-  }
-  return series
+    }
+  })
 }
 
 export interface MicroConsistency {

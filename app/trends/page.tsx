@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { calculateMacroTargets } from '@/lib/macros'
 import { buildDailySeries } from '@/lib/trends'
+import { resolveTimeZone } from '@/lib/day'
 import TrendsClient from './TrendsClient'
 
 export default async function TrendsPage() {
@@ -49,7 +50,8 @@ export default async function TrendsPage() {
       .gte('logged_at', since30.toISOString()),
   ])
 
-  const series30 = buildDailySeries(logs ?? [], 30)
+  const tz = resolveTimeZone((profile as { reminder_timezone?: string | null } | null)?.reminder_timezone)
+  const series30 = buildDailySeries(logs ?? [], 30, tz)
   const calorieTarget = profile?.calorie_target ?? null
   const macroTargets = calculateMacroTargets(
     profile?.calorie_target ?? 2000,
