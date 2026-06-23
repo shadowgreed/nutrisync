@@ -1,34 +1,25 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { CreditCard, Receipt, Crown } from 'lucide-react'
-import { SettingsShell, Section, LinkRow } from '../_ui'
+import { Check } from 'lucide-react'
+import { SettingsShell, Section } from '../_ui'
 
-// Billing & plan management (PRD Screen 5). Billing/upgrade are gated until
-// Stripe is wired; the plan label reflects the user's group plan.
+// Plan status. NutriSync is currently free for everyone — there are no in-app
+// purchases, so no billing/upgrade/restore UI is shown (store compliance: never
+// advertise a purchase flow that doesn't exist).
 export default async function SubscriptionPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: membership } = await supabase
-    .from('group_members')
-    .select('groups(plan)')
-    .eq('user_id', user.id)
-    .limit(1)
-    .maybeSingle()
-  const planRaw = (membership?.groups as unknown as { plan?: string } | null)?.plan
-  const plan = planRaw === 'coach' ? 'Coach' : 'Free'
-
   return (
-    <SettingsShell title="Subscription">
-      <Section title="Current plan">
-        <LinkRow icon={<CreditCard size={16} />} label="Plan" value={`${plan} plan`} />
-      </Section>
-      <Section title="Billing">
-        <LinkRow icon={<Receipt size={16} />} label="Billing history" soon />
-      </Section>
-      <Section title="Upgrade">
-        <LinkRow icon={<Crown size={16} />} label="Upgrade to Coach plan" soon />
+    <SettingsShell title="Plan">
+      <Section title="Your plan">
+        <div className="px-4 py-4">
+          <p className="text-white font-semibold flex items-center gap-2"><Check size={16} className="text-emerald-400" aria-hidden="true" /> NutriSync is free</p>
+          <p className="text-stone-400 text-sm mt-1.5 leading-relaxed">
+            Every feature — food logging, activity, hydration, groups, challenges, trends, and weekly reviews — is included at no cost. There are no in-app purchases.
+          </p>
+        </div>
       </Section>
     </SettingsShell>
   )

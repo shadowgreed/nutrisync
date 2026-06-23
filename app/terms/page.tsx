@@ -27,7 +27,7 @@ export default function TermsPage() {
       </ul>
 
       <h2>Your account</h2>
-      <p>Keep your login credentials secure; you&rsquo;re responsible for activity under your account. You can delete your account at any time from Edit profile &rarr; Help.</p>
+      <p>Keep your login credentials secure; you&rsquo;re responsible for activity under your account. You can delete your account at any time from <strong>Settings &rarr; Privacy &rarr; Delete account</strong>, and download your data from <strong>Settings &rarr; Privacy &rarr; Export my data</strong>.</p>
 
       <h2>Third-party data</h2>
       <p>Food and barcode data comes from third-party sources (e.g. USDA FoodData Central, Open Food Facts) and AI estimates. We don&rsquo;t guarantee its accuracy or completeness.</p>

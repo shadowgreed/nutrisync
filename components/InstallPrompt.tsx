@@ -80,7 +80,7 @@ export default function InstallPrompt() {
           Install
         </button>
       )}
-      <button onClick={dismiss} aria-label="Dismiss install prompt" className="shrink-0 flex items-center justify-center w-9 h-9 -mr-1 text-stone-400 hover:text-white transition-colors">
+      <button onClick={dismiss} aria-label="Dismiss install prompt" className="shrink-0 flex items-center justify-center w-11 h-11 -mr-1 text-stone-400 hover:text-white transition-colors">
         <X size={16} aria-hidden="true" />
       </button>
     </div>

@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect } from 'react'
 import { X } from 'lucide-react'
 import { MACRO_META } from '@/lib/macros'
 import type { MacroKey, MacroTotals } from '@/types'
@@ -21,6 +22,13 @@ export default function MacroDetailModal({
 }: { macroKey: MacroKey; foods: FoodItem[]; onClose: () => void }) {
   const meta = MACRO_META[macroKey]
 
+  // Escape closes the dialog (accessibility).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
   const items = foods
     .map(f => ({
       name: f.name,
@@ -39,6 +47,7 @@ export default function MacroDetailModal({
       <div
         className="w-full sm:max-w-sm bg-stone-900 border border-stone-700 rounded-t-3xl sm:rounded-3xl p-5 max-h-[80vh] overflow-y-auto"
         onClick={e => e.stopPropagation()}
+        role="dialog" aria-modal="true" aria-label={`${meta.label} breakdown`}
       >
         <div className="flex items-center gap-2.5 mb-4">
           <span className="text-2xl" aria-hidden="true">{meta.emoji}</span>
@@ -46,7 +55,7 @@ export default function MacroDetailModal({
             <p className="text-white font-bold leading-tight">{meta.label} today</p>
             <p className="text-stone-400 text-xs">{Math.round(total)}{meta.unit} from {items.length} food{items.length === 1 ? '' : 's'}</p>
           </div>
-          <button onClick={onClose} aria-label="Close" className="flex items-center justify-center w-9 h-9 -mr-1 text-stone-400 hover:text-white">
+          <button onClick={onClose} aria-label="Close" className="flex items-center justify-center w-11 h-11 -mr-1 text-stone-400 hover:text-white">
             <X size={18} aria-hidden="true" />
           </button>
         </div>

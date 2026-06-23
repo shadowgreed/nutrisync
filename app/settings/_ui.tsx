@@ -30,8 +30,8 @@ export function Section({ title, children }: { title?: string; children: ReactNo
   )
 }
 
-export function LinkRow({ icon, label, value, href, soon }: {
-  icon: ReactNode; label: string; value?: string; href?: string; soon?: boolean
+export function LinkRow({ icon, label, value, href, soon, external }: {
+  icon: ReactNode; label: string; value?: string; href?: string; soon?: boolean; external?: boolean
 }) {
   const inner = (
     <>
@@ -44,6 +44,7 @@ export function LinkRow({ icon, label, value, href, soon }: {
     </>
   )
   const cls = `w-full flex items-center gap-3 px-4 py-3 text-left ${soon ? 'opacity-60' : 'hover:bg-stone-800/50'} transition-colors`
+  if (href && !soon && external) return <a href={href} className={cls}>{inner}</a>
   if (href && !soon) return <Link href={href} className={cls}>{inner}</Link>
   return <div className={cls}>{inner}</div>
 }

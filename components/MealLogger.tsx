@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { Camera, X, Loader2, CheckCircle, MessageSquarePlus, ScanLine, Users } from 'lucide-react'
 import FoodSearchBar from './FoodSearchBar'
+import AiDisclaimer from './AiDisclaimer'
 import { createClient } from '@/lib/supabase/client'
 import { NUTRIENT_KEYS } from '@/lib/nutrients'
 import { MACRO_KEYS } from '@/lib/macros'
@@ -70,6 +71,19 @@ export default function MealLogger({ onLogged }: Props) {
   const [photoFiles, setPhotoFiles] = useState<File[]>([])         // real files, uploaded on save
   const [caption, setCaption] = useState('')
   const [shareToFeed, setShareToFeed] = useState(true)
+  const [reportedEstimate, setReportedEstimate] = useState(false)
+
+  // "Report incorrect estimate" — AI-content feedback path (store compliance).
+  async function reportEstimate() {
+    if (reportedEstimate) return
+    setReportedEstimate(true)
+    try {
+      await fetch('/api/ai-feedback', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kind: 'incorrect_estimate', context: 'meal_logger', detail: foods.map(f => f.name).join(', ').slice(0, 280) }),
+      })
+    } catch { /* best-effort */ }
+  }
   const [analyzing, setAnalyzing] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -418,6 +432,21 @@ export default function MealLogger({ onLogged }: Props) {
                 <span className="text-white font-semibold text-sm">{totalCalories} kcal</span>
               </div>
             )}
+          </div>
+        )}
+
+        {/* AI disclosure + feedback — shown whenever AI-estimated foods are present */}
+        {foods.length > 0 && (
+          <div className="space-y-1.5">
+            <AiDisclaimer />
+            <button
+              type="button"
+              onClick={reportEstimate}
+              disabled={reportedEstimate}
+              className="text-stone-500 hover:text-stone-300 text-[11px] underline underline-offset-2 disabled:no-underline disabled:text-emerald-400"
+            >
+              {reportedEstimate ? 'Thanks — report sent ✓' : 'Report an incorrect estimate'}
+            </button>
           </div>
         )}
 
