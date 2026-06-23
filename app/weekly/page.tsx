@@ -84,6 +84,7 @@ export default async function WeeklyPage() {
     streak,
     myUserId: user.id,
     group,
+    timeZone: tz,
   })
 
   // Seed a "weekly report" bell notification so the recap stays revisitable all

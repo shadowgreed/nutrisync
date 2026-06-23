@@ -29,7 +29,9 @@ Callers pass the **user's** zone (`profiles.reminder_timezone`, via `resolveTime
 1. **Timezone capture** — `components/TimeZoneSync` writes the device IANA zone to `profiles.reminder_timezone` on dashboard load (once per device/zone). This was the missing foundation; it **also fixes the reminder/weekly/coach-digest crons**, which previously assumed `America/New_York` for everyone.
 2. **`computeStreak` is timezone-aware** (`computeStreak(ts, { timeZone })`), defaulting to the runtime zone so unconverted callers are unchanged.
 3. **The user's own streak is converted end-to-end** to their zone: `app/dashboard/page.tsx`, `app/weekly/page.tsx`, `app/profile/page.tsx`, and the `app/api/log-meal` milestone check.
-4. **Proof** — `scripts/verify-day.mjs` (6 checks: cross-tz mapping, DST/rollover, streak-across-midnight, grace day, gap break).
+4. **Weekly Review buckets** (`lib/weekly-review.ts`) — food/activity/water day-buckets and best-day now use the viewer's zone (`timeZone` passed from `app/weekly/page.tsx`).
+5. **Challenge buckets** (`lib/challenges.ts` `memberSuccessDays` + `app/challenges/page.tsx`) — success-days, activity/water buckets, "today", and the activity feed now use the viewer's zone. (Per-member zones for cross-tz groups are a documented refinement.)
+6. **Proof** — `scripts/verify-day.mjs` (6 checks: cross-tz mapping, DST/rollover, streak-across-midnight, grace day, gap break).
 
 No DB migration needed — `reminder_timezone` already exists (migration 013); we simply start populating it.
 
@@ -39,9 +41,9 @@ Convert day-bucketing to `userDayKey(ts, tz)` with the user's zone, table by tab
 
 | Area | File(s) | Current | Action |
 |---|---|---|---|
-| Weekly report buckets | `lib/weekly.ts` (`dayKey = slice(0,10)`) | UTC | thread `tz` from `app/api/cron/weekly-report` + `app/weekly` |
-| Weekly Review buckets | `lib/weekly-review.ts` (`dayKey`) | runtime-local | thread viewer `tz` |
-| Challenge day buckets | `lib/challenges.ts` (`localDayKey`) + `app/challenges/page.tsx` | runtime-local (UTC on server) | pass each member's `tz` (or the challenge owner's) |
+| ~~Weekly Review buckets~~ | ~~`lib/weekly-review.ts`~~ | ✅ **done** | viewer `tz` threaded from `app/weekly` |
+| ~~Challenge day buckets~~ | ~~`lib/challenges.ts` + `app/challenges/page.tsx`~~ | ✅ **done** (viewer tz) | per-member tz = future refinement |
+| Weekly report (coach) | `lib/weekly.ts` (`dayKey = slice(0,10)`) | UTC | thread `tz` from coach/cron callers (`buildWeeklyReport`) |
 | Hydration buckets | `lib/water.ts` (`dayKey = slice(0,10)`) | UTC | thread `tz` |
 | Coach intel | `lib/coach-intel.ts` | UTC | thread member `tz` |
 | Trends buckets | `app/trends` (`slice(0,10)`) + `lib/trends.ts` | UTC | thread `tz` |

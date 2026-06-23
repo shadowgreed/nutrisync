@@ -2,9 +2,10 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import {
   memberSuccessDays, challengeStreak, challengeStatus, daysRemaining,
-  dayIndex, totalDays, isOnTrack, localDayKey, CHALLENGE_METRICS,
+  dayIndex, totalDays, isOnTrack, CHALLENGE_METRICS,
   type ChallengeMetric, type LogLike,
 } from '@/lib/challenges'
+import { userDayKey, todayKey, resolveTimeZone } from '@/lib/day'
 import ChallengesClient, { type ChallengeView, type LeaderRow, type FeedEvent } from './ChallengesClient'
 
 const STREAK_TIERS = [21, 14, 7, 3]
@@ -33,18 +34,22 @@ export default async function ChallengesPage() {
   // All members of the group (id + display name + avatar)
   const { data: memberRows } = await supabase
     .from('group_members')
-    .select('user_id, profiles(display_name, avatar_url)')
+    .select('user_id, profiles(display_name, avatar_url, reminder_timezone)')
     .eq('group_id', groupId)
 
   const members = (memberRows ?? []).map(m => {
-    const p = m.profiles as unknown as { display_name: string; avatar_url: string | null } | null
+    const p = m.profiles as unknown as { display_name: string; avatar_url: string | null; reminder_timezone: string | null } | null
     return {
       userId: m.user_id as string,
       name: p?.display_name ?? 'Member',
       avatarUrl: p?.avatar_url ?? null,
+      tz: resolveTimeZone(p?.reminder_timezone),
     }
   })
   const memberIds = members.map(m => m.userId)
+  // Bucket all challenge days in the viewer's timezone (consistent for the
+  // leaderboard they're looking at). Per-member zones are a future refinement.
+  const viewerTz = members.find(m => m.userId === user.id)?.tz ?? resolveTimeZone(null)
 
   // Challenges for this group
   const { data: challengeRows, error: chErr } = await supabase
@@ -86,7 +91,7 @@ export default async function ChallengesPage() {
   const activityRowsByUser = new Map<string, string[]>()   // raw logged_at, for "today" times
   for (const a of (activityLogs ?? []) as Array<{ user_id: string; logged_at: string }>) {
     const set = activityDayKeysByUser.get(a.user_id) ?? new Set<string>()
-    set.add(localDayKey(new Date(a.logged_at)))
+    set.add(userDayKey(a.logged_at, viewerTz))
     activityDayKeysByUser.set(a.user_id, set)
     const rows = activityRowsByUser.get(a.user_id) ?? []
     rows.push(a.logged_at)
@@ -95,16 +100,16 @@ export default async function ChallengesPage() {
   const waterMlByDayByUser = new Map<string, Map<string, number>>()
   for (const w of (waterLogs ?? []) as Array<{ user_id: string; logged_at: string; amount_ml: number }>) {
     const m = waterMlByDayByUser.get(w.user_id) ?? new Map<string, number>()
-    const key = localDayKey(new Date(w.logged_at))
+    const key = userDayKey(w.logged_at, viewerTz)
     m.set(key, (m.get(key) ?? 0) + (w.amount_ml || 0))
     waterMlByDayByUser.set(w.user_id, m)
   }
 
-  const today = localDayKey(new Date())
+  const today = todayKey(viewerTz)
 
   // Latest local-today timestamp among a member's logs relevant to the metric —
   // used to order today's completions in the activity feed.
-  const onToday = (ts: string) => localDayKey(new Date(ts)) === today
+  const onToday = (ts: string) => userDayKey(ts, viewerTz) === today
   function latestTodayTime(metric: ChallengeMetric, userId: string): string | null {
     let times: string[] = []
     if (metric === 'active_days') {
@@ -128,7 +133,7 @@ export default async function ChallengesPage() {
         food: foodByUser.get(m.userId) ?? [],
         activityDayKeys: activityDayKeysByUser.get(m.userId) ?? new Set(),
         waterMlByDayKey: waterMlByDayByUser.get(m.userId) ?? new Map(),
-      })
+      }, viewerTz)
       return {
         userId: m.userId,
         name: m.name,

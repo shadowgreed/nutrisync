@@ -1,5 +1,6 @@
 import type { NutrientTotals, MacroTotals } from '@/types'
 import { NUTRIENT_KEYS, NUTRIENT_META } from './nutrients'
+import { userDayKey } from './day'
 
 export type ChallengeMetric =
   | 'log_days'
@@ -109,6 +110,7 @@ export function memberSuccessDays(
   startDate: string,
   endDate: string,
   input: ProgressInput,
+  timeZone?: string,
 ): Set<string> {
   const out = new Set<string>()
   const inWindow = (k: string) => k >= startDate && k <= endDate // ISO date strings compare correctly
@@ -123,9 +125,11 @@ export function memberSuccessDays(
   }
 
   // Food-based metrics: aggregate protein + nutrients per day, then test.
+  // Day buckets use the member's timezone (defaults to runtime when unset).
+  const dayOf = timeZone ? (ts: string) => userDayKey(ts, timeZone) : (ts: string) => localDayKey(new Date(ts))
   const byDay = new Map<string, { protein: number; nutrients: NutrientTotals }>()
   for (const log of input.food) {
-    const key = localDayKey(new Date(log.logged_at))
+    const key = dayOf(log.logged_at)
     if (!inWindow(key)) continue
     const cur = byDay.get(key) ?? { protein: 0, nutrients: {} as NutrientTotals }
     cur.protein += log.macro_totals?.protein_g ?? 0

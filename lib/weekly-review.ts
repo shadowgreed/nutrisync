@@ -1,6 +1,7 @@
 import type { Goal, NutrientTotals, NutrientKey } from '@/types'
 import { NUTRIENT_KEYS, NUTRIENT_META, foodFixesFor } from './nutrients'
 import { GOAL_LABELS, kgToLbs } from './fitness'
+import { userDayKey, resolveTimeZone } from './day'
 
 // ── Weekly Review 2.0 ────────────────────────────────────────────────────────
 // A storytelling recap of the user's week. buildWeeklyReview is a pure function
@@ -46,6 +47,7 @@ export interface WeeklyReviewInput {
   streak: number
   myUserId: string
   group: GroupStanding[] | null
+  timeZone?: string   // IANA zone to bucket days in (the viewer's). Defaults to runtime.
 }
 
 export interface NutrientRef { key: NutrientKey; label: string; emoji: string; pct: number }
@@ -66,10 +68,6 @@ export interface WeeklyReview {
   share: { streak: number; nutrientsOnTrack: number; activeDays: number; hydrationDays: number; hydrationGoalDays: number }
 }
 
-const dayKey = (ts: string) => {
-  const d = new Date(ts)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
 const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 
 // Map a few common foods to an emoji for the Food MVP spotlight; default 🍽️.
@@ -89,6 +87,8 @@ export function buildWeeklyReview(input: WeeklyReviewInput): WeeklyReview {
   const now = input.now ?? new Date()
   const calorieTarget = input.calorieTarget || 2000
   const waterTarget = input.waterTargetMl || 2500
+  const tz = resolveTimeZone(input.timeZone)
+  const dk = (ts: string) => userDayKey(ts, tz)
 
   const weekStart = new Date(now); weekStart.setDate(now.getDate() - 6)
   const weekLabel = `${fmt(weekStart)} – ${fmt(now)}`
@@ -96,7 +96,7 @@ export function buildWeeklyReview(input: WeeklyReviewInput): WeeklyReview {
   // ── Per-day aggregation ────────────────────────────────────────────────────
   const foodDays = new Map<string, { cals: number; nutrients: NutrientTotals }>()
   for (const f of input.foods) {
-    const k = dayKey(f.logged_at)
+    const k = dk(f.logged_at)
     const cur = foodDays.get(k) ?? { cals: 0, nutrients: {} as NutrientTotals }
     cur.cals += f.total_calories ?? 0
     for (const nk of NUTRIENT_KEYS) cur.nutrients[nk] = (cur.nutrients[nk] ?? 0) + (f.nutrient_totals?.[nk] ?? 0)
@@ -105,13 +105,13 @@ export function buildWeeklyReview(input: WeeklyReviewInput): WeeklyReview {
   const daysLogged = foodDays.size
   const mealsLogged = input.foods.length
 
-  const activeDaySet = new Set(input.activities.map(a => dayKey(a.logged_at)))
+  const activeDaySet = new Set(input.activities.map(a => dk(a.logged_at)))
   const activeDays = activeDaySet.size
   const workouts = input.activities.length
   const caloriesBurned = Math.round(input.activities.reduce((s, a) => s + (a.calories_burned ?? 0), 0))
 
   const waterDays = new Map<string, number>()
-  for (const w of input.waters) waterDays.set(dayKey(w.logged_at), (waterDays.get(dayKey(w.logged_at)) ?? 0) + (w.amount_ml ?? 0))
+  for (const w of input.waters) waterDays.set(dk(w.logged_at), (waterDays.get(dk(w.logged_at)) ?? 0) + (w.amount_ml ?? 0))
   const hydrationDays = [...waterDays.values()].filter(ml => ml >= waterTarget).length
 
   // ── Nutrients (avg over logged days vs daily target) ───────────────────────
@@ -138,7 +138,7 @@ export function buildWeeklyReview(input: WeeklyReviewInput): WeeklyReview {
       || (hits === bestDay.nutrientsHit && (Number(active) + Number(hydrated)) > (Number(bestDay.active) + Number(bestDay.hydrated)))
     if (better) {
       bestDay = {
-        weekday: new Date(k + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long' }),
+        weekday: new Date(k + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' }),
         nutrientsHit: hits, nutrientsTotal: NUTRIENT_KEYS.length, active, hydrated,
       }
     }
