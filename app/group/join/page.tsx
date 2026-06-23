@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import { track } from '@/lib/analytics-client'
 
 export default function JoinGroupPage() {
   const [code, setCode] = useState('')
@@ -27,6 +28,8 @@ export default function JoinGroupPage() {
 
     switch (row.status) {
       case 'joined':
+        track('group_joined', { via: 'code' })
+        router.push('/feed'); router.refresh(); break
       case 'already_member':
         router.push('/feed'); router.refresh(); break
       case 'unauthenticated':

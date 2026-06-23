@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import { track } from '@/lib/analytics-client'
 
 export default function CreateGroupPage() {
   const [name, setName] = useState('')
@@ -36,6 +37,7 @@ export default function CreateGroupPage() {
 
     // Creator joins their own group
     await supabase.from('group_members').insert({ group_id: group.id, user_id: user.id })
+    track('group_created')
     setInviteCode(group.invite_code)
     setLoading(false)
   }
@@ -77,7 +79,7 @@ export default function CreateGroupPage() {
         <div>
           <Link href="/dashboard" className="text-stone-400 text-sm hover:text-stone-300">← Back</Link>
           <h1 className="text-white text-2xl font-bold mt-4">Create a group</h1>
-          <p className="text-stone-400 text-sm mt-1">You'll get an invite link to share with your 5 users</p>
+          <p className="text-stone-400 text-sm mt-1">You&apos;ll get an invite link to share with your 5 users</p>
         </div>
         <form onSubmit={handleCreate} className="space-y-4">
           <input

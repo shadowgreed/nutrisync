@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { logEvent } from '@/lib/analytics'
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
@@ -54,5 +55,6 @@ export async function POST(req: NextRequest) {
     console.warn('goal milestone check failed (non-fatal):', e)
   }
 
+  await logEvent(supabase, user.id, 'weight_logged', { weight_kg: w })
   return NextResponse.json({ log: data })
 }
