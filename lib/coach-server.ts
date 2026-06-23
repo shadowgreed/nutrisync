@@ -71,7 +71,7 @@ export interface MemberAssessment extends ClientStatus {
  * must already have verified it may view this member (see groupForCoachMember).
  */
 export async function assessMember(
-  supabase: SupabaseClient, memberId: string, calorieTarget: number, diet?: Diet | null,
+  supabase: SupabaseClient, memberId: string, calorieTarget: number, diet?: Diet | null, timeZone?: string,
 ): Promise<MemberAssessment> {
   const since = new Date(Date.now() - 30 * DAY_MS).toISOString()
   const sevenDaysAgo = Date.now() - 7 * DAY_MS
@@ -91,7 +91,7 @@ export async function assessMember(
 
   const lastLoggedAt = allFoods.reduce<string | null>(
     (max, f) => (!max || f.logged_at > max ? f.logged_at : max), null)
-  const streak = computeStreak(allFoods.map(f => f.logged_at))
+  const streak = computeStreak(allFoods.map(f => f.logged_at), { timeZone })
 
   const weekFoods = allFoods
     .filter(f => new Date(f.logged_at).getTime() >= sevenDaysAgo)
@@ -100,7 +100,7 @@ export async function assessMember(
     .filter(a => new Date(a.logged_at).getTime() >= sevenDaysAgo)
     .map(a => ({ logged_at: a.logged_at, calories_burned: a.calories_burned ?? 0 }))
 
-  const status = assessClient({ foods: weekFoods, activities: weekActs, calorieTarget, lastLoggedAt, diet })
+  const status = assessClient({ foods: weekFoods, activities: weekActs, calorieTarget, lastLoggedAt, diet, timeZone })
 
   // Prior week (days 8–14 ago) for week-over-week trend arrows. Reuses the same
   // 30-day pull, so no extra query. buildWeeklyReport's window is `now − 6d … now`,
@@ -112,7 +112,7 @@ export async function assessMember(
     .filter(a => { const t = new Date(a.logged_at).getTime(); return t >= fourteenDaysAgo && t < sevenDaysAgo })
     .map(a => ({ logged_at: a.logged_at, calories_burned: a.calories_burned ?? 0 }))
   const priorReport = (priorFoods.length > 0 || priorActs.length > 0)
-    ? buildWeeklyReport({ foods: priorFoods, activities: priorActs, calorieTarget, now: new Date(sevenDaysAgo) })
+    ? buildWeeklyReport({ foods: priorFoods, activities: priorActs, calorieTarget, now: new Date(sevenDaysAgo), timeZone })
     : null
 
   return { ...status, streak, lastLoggedAt, priorReport }

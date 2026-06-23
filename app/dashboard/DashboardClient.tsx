@@ -11,6 +11,7 @@ import InfoTip from '@/components/InfoTip'
 import NotificationBell from '@/components/NotificationBell'
 import InstallPrompt from '@/components/InstallPrompt'
 import LogFab from '@/components/LogFab'
+import TimeZoneSync from '@/components/TimeZoneSync'
 import { formatOz } from '@/lib/water'
 import { WEEKLY_SEEN_KEY, currentWeekKey } from '@/lib/weekly'
 import { sumTotals, emptyTotals, buildGapCorrections } from '@/lib/nutrients'
@@ -185,6 +186,7 @@ export default function DashboardClient({
 
   return (
     <div className="min-h-screen bg-stone-950 pb-[calc(6rem+env(safe-area-inset-bottom))]">
+      <TimeZoneSync />
       {/* Header */}
       <div className="px-4 pt-12 pb-4 flex items-end justify-between gap-3">
         <div className="min-w-0">

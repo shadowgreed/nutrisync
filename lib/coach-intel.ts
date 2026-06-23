@@ -1,4 +1,5 @@
 import { NUTRIENT_KEYS, NUTRIENT_META } from './nutrients'
+import { userDayKey, todayKey, prevDayKey } from './day'
 import type { NutrientTotals, NutrientKey } from '@/types'
 
 // ── Coach Intelligence: deterministic member analytics ───────────────────────
@@ -57,24 +58,28 @@ export interface MemberIntel {
 const within = (foods: { logged_at: string }[], fromMs: number, toMs: number) =>
   foods.filter(f => { const t = new Date(f.logged_at).getTime(); return t >= fromMs && t < toMs })
 
-const loggedDays = (rows: { logged_at: string }[]) => new Set(rows.map(r => dayKey(r.logged_at))).size
+// `dk` buckets a timestamp into a day key — defaults to the UTC slice; callers
+// pass a timezone-aware key (userDayKey) to bucket in the member's zone.
+type DayKeyFn = (iso: string) => string
 
-function calsAvg(foods: IntelFood[]): number | null {
-  const days = loggedDays(foods); if (!days) return null
+const loggedDays = (rows: { logged_at: string }[], dk: DayKeyFn = dayKey) => new Set(rows.map(r => dk(r.logged_at))).size
+
+function calsAvg(foods: IntelFood[], dk: DayKeyFn = dayKey): number | null {
+  const days = loggedDays(foods, dk); if (!days) return null
   return foods.reduce((s, f) => s + (f.total_calories || 0), 0) / days
 }
-function proteinAvg(foods: IntelFood[]): number | null {
-  const days = loggedDays(foods); if (!days) return null
+function proteinAvg(foods: IntelFood[], dk: DayKeyFn = dayKey): number | null {
+  const days = loggedDays(foods, dk); if (!days) return null
   return foods.reduce((s, f) => s + (f.protein_g || 0), 0) / days
 }
-function waterAvg(water: IntelWater[]): number | null {
+function waterAvg(water: IntelWater[], dk: DayKeyFn = dayKey): number | null {
   const byDay = new Map<string, number>()
-  for (const w of water) byDay.set(dayKey(w.logged_at), (byDay.get(dayKey(w.logged_at)) ?? 0) + (w.amount_ml || 0))
+  for (const w of water) byDay.set(dk(w.logged_at), (byDay.get(dk(w.logged_at)) ?? 0) + (w.amount_ml || 0))
   if (byDay.size === 0) return null
   return [...byDay.values()].reduce((s, v) => s + v, 0) / byDay.size
 }
-function microsOnTrackPct(foods: IntelFood[]): number | null {
-  const days = loggedDays(foods); if (!days) return null
+function microsOnTrackPct(foods: IntelFood[], dk: DayKeyFn = dayKey): number | null {
+  const days = loggedDays(foods, dk); if (!days) return null
   let onTrack = 0
   for (const k of NUTRIENT_KEYS) {
     const total = foods.reduce((s, f) => s + (f.nutrient_totals?.[k as NutrientKey] ?? 0), 0)
@@ -83,7 +88,7 @@ function microsOnTrackPct(foods: IntelFood[]): number | null {
   }
   return (onTrack / NUTRIENT_KEYS.length) * 100
 }
-function activeDays(acts: IntelActivity[]): number { return loggedDays(acts) }
+function activeDays(acts: IntelActivity[], dk: DayKeyFn = dayKey): number { return loggedDays(acts, dk) }
 
 // "higher is better" severity bands
 function bandHigher(pct: number): Severity {
@@ -118,8 +123,11 @@ export function buildIntel(opts: {
   proteinTarget: number
   waterTargetMl: number
   now?: number
+  timeZone?: string   // bucket days in the member's zone; defaults to UTC
 }): MemberIntel {
   const now = opts.now ?? Date.now()
+  const tz = opts.timeZone
+  const dk: DayKeyFn = tz ? (iso) => userDayKey(iso, tz) : dayKey
   const weekFrom = now - 7 * DAY
   const priorFrom = now - 14 * DAY
 
@@ -130,7 +138,7 @@ export function buildIntel(opts: {
   const aw = within(opts.activities, weekFrom, now) as IntelActivity[]
   const ap = within(opts.activities, priorFrom, weekFrom) as IntelActivity[]
 
-  const days = loggedDays(fw)
+  const days = loggedDays(fw, dk)
   const hasData = days > 0 || ww.length > 0 || aw.length > 0
 
   const calTarget = opts.calorieTarget || 2000
@@ -138,12 +146,12 @@ export function buildIntel(opts: {
   const waterTarget = opts.waterTargetMl || 2500
 
   // ── Compliance ──────────────────────────────────────────────────────────────
-  const calAvg = calsAvg(fw), calAvgP = calsAvg(fp)
-  const protAvg = proteinAvg(fw), protAvgP = proteinAvg(fp)
-  const watAvg = waterAvg(ww), watAvgP = waterAvg(wp)
-  const micro = microsOnTrackPct(fw), microP = microsOnTrackPct(fp)
-  const actPct = (activeDays(aw) / ACTIVE_DAYS_GOAL) * 100
-  const actPctP = ap.length ? (activeDays(ap) / ACTIVE_DAYS_GOAL) * 100 : null
+  const calAvg = calsAvg(fw, dk), calAvgP = calsAvg(fp, dk)
+  const protAvg = proteinAvg(fw, dk), protAvgP = proteinAvg(fp, dk)
+  const watAvg = waterAvg(ww, dk), watAvgP = waterAvg(wp, dk)
+  const micro = microsOnTrackPct(fw, dk), microP = microsOnTrackPct(fp, dk)
+  const actPct = (activeDays(aw, dk) / ACTIVE_DAYS_GOAL) * 100
+  const actPctP = ap.length ? (activeDays(ap, dk) / ACTIVE_DAYS_GOAL) * 100 : null
 
   const calPct = calAvg !== null ? (calAvg / calTarget) * 100 : null
   const protPct = protAvg !== null ? (protAvg / protTarget) * 100 : null
@@ -183,17 +191,17 @@ export function buildIntel(opts: {
       key: 'activity', label: 'Activity', pct: clamp(actPct),
       severity: bandHigher(actPct),
       ...trendOf(actPct, actPctP),
-      detail: `${activeDays(aw)} of ${ACTIVE_DAYS_GOAL} active days`,
+      detail: `${activeDays(aw, dk)} of ${ACTIVE_DAYS_GOAL} active days`,
     },
   ]
 
   // ── Behaviour patterns (per-meal consistency over the week) ─────────────────
-  const mealDays = (type: string) => new Set(fw.filter(f => f.meal_type === type).map(f => dayKey(f.logged_at))).size
+  const mealDays = (type: string) => new Set(fw.filter(f => f.meal_type === type).map(f => dk(f.logged_at))).size
   const behaviorNote = (n: number): { note: string; severity: Severity } =>
     n >= 6 ? { note: 'Consistent', severity: 'good' }
     : n >= 3 ? { note: 'Inconsistent', severity: 'watch' }
     : { note: 'Frequently skipped', severity: n === 0 ? 'critical' : 'high' }
-  const waterDays = new Set(ww.map(w => dayKey(w.logged_at))).size
+  const waterDays = new Set(ww.map(w => dk(w.logged_at))).size
 
   const behavior: BehaviorRow[] = [
     ...(['breakfast', 'lunch', 'dinner'] as const).map(t => {
@@ -235,11 +243,11 @@ export function buildIntel(opts: {
       causes.push('Hydration below target')
     }
     const lowProteinDays = new Set(
-      fw.filter(f => f.protein_g !== undefined).map(f => dayKey(f.logged_at)),
+      fw.filter(f => f.protein_g !== undefined).map(f => dk(f.logged_at)),
     )
     // protein below target on the days they logged
     const protByDay = new Map<string, number>()
-    for (const f of fw) protByDay.set(dayKey(f.logged_at), (protByDay.get(dayKey(f.logged_at)) ?? 0) + (f.protein_g || 0))
+    for (const f of fw) protByDay.set(dk(f.logged_at), (protByDay.get(dk(f.logged_at)) ?? 0) + (f.protein_g || 0))
     const underProtein = [...protByDay.values()].filter(p => p < protTarget * 0.8).length
     if (underProtein >= 2) causes.push(`Protein below target ${underProtein} of ${lowProteinDays.size || days} days`)
 
@@ -464,38 +472,42 @@ export function buildDailyTrends(opts: {
   waterTargetMl: number
   span?: number
   now?: number
+  timeZone?: string   // bucket days in the member's zone; defaults to UTC
 }): TrendData {
   const span = opts.span ?? 30
   const now = opts.now ?? Date.now()
-  const start = new Date(now); start.setHours(0, 0, 0, 0); start.setDate(start.getDate() - (span - 1))
+  const tz = opts.timeZone
+  const dk: DayKeyFn = tz ? (iso) => userDayKey(iso, tz) : dayKey
 
   const calByDay = new Map<string, number>()
   const protByDay = new Map<string, number>()
   const watByDay = new Map<string, number>()
   for (const f of opts.foods) {
-    const k = dayKey(f.logged_at)
+    const k = dk(f.logged_at)
     calByDay.set(k, (calByDay.get(k) ?? 0) + (f.total_calories || 0))
     protByDay.set(k, (protByDay.get(k) ?? 0) + (f.protein_g || 0))
   }
   for (const w of opts.water) {
-    const k = dayKey(w.logged_at)
+    const k = dk(w.logged_at)
     watByDay.set(k, (watByDay.get(k) ?? 0) + (w.amount_ml || 0))
   }
 
-  const days: DailyPoint[] = []
-  for (let i = 0; i < span; i++) {
-    const d = new Date(start); d.setDate(start.getDate() + i)
-    const key = d.toISOString().slice(0, 10)
+  // Consecutive day keys (oldest → today), bucketed in the same zone as `dk`.
+  const keys: string[] = []
+  let cur = tz ? todayKey(tz, new Date(now)) : new Date(now).toISOString().slice(0, 10)
+  for (let i = 0; i < span; i++) { keys.push(cur); cur = prevDayKey(cur) }
+  keys.reverse()
+  const days: DailyPoint[] = keys.map(key => {
     const cal = Math.round(calByDay.get(key) ?? 0)
-    days.push({
+    return {
       date: key,
-      label: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      label: new Date(key + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }),
       calories: cal,
       protein: Math.round(protByDay.get(key) ?? 0),
       waterOz: Math.round((watByDay.get(key) ?? 0) / ML_PER_OZ),
       logged: cal > 0,
-    })
-  }
+    }
+  })
 
   return {
     days,

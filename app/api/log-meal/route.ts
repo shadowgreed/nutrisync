@@ -7,6 +7,7 @@ import { sendPushToUser } from '@/lib/push'
 import { sumTotals, emptyTotals } from '@/lib/nutrients'
 import { sumMacros, emptyMacros } from '@/lib/macros'
 import { computeStreak } from '@/lib/streak'
+import { resolveTimeZone } from '@/lib/day'
 import type { FoodEntry } from '@/types'
 
 const STREAK_MILESTONES = [3, 7, 14, 30, 50, 75, 100, 150, 200, 365]
@@ -177,9 +178,13 @@ export async function POST(req: NextRequest) {
   // Streak milestone — celebrate when today's log lands on a milestone day.
   try {
     const since = new Date(Date.now() - 70 * 24 * 60 * 60 * 1000).toISOString()
-    const { data: rows } = await supabase
-      .from('food_logs').select('logged_at').eq('user_id', user.id).gte('logged_at', since)
-    const streak = computeStreak((rows ?? []).map(r => r.logged_at as string))
+    const [{ data: rows }, { data: prof }] = await Promise.all([
+      supabase.from('food_logs').select('logged_at').eq('user_id', user.id).gte('logged_at', since),
+      supabase.from('profiles').select('reminder_timezone').eq('id', user.id).single(),
+    ])
+    const streak = computeStreak((rows ?? []).map(r => r.logged_at as string), {
+      timeZone: resolveTimeZone(prof?.reminder_timezone as string | null),
+    })
     if (STREAK_MILESTONES.includes(streak)) {
       await supabase.from('milestones').upsert(
         { user_id: user.id, type: 'streak', key: `streak-${streak}`, data: { days: streak } },

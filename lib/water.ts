@@ -1,6 +1,8 @@
 // Water is stored canonically in millilitres in the DB, but US users think in
 // fluid ounces and bottle sizes. These helpers convert for display/input.
 
+import { userDayKey } from './day'
+
 export const ML_PER_OZ = 29.5735
 
 export function mlToOz(ml: number): number {
@@ -35,23 +37,23 @@ export interface WaterWeek {
   goalDays: number   // 7
 }
 
-const dayKey = (iso: string) => iso.slice(0, 10) // UTC day key, like the rest of the app
-
-/** Sum water (ml) per day for the last 7 days. */
-export function waterByDay(rows: WeeklyWaterRow[], now = new Date()): Map<string, number> {
+/** Sum water (ml) per day for the last 7 days, bucketed in `timeZone` (the
+ *  user's; defaults to runtime when unset). */
+export function waterByDay(rows: WeeklyWaterRow[], now = new Date(), timeZone?: string): Map<string, number> {
   const sevenDaysAgo = now.getTime() - 7 * 24 * 60 * 60 * 1000
+  const dk = (iso: string) => (timeZone ? userDayKey(iso, timeZone) : iso.slice(0, 10))
   const byDay = new Map<string, number>()
   for (const r of rows) {
     if (new Date(r.logged_at).getTime() < sevenDaysAgo) continue
-    const key = dayKey(r.logged_at)
+    const key = dk(r.logged_at)
     byDay.set(key, (byDay.get(key) ?? 0) + (r.amount_ml || 0))
   }
   return byDay
 }
 
-export function buildWaterWeek(rows: WeeklyWaterRow[], targetMl: number, now = new Date()): WaterWeek {
+export function buildWaterWeek(rows: WeeklyWaterRow[], targetMl: number, now = new Date(), timeZone?: string): WaterWeek {
   const target = targetMl > 0 ? targetMl : 2500
-  const totals = [...waterByDay(rows, now).values()]
+  const totals = [...waterByDay(rows, now, timeZone).values()]
   const daysLogged = totals.length
   const total = totals.reduce((s, v) => s + v, 0)
   return {

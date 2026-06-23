@@ -4,6 +4,7 @@ import { assessClient } from '@/lib/copilot'
 import { computeStreak } from '@/lib/streak'
 import { effectiveDiet, isDiet } from '@/lib/diets'
 import { calculateMacroTargets } from '@/lib/macros'
+import { resolveTimeZone } from '@/lib/day'
 import { buildIntel, rollupMember, buildGroupIntel, type IntelFood, type IntelWater, type IntelActivity, type MemberRollup } from '@/lib/coach-intel'
 import type { NutrientTotals, Diet, Goal } from '@/types'
 import CoachClient, { type CoachGroup, type RosterMember } from './CoachClient'
@@ -62,7 +63,7 @@ export default async function CoachPage() {
       .select('id', { count: 'exact', head: true })
       .eq('coach_id', user.id).eq('status', 'pending'),
     supabase.from('group_members')
-      .select('user_id, group_id, profiles(id, display_name, avatar_url, calorie_target, weight_kg, goal, water_daily_target_ml, privacy_mode, coach_visible, diet)')
+      .select('user_id, group_id, profiles(id, display_name, avatar_url, calorie_target, weight_kg, goal, water_daily_target_ml, privacy_mode, coach_visible, diet, reminder_timezone)')
       .in('group_id', groupIds)
       .neq('user_id', user.id),
     supabase.from('coach_client_settings')
@@ -136,13 +137,14 @@ export default async function CoachPage() {
   for (const m of memberships) {
     const p = m.profile!
     if (p.privacy_mode === 'dark' || p.coach_visible === false) { hiddenCount++; continue }
+    const memberTz = resolveTimeZone((p as { reminder_timezone?: string | null }).reminder_timezone)
 
     const userFoods = foodsByUser.get(m.user_id) ?? []
     const userActs = actsByUser.get(m.user_id) ?? []
     const userWater = watersByUser.get(m.user_id) ?? []
     const lastLoggedAt = userFoods.reduce<string | null>(
       (max, f) => (!max || f.logged_at > max ? f.logged_at : max), null)
-    const streak = computeStreak(userFoods.map(f => f.logged_at))
+    const streak = computeStreak(userFoods.map(f => f.logged_at), { timeZone: memberTz })
     const daysSinceLog = lastLoggedAt
       ? Math.floor((Date.now() - new Date(lastLoggedAt).getTime()) / DAY_MS) : null
 
@@ -163,6 +165,7 @@ export default async function CoachPage() {
       calorieTarget: p.calorie_target ?? 2000,
       proteinTarget,
       waterTargetMl: p.water_daily_target_ml ?? 2500,
+      timeZone: memberTz,
     })
     const rollup = rollupMember(intel, daysSinceLog)
     rollups.push(rollup)
@@ -174,7 +177,7 @@ export default async function CoachPage() {
         .map(f => ({ logged_at: f.logged_at, total_calories: f.total_calories ?? 0, nutrient_totals: f.nutrient_totals ?? ({} as NutrientTotals) })),
       activities: userActs.filter(a => new Date(a.logged_at).getTime() >= week)
         .map(a => ({ logged_at: a.logged_at, calories_burned: a.calories_burned ?? 0 })),
-      calorieTarget: p.calorie_target ?? 2000, lastLoggedAt, diet,
+      calorieTarget: p.calorie_target ?? 2000, lastLoggedAt, diet, timeZone: memberTz,
     })
 
     members.push({

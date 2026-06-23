@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { computeStreak } from '@/lib/streak'
+import { resolveTimeZone } from '@/lib/day'
 import { buildWeeklyReview, type GroupStanding, type ReviewFood } from '@/lib/weekly-review'
 import WeeklyReviewClient from '@/components/WeeklyReviewClient'
 import type { Goal } from '@/types'
@@ -20,7 +21,7 @@ export default async function WeeklyPage() {
 
   const [{ data: profile }, { data: foods }, { data: activities }, { data: waters }, { data: weights }, { data: streakLogs }] =
     await Promise.all([
-      supabase.from('profiles').select('display_name, calorie_target, water_daily_target_ml, goal, goals, weight_kg, target_weight_kg').eq('id', user.id).single(),
+      supabase.from('profiles').select('display_name, calorie_target, water_daily_target_ml, goal, goals, weight_kg, target_weight_kg, reminder_timezone').eq('id', user.id).single(),
       supabase.from('food_logs').select('logged_at, total_calories, nutrient_totals, meal_type, foods').eq('user_id', user.id).gte('logged_at', weekISO),
       supabase.from('activity_logs').select('logged_at, calories_burned').eq('user_id', user.id).gte('logged_at', weekISO),
       supabase.from('water_logs').select('logged_at, amount_ml').eq('user_id', user.id).gte('logged_at', weekISO),
@@ -28,7 +29,8 @@ export default async function WeeklyPage() {
       supabase.from('food_logs').select('logged_at').eq('user_id', user.id).gte('logged_at', sixtyISO),
     ])
 
-  const streak = computeStreak(((streakLogs ?? []) as { logged_at: string }[]).map(l => l.logged_at))
+  const tz = resolveTimeZone(profile?.reminder_timezone as string | null)
+  const streak = computeStreak(((streakLogs ?? []) as { logged_at: string }[]).map(l => l.logged_at), { timeZone: tz })
 
   // ── Group standings (best-effort; only when the viewer shares a group) ──────
   let group: GroupStanding[] | null = null
@@ -82,6 +84,7 @@ export default async function WeeklyPage() {
     streak,
     myUserId: user.id,
     group,
+    timeZone: tz,
   })
 
   // Seed a "weekly report" bell notification so the recap stays revisitable all
