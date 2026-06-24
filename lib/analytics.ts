@@ -3,6 +3,11 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 // Core product analytics events. weekly_review_* and help_* have their own
 // dedicated streams (weekly_review_events / help_events); everything else here.
 export const APP_EVENTS = [
+  // Account lifecycle
+  'signup',
+  'login',
+  'onboarding_completed',
+  // Logging & engagement
   'meal_logged',
   'activity_logged',
   'water_logged',
