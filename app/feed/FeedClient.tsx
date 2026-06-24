@@ -107,6 +107,14 @@ export default function FeedClient({ entries: initial, activities, milestones, c
     return () => { supabase.removeChannel(channel) }
   }, [currentUserId])
 
+  // Close the members sheet on Escape.
+  useEffect(() => {
+    if (!showMembers) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setShowMembers(false) }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [showMembers])
+
   // Deep link from a notification (/feed?post=<id>): scroll to that post and
   // briefly highlight it. Reads the param at run time so no Suspense boundary is
   // needed; re-runs when entries change (e.g. after a refresh pulls it in).
@@ -326,7 +334,7 @@ export default function FeedClient({ entries: initial, activities, milestones, c
         >
           <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-emerald-700 to-emerald-900 flex items-center justify-center overflow-hidden shrink-0">
             {headerGroup?.photo_url
-              ? <img src={headerGroup.photo_url} alt="" className="w-full h-full object-cover" />
+              ? <img src={headerGroup.photo_url} alt={headerGroup.name} className="w-full h-full object-cover" />
               : <Users size={20} className="text-emerald-300" aria-hidden="true" />}
           </div>
           <div className="min-w-0">
@@ -359,6 +367,9 @@ export default function FeedClient({ entries: initial, activities, milestones, c
           onClick={() => setShowMembers(false)}
         >
           <div
+            role="dialog"
+            aria-modal="true"
+            aria-label={`${headerGroup?.name ?? 'Group'} members`}
             className="w-full sm:max-w-md bg-stone-900 border-t sm:border border-stone-800 rounded-t-3xl sm:rounded-3xl max-h-[80vh] flex flex-col"
             onClick={e => e.stopPropagation()}
           >
@@ -380,7 +391,7 @@ export default function FeedClient({ entries: initial, activities, milestones, c
                   }`}>
                     <div className="relative shrink-0">
                       {m.avatar_url
-                        ? <img src={m.avatar_url} alt="" className={`w-11 h-11 rounded-full object-cover ${m.is_coach ? 'ring-2 ring-emerald-500' : ''}`} />
+                        ? <img src={m.avatar_url} alt={m.display_name} className={`w-11 h-11 rounded-full object-cover ${m.is_coach ? 'ring-2 ring-emerald-500' : ''}`} />
                         : <div className={`w-11 h-11 rounded-full flex items-center justify-center text-sm font-semibold ${
                             m.is_coach
                               ? 'bg-emerald-800/60 text-emerald-200 ring-2 ring-emerald-500'

@@ -100,7 +100,7 @@ export default function HelpClient({ categories, index }: { categories: Category
           )}
         </div>
         {!searching && (
-          <p className="text-stone-600 text-xs mt-2 px-1">Try: delete meal · create challenge · invite friend · edit calories</p>
+          <p className="text-stone-400 text-xs mt-2 px-1">Try: delete meal · create challenge · invite friend · edit calories</p>
         )}
       </div>
 
@@ -136,7 +136,7 @@ export default function HelpClient({ categories, index }: { categories: Category
                 <div className="text-2xl mb-1.5" aria-hidden="true">{c.emoji}</div>
                 <p className="text-white text-sm font-semibold leading-tight">{c.title}</p>
                 <p className="text-stone-500 text-[11px] mt-0.5 line-clamp-2">{c.description}</p>
-                <p className="text-stone-600 text-[11px] mt-1.5">{c.count} article{c.count === 1 ? '' : 's'}</p>
+                <p className="text-stone-400 text-[11px] mt-1.5">{c.count} article{c.count === 1 ? '' : 's'}</p>
               </Link>
             ))}
           </div>

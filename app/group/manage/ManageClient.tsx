@@ -152,7 +152,7 @@ export default function ManageClient({ group, isOwner, isCoach, memberCount, coa
                 className="relative w-14 h-14 rounded-xl bg-emerald-900/50 border border-emerald-800/50 flex items-center justify-center overflow-hidden shrink-0"
               >
                 {groupPhoto
-                  ? <img src={groupPhoto} alt="" className="w-full h-full object-cover" />
+                  ? <img src={groupPhoto} alt="Group photo" className="w-full h-full object-cover" />
                   : <Users size={22} className="text-emerald-400" />}
                 <span className="absolute -bottom-1 -right-1 bg-stone-800 border border-stone-600 rounded-full p-1 text-stone-100">
                   {uploadingGroupPhoto ? <Loader2 size={11} className="animate-spin" /> : <Camera size={11} />}
@@ -161,7 +161,7 @@ export default function ManageClient({ group, isOwner, isCoach, memberCount, coa
             ) : (
               <div className="w-14 h-14 rounded-xl bg-emerald-900/50 border border-emerald-800/50 flex items-center justify-center overflow-hidden shrink-0">
                 {groupPhoto
-                  ? <img src={groupPhoto} alt="" className="w-full h-full object-cover" />
+                  ? <img src={groupPhoto} alt="Group photo" className="w-full h-full object-cover" />
                   : <Users size={22} className="text-emerald-400" />}
               </div>
             )}
@@ -262,7 +262,7 @@ export default function ManageClient({ group, isOwner, isCoach, memberCount, coa
                   {requests.map(r => (
                     <div key={r.id} className="flex items-center gap-2">
                       <div className="w-7 h-7 rounded-full bg-gradient-to-br from-emerald-700 to-emerald-900 flex items-center justify-center text-xs font-bold text-white shrink-0 overflow-hidden">
-                        {r.avatar_url ? <img src={r.avatar_url} alt="" className="w-full h-full object-cover" /> : r.display_name[0]?.toUpperCase()}
+                        {r.avatar_url ? <img src={r.avatar_url} alt={r.display_name} className="w-full h-full object-cover" /> : r.display_name[0]?.toUpperCase()}
                       </div>
                       <span className="flex-1 min-w-0 text-stone-200 text-sm truncate">{r.display_name}</span>
                       <button

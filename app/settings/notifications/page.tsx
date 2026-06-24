@@ -20,7 +20,7 @@ export default async function NotificationsSettingsPage() {
       <div className="px-4 mt-5">
         <ReminderSettings />
       </div>
-      <p className="px-5 mt-4 text-stone-600 text-[11px]">Changes save automatically.</p>
+      <p className="px-5 mt-4 text-stone-400 text-[11px]">Changes save automatically.</p>
     </SettingsShell>
   )
 }

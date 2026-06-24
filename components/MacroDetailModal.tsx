@@ -2,6 +2,7 @@
 
 import { X } from 'lucide-react'
 import { MACRO_META } from '@/lib/macros'
+import { useFocusTrap } from '@/lib/useFocusTrap'
 import type { MacroKey, MacroTotals } from '@/types'
 
 interface FoodItem {
@@ -20,6 +21,7 @@ export default function MacroDetailModal({
   macroKey, foods, onClose,
 }: { macroKey: MacroKey; foods: FoodItem[]; onClose: () => void }) {
   const meta = MACRO_META[macroKey]
+  const trapRef = useFocusTrap<HTMLDivElement>(onClose)
 
   const items = foods
     .map(f => ({
@@ -37,6 +39,11 @@ export default function MacroDetailModal({
   return (
     <div className="fixed inset-0 z-50 bg-black/80 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={onClose}>
       <div
+        ref={trapRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={`${meta.label} breakdown for today`}
+        tabIndex={-1}
         className="w-full sm:max-w-sm bg-stone-900 border border-stone-700 rounded-t-3xl sm:rounded-3xl p-5 max-h-[80vh] overflow-y-auto"
         onClick={e => e.stopPropagation()}
       >
@@ -46,7 +53,7 @@ export default function MacroDetailModal({
             <p className="text-white font-bold leading-tight">{meta.label} today</p>
             <p className="text-stone-400 text-xs">{Math.round(total)}{meta.unit} from {items.length} food{items.length === 1 ? '' : 's'}</p>
           </div>
-          <button onClick={onClose} aria-label="Close" className="flex items-center justify-center w-9 h-9 -mr-1 text-stone-400 hover:text-white">
+          <button onClick={onClose} aria-label="Close" className="flex items-center justify-center w-11 h-11 -mr-1 text-stone-400 hover:text-white">
             <X size={18} aria-hidden="true" />
           </button>
         </div>

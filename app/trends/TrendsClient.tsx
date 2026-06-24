@@ -201,7 +201,7 @@ export default function TrendsClient({ series30, calorieTarget, macroTargets, we
       <Link href="/weekly" className="mx-4 mb-4 flex items-center gap-3 bg-gradient-to-br from-purple-900/40 to-stone-900 border border-purple-800/40 rounded-2xl px-4 py-3 hover:border-purple-700/60 transition-colors">
         <Sparkles size={18} className="text-purple-300 shrink-0" aria-hidden="true" />
         <div className="flex-1 min-w-0">
-          <p className="text-white text-sm font-semibold">Your Week in Review</p>
+          <h2 className="text-white text-sm font-semibold">Your Week in Review</h2>
           <p className="text-stone-400 text-xs">Replay this week’s recap story</p>
         </div>
         <ChevronRight size={16} className="text-stone-500 shrink-0" aria-hidden="true" />
@@ -228,7 +228,7 @@ export default function TrendsClient({ series30, calorieTarget, macroTargets, we
 
       {/* Calorie bar chart */}
       <div className="mx-4 mb-4 bg-stone-900 border border-stone-800 rounded-2xl p-4">
-        <p className="text-white font-semibold text-sm mb-3">Calories logged</p>
+        <h2 className="text-white font-semibold text-sm mb-3">Calories logged</h2>
         <div className="relative h-32 flex items-end gap-1">
           {targetPct != null && (
             <div className="absolute left-0 right-0 border-t border-dashed border-emerald-500/50 z-10" style={{ bottom: `${targetPct}%` }}>
@@ -273,7 +273,7 @@ export default function TrendsClient({ series30, calorieTarget, macroTargets, we
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <Droplets size={15} className="text-sky-400" />
-            <p className="text-white font-semibold text-sm">Hydration</p>
+            <h2 className="text-white font-semibold text-sm">Hydration</h2>
           </div>
           {waterLoggedDays > 0 && (
             <span className="text-stone-400 text-xs">{waterDaysHit}/{range} days on target</span>
@@ -317,7 +317,7 @@ export default function TrendsClient({ series30, calorieTarget, macroTargets, we
 
       {/* Average macros vs target */}
       <div className="mx-4 mb-4 bg-stone-900 border border-stone-800 rounded-2xl p-4">
-        <p className="text-white font-semibold text-sm mb-3">Avg macros / logged day</p>
+        <h2 className="text-white font-semibold text-sm mb-3">Avg macros / logged day</h2>
         <div className="space-y-2.5">
           {MACRO_KEYS.map(key => {
             const meta = MACRO_META[key]
@@ -342,7 +342,7 @@ export default function TrendsClient({ series30, calorieTarget, macroTargets, we
       <div className="mx-4 mb-4 bg-stone-900 border border-stone-800 rounded-2xl p-4">
         <div className="flex items-center gap-2 mb-3">
           <TrendingUp size={15} className="text-emerald-400" />
-          <p className="text-white font-semibold text-sm">Micronutrient consistency</p>
+          <h2 className="text-white font-semibold text-sm">Micronutrient consistency</h2>
         </div>
         {summary.loggedDays === 0 ? (
           <p className="text-stone-400 text-xs">Log meals to see which nutrients you hit consistently.</p>
@@ -374,7 +374,7 @@ export default function TrendsClient({ series30, calorieTarget, macroTargets, we
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <Scale size={15} className="text-sky-400" />
-            <p className="text-white font-semibold text-sm">Weight</p>
+            <h2 className="text-white font-semibold text-sm">Weight</h2>
           </div>
           {weightInRange.length >= 2 && (
             <span className={`text-xs font-semibold ${weightDelta < 0 ? 'text-emerald-400' : weightDelta > 0 ? 'text-orange-400' : 'text-stone-400'}`}>

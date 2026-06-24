@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { X, Flame, CalendarCheck, Target, Utensils, Dumbbell, UserMinus, ChevronDown, Trophy } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { computeStreak } from '@/lib/streak'
+import { useFocusTrap } from '@/lib/useFocusTrap'
 import { GOAL_LABELS, GOAL_EMOJIS, kgToLbs } from '@/lib/fitness'
 import { ACTIVE_DAYS_GOAL } from '@/lib/weekly'
 import { CHEER_REACTIONS } from '@/lib/reactions'
@@ -104,6 +105,7 @@ interface MiniProfileProps {
 }
 
 export default function MiniProfileModal({ userId, name, onClose, moderation = null, onRemoveMember }: MiniProfileProps) {
+  const trapRef = useFocusTrap<HTMLDivElement>(onClose)
   const [data, setData] = useState<MiniData | null>(null)
   const [loading, setLoading] = useState(true)
   const [ranking, setRanking] = useState<string | null>(null)
@@ -262,6 +264,8 @@ export default function MiniProfileModal({ userId, name, onClose, moderation = n
   return (
     <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4" onClick={onClose}>
       <div
+        ref={trapRef}
+        tabIndex={-1}
         className="w-full max-w-xs bg-stone-900 border border-stone-700 rounded-3xl flex flex-col max-h-[85vh] overflow-hidden"
         onClick={e => e.stopPropagation()}
         role="dialog"
@@ -272,7 +276,7 @@ export default function MiniProfileModal({ userId, name, onClose, moderation = n
         <div className="flex items-start gap-3 p-5 pb-3 shrink-0">
           <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-600 to-emerald-800 flex items-center justify-center text-xl font-bold text-white shrink-0 overflow-hidden">
             {data?.avatarUrl
-              ? <img src={data.avatarUrl} alt="" className="w-full h-full object-cover" />
+              ? <img src={data.avatarUrl} alt={name} className="w-full h-full object-cover" />
               : (name[0]?.toUpperCase() ?? '?')}
           </div>
           <div className="flex-1 min-w-0">
@@ -396,7 +400,7 @@ export default function MiniProfileModal({ userId, name, onClose, moderation = n
               {data.photos.length > 0 && (
                 <section aria-label="Recent meals" className="grid grid-cols-3 gap-1.5">
                   {data.photos.map((url, i) => (
-                    <img key={i} src={url} alt="" loading="lazy" className="w-full aspect-square object-cover rounded-lg" />
+                    <img key={i} src={url} alt="Logged meal" loading="lazy" className="w-full aspect-square object-cover rounded-lg" />
                   ))}
                 </section>
               )}

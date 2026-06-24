@@ -287,7 +287,7 @@ export default function DashboardClient({
       {/* ── Macros section ── */}
       <div className="mx-4 mb-4 bg-stone-900 border border-stone-800 rounded-2xl p-4">
         <div className="flex items-center justify-between mb-4">
-          <p className="text-white font-semibold text-sm">Macros today</p>
+          <h2 className="text-white font-semibold text-sm">Macros today</h2>
           <span className="text-stone-400 text-xs">tap for details</span>
         </div>
         <div className="grid grid-cols-4 gap-3">
@@ -321,7 +321,7 @@ export default function DashboardClient({
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <Droplets size={16} className="text-sky-400" />
-            <p className="text-white font-semibold text-sm">Hydration today</p>
+            <h2 className="text-white font-semibold text-sm">Hydration today</h2>
           </div>
           <span className={`font-bold text-sm transition-colors ${waterSurpassed ? 'text-cyan-300' : 'text-sky-400'}`}>
             {waterLabel(totalWater)} / {waterLabel(waterTargetMl)}
@@ -398,7 +398,7 @@ export default function DashboardClient({
       <div className="mx-4 mb-4 bg-stone-900 border border-stone-800 rounded-2xl p-4">
         <div className="flex items-center justify-between mb-1">
           <div className="flex items-center gap-1">
-            <p className="text-white font-semibold text-sm">Micronutrients</p>
+            <h2 className="text-white font-semibold text-sm">Micronutrients</h2>
             <InfoTip label="Micronutrients" text="Vitamins and minerals your body needs in small amounts (mg = milligrams, mcg = micrograms). Aim to reach 100% of each daily target." />
           </div>
           <span className="text-stone-300 text-xs tabular-nums">{greenCount} of {gaps.length} on track</span>

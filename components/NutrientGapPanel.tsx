@@ -1,6 +1,7 @@
 'use client'
 
 import { X } from 'lucide-react'
+import { useFocusTrap } from '@/lib/useFocusTrap'
 import type { GapCorrection } from '@/types'
 
 interface Props {
@@ -16,16 +17,25 @@ const STATUS_COLOR = {
 }
 
 export default function NutrientGapPanel({ gap, onClose }: Props) {
+  const trapRef = useFocusTrap<HTMLDivElement>(onClose)
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="bg-stone-900 border border-stone-700 rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>
+      <div
+        ref={trapRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={`${gap.label} nutrient detail`}
+        tabIndex={-1}
+        className="bg-stone-900 border border-stone-700 rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto"
+        onClick={e => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-stone-800">
           <div>
             <p className="text-stone-400 text-xs uppercase tracking-wider mb-0.5">Nutrient detail</p>
             <h2 className="text-white font-bold text-lg">{gap.label}</h2>
           </div>
-          <button onClick={onClose} className="text-stone-400 hover:text-white transition-colors">
+          <button onClick={onClose} aria-label="Close" className="flex items-center justify-center w-11 h-11 -mr-2 text-stone-400 hover:text-white transition-colors">
             <X size={20} />
           </button>
         </div>

@@ -193,7 +193,7 @@ export default function CoachClient({
                   <Link href={`/coach/${m.user_id}`} className="flex items-center gap-3 p-3 hover:bg-stone-800/40 transition-colors">
                     <div className="relative shrink-0">
                       {m.avatar_url
-                        ? <img src={m.avatar_url} alt="" className="w-11 h-11 rounded-full object-cover" />
+                        ? <img src={m.avatar_url} alt={m.display_name} className="w-11 h-11 rounded-full object-cover" />
                         : <div className="w-11 h-11 rounded-full bg-emerald-900/50 border border-emerald-800/50 flex items-center justify-center text-emerald-300 text-sm font-semibold">{initials(m.display_name)}</div>}
                       <span className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-stone-900 ${s.dot}`} aria-hidden="true" />
                     </div>
