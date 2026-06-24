@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import { track } from '@/lib/analytics-client'
 
 const TERMS_VERSION = '2026-06-14'
 
@@ -58,14 +59,19 @@ export default function LoginPage() {
         } catch { /* non-blocking */ }
         if (!data.session) {
           // No instant session means email confirmation is on — the user must
-          // click the link we just emailed before they can sign in.
+          // click the link we just emailed before they can sign in. We can't
+          // track signup here (no authenticated session yet); the first login
+          // after confirmation is captured below instead.
           setNotice('Account created! Check your email for a confirmation link, then come back and sign in.')
           setMode('signin')
           return
         }
+        // Instant session (email confirmation off) — the signup is complete.
+        track('signup', { method: 'password' })
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password })
         if (error) { setError(friendlyAuthError(error.message)); return }
+        track('login', { method: 'password' })
       }
 
       const next = new URLSearchParams(window.location.search).get('next') || '/dashboard'

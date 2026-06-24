@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { track } from '@/lib/analytics-client'
 import {
   GOAL_LABELS, GOAL_EMOJIS, ACTIVITY_LABELS,
   calculateBMR, calculateTDEE, calculateCalorieTarget,
@@ -121,6 +122,7 @@ export default function OnboardingPage() {
     }
 
     if (err) { setError(err.message); setSaving(false); return }
+    track('onboarding_completed', { goal: plan.primaryGoal, goal_count: goals.length || 1 })
     router.push('/dashboard')
   }
 
