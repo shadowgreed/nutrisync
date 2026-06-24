@@ -281,7 +281,7 @@ export default function LogClient({
               {/* Optional steps / distance per activity */}
               {showSteps && (
                 <div>
-                  <label htmlFor="act-steps" className="text-stone-400 text-xs mb-1.5 block uppercase tracking-wider">Steps <span className="text-stone-600 normal-case">· optional</span></label>
+                  <label htmlFor="act-steps" className="text-stone-400 text-xs mb-1.5 block uppercase tracking-wider">Steps <span className="text-stone-400 normal-case">· optional</span></label>
                   <input
                     id="act-steps" type="number" inputMode="numeric" min="1"
                     value={steps} onChange={e => setSteps(e.target.value)} placeholder="e.g. 6000"
@@ -291,7 +291,7 @@ export default function LogClient({
               )}
               {showDistance && (
                 <div>
-                  <label htmlFor="act-distance" className="text-stone-400 text-xs mb-1.5 block uppercase tracking-wider">Distance (miles) <span className="text-stone-600 normal-case">· optional</span></label>
+                  <label htmlFor="act-distance" className="text-stone-400 text-xs mb-1.5 block uppercase tracking-wider">Distance (miles) <span className="text-stone-400 normal-case">· optional</span></label>
                   <input
                     id="act-distance" type="number" inputMode="decimal" min="0" step="0.1"
                     value={distanceMi} onChange={e => setDistanceMi(e.target.value)} placeholder="e.g. 3.0"

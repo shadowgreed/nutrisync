@@ -119,7 +119,7 @@ export default function ActivityCard({ entry, currentUserId, onReact, onComment,
         >
           <div className="w-9 h-9 rounded-full bg-gradient-to-br from-orange-700 to-orange-900 flex items-center justify-center text-sm font-bold text-white shrink-0 overflow-hidden">
             {entry.profile.avatar_url
-              ? <img src={entry.profile.avatar_url} alt="" className="w-full h-full object-cover" />
+              ? <img src={entry.profile.avatar_url} alt={entry.profile.display_name} className="w-full h-full object-cover" />
               : entry.profile.display_name[0]?.toUpperCase()}
           </div>
           <div className="flex-1 min-w-0">
@@ -243,7 +243,7 @@ export default function ActivityCard({ entry, currentUserId, onReact, onComment,
             <div key={c.id} className="flex gap-2.5 items-start">
               <div className="w-8 h-8 rounded-full bg-gradient-to-br from-orange-700 to-orange-900 flex items-center justify-center text-xs font-bold text-white shrink-0 overflow-hidden">
                 {c.profile?.avatar_url
-                  ? <img src={c.profile.avatar_url} alt="" className="w-full h-full object-cover" />
+                  ? <img src={c.profile.avatar_url} alt={c.profile.display_name} className="w-full h-full object-cover" />
                   : (c.profile?.display_name?.[0]?.toUpperCase() ?? '?')}
               </div>
               <div className="flex-1 min-w-0 relative" onClick={() => onCommentTap(c)}>

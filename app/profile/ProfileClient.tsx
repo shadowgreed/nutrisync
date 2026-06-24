@@ -161,7 +161,7 @@ export default function ProfileClient({
           >
             <div className="w-12 h-12 rounded-xl bg-emerald-900/50 border border-emerald-800/50 flex items-center justify-center overflow-hidden shrink-0">
               {group.photo_url
-                ? <img src={group.photo_url} alt="" className="w-full h-full object-cover" />
+                ? <img src={group.photo_url} alt={group.name} className="w-full h-full object-cover" />
                 : <Users size={20} className="text-emerald-400" />}
             </div>
             <div className="flex-1 min-w-0">

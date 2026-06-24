@@ -3,6 +3,7 @@
 import { useEffect } from 'react'
 import { X } from 'lucide-react'
 import { MACRO_META } from '@/lib/macros'
+import { useFocusTrap } from '@/lib/useFocusTrap'
 import type { MacroKey, MacroTotals } from '@/types'
 
 interface FoodItem {
@@ -21,6 +22,7 @@ export default function MacroDetailModal({
   macroKey, foods, onClose,
 }: { macroKey: MacroKey; foods: FoodItem[]; onClose: () => void }) {
   const meta = MACRO_META[macroKey]
+  const trapRef = useFocusTrap<HTMLDivElement>(onClose)
 
   // Escape closes the dialog (accessibility).
   useEffect(() => {
@@ -45,6 +47,11 @@ export default function MacroDetailModal({
   return (
     <div className="fixed inset-0 z-50 bg-black/80 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={onClose}>
       <div
+        ref={trapRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={`${meta.label} breakdown for today`}
+        tabIndex={-1}
         className="w-full sm:max-w-sm bg-stone-900 border border-stone-700 rounded-t-3xl sm:rounded-3xl p-5 max-h-[80vh] overflow-y-auto"
         onClick={e => e.stopPropagation()}
         role="dialog" aria-modal="true" aria-label={`${meta.label} breakdown`}

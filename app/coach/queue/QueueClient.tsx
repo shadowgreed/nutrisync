@@ -69,7 +69,7 @@ function QueueCard({ item, onResolved }: { item: QueueItem; onResolved: (id: str
       <div className="flex items-center gap-2 mb-2">
         <Link href={`/coach/${item.member_id}`} className="flex items-center gap-2 min-w-0">
           {item.avatar_url
-            ? <img src={item.avatar_url} alt="" className="w-8 h-8 rounded-full object-cover" />
+            ? <img src={item.avatar_url} alt={item.display_name} className="w-8 h-8 rounded-full object-cover" />
             : <div className="w-8 h-8 rounded-full bg-emerald-900/50 border border-emerald-800/50 flex items-center justify-center text-emerald-300 text-xs font-semibold">{initials(item.display_name)}</div>}
           <span className="font-semibold truncate">{item.display_name}</span>
         </Link>

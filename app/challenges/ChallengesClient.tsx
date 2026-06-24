@@ -378,7 +378,7 @@ export default function ChallengesClient({ group, currentUserId, challenges, nee
                 <div className="flex items-start gap-2">
                   <span className="text-2xl" aria-hidden="true">{meta.emoji}</span>
                   <div className="flex-1 min-w-0">
-                    <p className="text-white font-semibold text-sm">{c.title}</p>
+                    <h2 className="text-white font-semibold text-sm">{c.title}</h2>
                     <p className="text-stone-400 text-xs">Day {c.dayIndex} of {c.totalDays}</p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
@@ -450,7 +450,7 @@ export default function ChallengesClient({ group, currentUserId, challenges, nee
                           <span className="w-6 text-center text-xs shrink-0 tabular-nums" aria-label={`Rank ${row.rank}`}>{medal(row.rank)}</span>
                           <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 overflow-hidden ${isMe ? 'bg-emerald-700 text-white' : 'bg-stone-700 text-stone-300'}`}>
                             {row.avatarUrl
-                              ? <img src={row.avatarUrl} alt="" className="w-full h-full object-cover" />
+                              ? <img src={row.avatarUrl} alt={row.name} className="w-full h-full object-cover" />
                               : (row.name[0]?.toUpperCase() ?? '?')}
                           </div>
                           <div className="flex-1 min-w-0">

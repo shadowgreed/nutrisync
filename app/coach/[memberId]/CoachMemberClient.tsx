@@ -630,7 +630,7 @@ export default function CoachMemberClient({
         </Link>
         <div className="flex items-center gap-3 min-w-0">
           {member.avatar_url
-            ? <img src={member.avatar_url} alt="" className="w-10 h-10 rounded-full object-cover" />
+            ? <img src={member.avatar_url} alt={member.display_name ?? 'Member'} className="w-10 h-10 rounded-full object-cover" />
             : <div className="w-10 h-10 rounded-full bg-emerald-900/50 border border-emerald-800/50 flex items-center justify-center text-emerald-300 text-sm font-semibold">{initials(member.display_name)}</div>}
           <div className="min-w-0">
             <h1 className="text-lg font-bold truncate">{member.display_name}</h1>
@@ -714,7 +714,7 @@ export default function CoachMemberClient({
             {posts.map(p => (
               <li key={p.id} className="flex items-center gap-3 bg-stone-900 border border-stone-800 rounded-2xl p-2.5">
                 {p.photo_url
-                  ? <img src={p.photo_url} alt="" className="w-12 h-12 rounded-xl object-cover shrink-0" />
+                  ? <img src={p.photo_url} alt="Meal photo" className="w-12 h-12 rounded-xl object-cover shrink-0" />
                   : <div className="w-12 h-12 rounded-xl bg-stone-800 flex items-center justify-center text-xl shrink-0">{MEAL_EMOJI[p.meal_type] ?? '🍽️'}</div>}
                 <div className="min-w-0 flex-1">
                   <p className="text-stone-200 text-sm truncate">
@@ -767,7 +767,7 @@ export default function CoachMemberClient({
             )}
 
             {/* Tone chips */}
-            <p className="text-stone-400 text-[11px] uppercase tracking-wider mb-1.5">Tone <span className="text-stone-600 normal-case">(overrides your voice)</span></p>
+            <p className="text-stone-400 text-[11px] uppercase tracking-wider mb-1.5">Tone <span className="text-stone-400 normal-case">(overrides your voice)</span></p>
             <div className="flex flex-wrap gap-1.5 mb-3">
               {DRAFT_TONES.map(t => (
                 <button
@@ -835,7 +835,7 @@ export default function CoachMemberClient({
           </div>
         )}
         {copilotError && <p className="text-red-400 text-xs mt-2">{copilotError}</p>}
-        <p className="text-stone-600 text-[11px] mt-2">Copilot drafts; you send it in your own voice. Nothing reaches {member.display_name} until you hit Send.</p>
+        <p className="text-stone-400 text-[11px] mt-2">Copilot drafts; you send it in your own voice. Nothing reaches {member.display_name} until you hit Send.</p>
       </section>
 
       {/* Intervention history — what's already been sent */}

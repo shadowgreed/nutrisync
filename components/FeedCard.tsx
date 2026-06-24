@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Heart, MessageCircle, Send, X, Trash2, Pencil, MoreHorizontal, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react'
 import type { FeedEntry, NutrientKey, MacroTotals, Comment } from '@/types'
 import { NUTRIENT_META, NUTRIENT_KEYS } from '@/lib/nutrients'
@@ -185,6 +185,20 @@ export default function FeedCard({ entry, currentUserId, onReact, onComment, onD
     .filter(u => !!u && !u.startsWith('blob:') && !broken[u])
   const showPhoto = photos.length > 0 && effectivePrivacy !== 'dark'
 
+  // Keyboard controls for the photo lightbox: Escape closes, arrows navigate.
+  useEffect(() => {
+    if (lightboxIndex === null) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setLightboxIndex(null)
+      else if (e.key === 'ArrowLeft' && photos.length > 1)
+        setLightboxIndex(i => (i === null ? i : (i - 1 + photos.length) % photos.length))
+      else if (e.key === 'ArrowRight' && photos.length > 1)
+        setLightboxIndex(i => (i === null ? i : (i + 1) % photos.length))
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [lightboxIndex, photos.length])
+
   // Build per-meal nutrient data
   const nutrientData = NUTRIENT_KEYS.map(k => {
     const meta = NUTRIENT_META[k as NutrientKey]
@@ -263,7 +277,7 @@ export default function FeedCard({ entry, currentUserId, onReact, onComment, onD
       <div key={c.id} className={`flex gap-2.5 items-start ${isReply ? 'ml-10' : ''} ${deletingCommentId === c.id ? 'opacity-40' : ''}`}>
         <div className={`${isReply ? 'w-7 h-7' : 'w-8 h-8'} rounded-full bg-gradient-to-br from-emerald-700 to-emerald-900 flex items-center justify-center text-xs font-bold text-white shrink-0 overflow-hidden`}>
           {c.profile?.avatar_url
-            ? <img src={c.profile.avatar_url} alt="" className="w-full h-full object-cover" />
+            ? <img src={c.profile.avatar_url} alt={c.profile.display_name} className="w-full h-full object-cover" />
             : (c.profile?.display_name?.[0]?.toUpperCase() ?? '?')}
         </div>
         <div
@@ -324,7 +338,7 @@ export default function FeedCard({ entry, currentUserId, onReact, onComment, onD
           >
             <div className="w-9 h-9 rounded-full bg-gradient-to-br from-emerald-700 to-emerald-900 flex items-center justify-center text-sm font-bold text-white shrink-0 overflow-hidden">
               {entry.profile.avatar_url
-                ? <img src={entry.profile.avatar_url} alt="" className="w-full h-full object-cover" />
+                ? <img src={entry.profile.avatar_url} alt={entry.profile.display_name} className="w-full h-full object-cover" />
                 : entry.profile.display_name[0].toUpperCase()}
             </div>
             <div className="flex-1 min-w-0">
@@ -695,6 +709,9 @@ export default function FeedCard({ entry, currentUserId, onReact, onComment, onD
       {/* Lightbox */}
       {lightboxIndex !== null && photos[lightboxIndex] && (
         <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Meal photo viewer"
           className="fixed inset-0 z-50 bg-black/92 flex items-center justify-center p-4"
           onClick={() => setLightboxIndex(null)}
         >

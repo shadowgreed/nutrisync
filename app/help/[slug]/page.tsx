@@ -127,7 +127,7 @@ export default async function HelpArticlePage({ params }: { params: Promise<{ sl
           </a>
         </section>
 
-        <p className="text-stone-600 text-[11px] mt-6">Last updated {article.lastUpdated} · v{article.version}</p>
+        <p className="text-stone-400 text-[11px] mt-6">Last updated {article.lastUpdated} · v{article.version}</p>
       </article>
     </div>
   )
