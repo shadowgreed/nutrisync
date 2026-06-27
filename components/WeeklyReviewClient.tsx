@@ -169,7 +169,7 @@ export default function WeeklyReviewClient({ review, name }: { review: WeeklyRev
           <p className="text-white font-bold text-sm">Your Week in Review</p>
           <p className="text-white/60 text-xs">{review.weekLabel} · Slide {i + 1} of {slides.length}</p>
         </div>
-        <button onClick={() => close('dismissed')} aria-label="Close" className="flex items-center justify-center w-10 h-10 text-white/80 hover:text-white">
+        <button onClick={() => close('dismissed')} aria-label="Close" className="flex items-center justify-center w-11 h-11 text-white/80 hover:text-white">
           <X size={20} aria-hidden="true" />
         </button>
       </div>

@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { rateLimit } from '@/lib/ratelimit'
 import { sendPushToUser } from '@/lib/push'
 import { getCheerReaction } from '@/lib/reactions'
+import { parseJson, badRequest, boundedString } from '@/lib/validate'
 
 // Send an encouragement ("cheer") to a group co-member: in-app notification +
 // best-effort web push. Notifications RLS only allows inserting your own rows,
@@ -13,7 +14,10 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { userId, reactionId } = await req.json() as { userId?: string; reactionId?: string }
+  const body = await parseJson(req)
+  if (!body) return badRequest()
+  const userId = boundedString(body.userId, 64)
+  const reactionId = boundedString(body.reactionId, 64) ?? undefined
   if (!userId || userId === user.id) {
     return NextResponse.json({ error: 'Invalid target' }, { status: 400 })
   }

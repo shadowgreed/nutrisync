@@ -10,6 +10,7 @@ import { summarize, microConsistency, type DayTotal } from '@/lib/trends'
 import { MACRO_KEYS, MACRO_META } from '@/lib/macros'
 import { kgToLbs, lbsToKg } from '@/lib/fitness'
 import { mlToOz } from '@/lib/water'
+import { userDayKey } from '@/lib/day'
 import type { MacroTargets } from '@/types'
 
 interface WeightLog { weight_kg: number; logged_at: string }
@@ -26,9 +27,10 @@ interface Props {
   waterTargetMl: number
   currentWeightKg: number | null
   targetWeightKg: number | null
+  timeZone: string
 }
 
-export default function TrendsClient({ series30, calorieTarget, macroTargets, weightLogs, activities, waterLogs, waterTargetMl, currentWeightKg, targetWeightKg }: Props) {
+export default function TrendsClient({ series30, calorieTarget, macroTargets, weightLogs, activities, waterLogs, waterTargetMl, currentWeightKg, targetWeightKg, timeZone }: Props) {
   const router = useRouter()
   const [range, setRange] = useState<7 | 14 | 30>(7)
   const [weightInput, setWeightInput] = useState('')
@@ -135,7 +137,7 @@ export default function TrendsClient({ series30, calorieTarget, macroTargets, we
   // ── Calorie balance: burned + net over the range (in = avg per logged day) ──
   const rangeStartDay = series[0]?.date ?? ''
   const burnedInRange = activities
-    .filter(a => a.logged_at.slice(0, 10) >= rangeStartDay)
+    .filter(a => userDayKey(a.logged_at, timeZone) >= rangeStartDay)
     .reduce((s, a) => s + (a.calories_burned || 0), 0)
   const avgBurned = summary.loggedDays ? Math.round(burnedInRange / summary.loggedDays) : 0
   const avgNet = (summary.avgCalories || 0) - avgBurned
@@ -143,7 +145,7 @@ export default function TrendsClient({ series30, calorieTarget, macroTargets, we
   // ── Hydration over the range (oz/day vs target) ──
   const waterByDay = new Map<string, number>()
   for (const w of waterLogs) {
-    const day = w.logged_at.slice(0, 10)
+    const day = userDayKey(w.logged_at, timeZone)
     waterByDay.set(day, (waterByDay.get(day) ?? 0) + (w.amount_ml || 0))
   }
   const waterTargetOz = mlToOz(waterTargetMl || 2500)

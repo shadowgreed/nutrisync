@@ -29,12 +29,12 @@ export default async function HelpArticlePage({ params }: { params: Promise<{ sl
     <div className="min-h-screen bg-stone-950 text-white pb-16">
       {/* Header / breadcrumb */}
       <header className="px-4 pt-12 pb-3 flex items-center gap-3">
-        <Link href={`/help/category/${category.id}`} aria-label="Back" className="flex items-center justify-center w-10 h-10 -ml-2 text-stone-300 hover:text-white">
+        <Link href={`/help/category/${category.id}`} aria-label="Back" className="flex items-center justify-center w-11 h-11 -ml-2 text-stone-300 hover:text-white">
           <ArrowLeft size={20} aria-hidden="true" />
         </Link>
         <div className="min-w-0">
           <Link href="/help" className="text-stone-500 text-xs hover:text-stone-300">Help Center</Link>
-          <span className="text-stone-600 text-xs"> / </span>
+          <span className="text-stone-400 text-xs"> / </span>
           <Link href={`/help/category/${category.id}`} className="text-stone-500 text-xs hover:text-stone-300">{category.title}</Link>
         </div>
       </header>
