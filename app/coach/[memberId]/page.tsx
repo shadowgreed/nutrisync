@@ -4,7 +4,7 @@ import { groupForCoachMember, assessMember, getDietOverride } from '@/lib/coach-
 import { effectiveDiet, isDiet } from '@/lib/diets'
 import { buildWaterWeek } from '@/lib/water'
 import { calculateMacroTargets } from '@/lib/macros'
-import { resolveTimeZone } from '@/lib/day'
+import { resolveTimeZone, userDayKey } from '@/lib/day'
 import { buildIntel, buildDailyTrends, type IntelFood, type IntelWater, type IntelActivity, type WeightPoint } from '@/lib/coach-intel'
 import { inferVoice } from '@/lib/coach-voice'
 import type { Diet, NutrientTotals, Goal } from '@/types'
@@ -149,7 +149,7 @@ export default async function CoachMemberPage({ params }: { params: Promise<{ me
 
   const weights: WeightPoint[] = ((weightRows ?? []) as { logged_at: string; weight_kg: number | null }[])
     .filter(w => w.weight_kg != null)
-    .map(w => ({ date: w.logged_at.slice(0, 10), kg: Number(w.weight_kg) }))
+    .map(w => ({ date: userDayKey(w.logged_at, memberTz), kg: Number(w.weight_kg) }))
   const trends = buildDailyTrends({
     foods: intelFoods,
     water: allWater as IntelWater[],

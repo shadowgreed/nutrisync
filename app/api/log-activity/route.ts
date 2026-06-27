@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { logEvent } from '@/lib/analytics'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { founderSharesGroupWith } from '@/lib/moderation'
+import { parseJson, badRequest, boundedNumber, boundedString } from '@/lib/validate'
 
 // Delete an activity post — its author, or a founder of the author's group.
 export async function DELETE(req: NextRequest) {
@@ -43,9 +44,18 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { activity_name, duration_minutes, distance_km, steps, calories_burned } = await req.json()
+  const body = await parseJson(req)
+  if (!body) return badRequest()
+
+  // Clamp every numeric to a sane range so we never store negatives/NaN/absurd values.
+  const activity_name = boundedString(body.activity_name, 80)
+  const duration_minutes = boundedNumber(body.duration_minutes, 0, 1440)   // ≤ 24h
+  const distance_km = boundedNumber(body.distance_km, 0, 1000)
+  const steps = boundedNumber(body.steps, 0, 500_000)
+  const calories_burned = boundedNumber(body.calories_burned, 0, 50_000) ?? 0
+
   // A log needs either a duration (time-based) or a distance/steps (distance-based).
-  if (!activity_name || (!duration_minutes && !distance_km && !steps)) {
+  if (!activity_name || ((duration_minutes ?? 0) <= 0 && (distance_km ?? 0) <= 0 && (steps ?? 0) <= 0)) {
     return NextResponse.json({ error: 'activity_name and a duration or distance is required' }, { status: 400 })
   }
 
@@ -57,7 +67,7 @@ export async function POST(req: NextRequest) {
       duration_minutes: duration_minutes ?? null,
       distance_km: distance_km ?? null,
       steps: steps ?? null,
-      calories_burned: calories_burned ?? 0,
+      calories_burned,
     })
     .select()
     .single()

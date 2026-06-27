@@ -8,7 +8,12 @@ import { sumTotals, emptyTotals } from '@/lib/nutrients'
 import { sumMacros, emptyMacros } from '@/lib/macros'
 import { computeStreak } from '@/lib/streak'
 import { resolveTimeZone } from '@/lib/day'
+import { parseJson, badRequest, boundedString, boundedUrlList } from '@/lib/validate'
 import type { FoodEntry } from '@/types'
+
+const MAX_FOODS = 50
+const MAX_PHOTOS = 6
+const MAX_CAPTION = 500
 
 const STREAK_MILESTONES = [3, 7, 14, 30, 50, 75, 100, 150, 200, 365]
 
@@ -56,12 +61,15 @@ export async function PATCH(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { id, caption, meal_type } = await req.json() as { id?: string; caption?: string; meal_type?: string }
+  const body = await parseJson(req)
+  if (!body) return badRequest()
+  const id = boundedString(body.id, 64)
+  const { caption, meal_type } = body as { caption?: string; meal_type?: string }
   if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 })
 
   const update: { caption?: string | null; meal_type?: string } = {}
-  if (typeof caption === 'string') update.caption = caption.trim() || null
-  if (meal_type && MEAL_TYPES.includes(meal_type)) update.meal_type = meal_type
+  if (typeof caption === 'string') update.caption = boundedString(caption, MAX_CAPTION)
+  if (typeof meal_type === 'string' && MEAL_TYPES.includes(meal_type)) update.meal_type = meal_type
   if (!Object.keys(update).length) return NextResponse.json({ error: 'Nothing to update' }, { status: 400 })
 
   const { data, error } = await supabase
@@ -81,20 +89,25 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const body = await req.json()
-  const { meal_type, foods, photo_url, photo_urls, privacy_override, caption, shared_to_feed } = body as {
+  const body = await parseJson(req)
+  if (!body) return badRequest()
+  const { meal_type, foods, photo_url, privacy_override, caption, shared_to_feed } = body as {
     meal_type: string
     foods: FoodEntry[]
     photo_url?: string
-    photo_urls?: string[]
     privacy_override?: string
     caption?: string
     shared_to_feed?: boolean
   }
 
-  if (!meal_type || !foods?.length) {
+  if (!meal_type || !Array.isArray(foods) || !foods.length) {
     return NextResponse.json({ error: 'meal_type and foods are required' }, { status: 400 })
   }
+  if (foods.length > MAX_FOODS) {
+    return NextResponse.json({ error: `Too many foods (max ${MAX_FOODS})` }, { status: 400 })
+  }
+  // Cap the photo set and keep only valid https URLs; bound the caption length.
+  const photo_urls = boundedUrlList(body.photo_urls, MAX_PHOTOS)
 
   const nutrient_totals = foods.reduce(
     (acc: ReturnType<typeof emptyTotals>, f: FoodEntry) => sumTotals(acc, f.nutrients),
@@ -116,7 +129,7 @@ export async function POST(req: NextRequest) {
     total_calories,
     photo_url: photo_url ?? null,
     privacy_override: privacy_override ?? null,
-    caption: caption?.trim() || null,
+    caption: boundedString(caption, MAX_CAPTION),
   }
 
   const extendedRow = {

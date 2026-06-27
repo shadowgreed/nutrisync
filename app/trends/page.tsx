@@ -75,6 +75,7 @@ export default async function TrendsPage() {
       waterTargetMl={profile?.water_daily_target_ml ?? 2500}
       currentWeightKg={profile?.weight_kg ?? null}
       targetWeightKg={profile?.target_weight_kg ?? null}
+      timeZone={tz}
     />
   )
 }

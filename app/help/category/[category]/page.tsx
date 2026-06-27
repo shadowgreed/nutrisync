@@ -27,7 +27,7 @@ export default async function HelpCategoryPage({ params }: { params: Promise<{ c
   return (
     <div className="min-h-screen bg-stone-950 text-white pb-16">
       <header className="px-4 pt-12 pb-3 flex items-center gap-3">
-        <Link href="/help" aria-label="Back to Help Center" className="flex items-center justify-center w-10 h-10 -ml-2 text-stone-300 hover:text-white">
+        <Link href="/help" aria-label="Back to Help Center" className="flex items-center justify-center w-11 h-11 -ml-2 text-stone-300 hover:text-white">
           <ArrowLeft size={20} aria-hidden="true" />
         </Link>
         <div className="flex items-center gap-2 min-w-0">

@@ -149,20 +149,6 @@ export function memberSuccessDays(
   return out
 }
 
-/** Back-compat thin wrapper: just the count of successful days. */
-export function computeMemberProgress(
-  logs: LogLike[],
-  metric: ChallengeMetric,
-  startDate: string,
-  endDate: string,
-): number {
-  return memberSuccessDays(metric, startDate, endDate, {
-    food: logs,
-    activityDayKeys: new Set(),
-    waterMlByDayKey: new Map(),
-  }).size
-}
-
 /**
  * Consecutive successful days ending today (with a one-day grace before today is
  * earned), bounded by the challenge window. After the challenge ends, counts the

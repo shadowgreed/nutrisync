@@ -1,12 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { parseJson, badRequest, boundedString } from '@/lib/validate'
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { food_log_id, activity_log_id, emoji } = await req.json()
+  const body = await parseJson(req)
+  if (!body) return badRequest()
+  const emoji = boundedString(body.emoji, 16)
+  const food_log_id = boundedString(body.food_log_id, 64)
+  const activity_log_id = boundedString(body.activity_log_id, 64)
   if (!emoji || (!food_log_id && !activity_log_id)) {
     return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
   }
