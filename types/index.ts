@@ -156,7 +156,7 @@ export interface FeedActivityEntry {
 export interface FeedMilestoneEntry {
   id: string
   user_id: string
-  type: 'streak' | 'goal_weight'
+  type: 'streak' | 'goal_weight' | 'water_goal'
   data: Record<string, unknown>
   created_at: string
   profile: { id: string; display_name: string; avatar_url: string | null; privacy_mode: string; dark_mode_until: string | null }

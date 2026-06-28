@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { userDayKey, prevDayKey, nextDayKey, resolveTimeZone, DEFAULT_TZ } from '@/lib/day'
+import { userDayKey, prevDayKey, nextDayKey, resolveTimeZone, dayOfWeek, isSunday, DEFAULT_TZ } from '@/lib/day'
 
 describe('userDayKey', () => {
   it('returns the calendar date in the given timezone', () => {
@@ -26,6 +26,26 @@ describe('prevDayKey / nextDayKey', () => {
   it('crosses a DST boundary without drifting (US spring-forward 2026-03-08)', () => {
     expect(nextDayKey('2026-03-07')).toBe('2026-03-08')
     expect(prevDayKey('2026-03-09')).toBe('2026-03-08')
+  })
+})
+
+describe('dayOfWeek / isSunday', () => {
+  it('dayOfWeek returns 0 for a Sunday key (2026-06-28 is a Sunday)', () => {
+    expect(dayOfWeek('2026-06-28')).toBe(0)
+    expect(dayOfWeek('2026-06-29')).toBe(1) // Monday
+    expect(dayOfWeek('2026-06-27')).toBe(6) // Saturday
+  })
+
+  it('isSunday is timezone-aware at the day boundary', () => {
+    // 2026-06-29 01:00 UTC is still Sunday the 28th in New York, but Monday the
+    // 29th in Tokyo.
+    const t = new Date('2026-06-29T01:00:00Z')
+    expect(isSunday('America/New_York', t)).toBe(true)
+    expect(isSunday('Asia/Tokyo', t)).toBe(false)
+  })
+
+  it('isSunday is false on a plain weekday', () => {
+    expect(isSunday('America/New_York', new Date('2026-06-24T18:00:00Z'))).toBe(false)
   })
 })
 
