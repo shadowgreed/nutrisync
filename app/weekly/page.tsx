@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { computeStreak } from '@/lib/streak'
-import { resolveTimeZone } from '@/lib/day'
+import { resolveTimeZone, isSunday } from '@/lib/day'
 import { buildWeeklyReview, type GroupStanding, type ReviewFood } from '@/lib/weekly-review'
 import WeeklyReviewClient from '@/components/WeeklyReviewClient'
 import type { Goal } from '@/types'
@@ -12,6 +12,14 @@ export default async function WeeklyPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
+
+  // The weekly review is a Sunday-only ritual (it recaps the week that just
+  // ended). Gate direct visits to Sunday in the user's timezone — the Trends CTA
+  // is hidden on other days, but this guards a typed-in / bookmarked URL too.
+  const { data: tzRow } = await supabase
+    .from('profiles').select('reminder_timezone').eq('id', user.id).single()
+  const tz = resolveTimeZone(tzRow?.reminder_timezone as string | null)
+  if (!isSunday(tz)) redirect('/trends')
 
   const now = new Date().getTime()
   const weekISO = new Date(now - 7 * 86400000).toISOString()
@@ -29,7 +37,6 @@ export default async function WeeklyPage() {
       supabase.from('food_logs').select('logged_at').eq('user_id', user.id).gte('logged_at', sixtyISO),
     ])
 
-  const tz = resolveTimeZone(profile?.reminder_timezone as string | null)
   const streak = computeStreak(((streakLogs ?? []) as { logged_at: string }[]).map(l => l.logged_at), { timeZone: tz })
 
   // ── Group standings (best-effort; only when the viewer shares a group) ──────

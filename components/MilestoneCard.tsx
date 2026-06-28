@@ -21,6 +21,9 @@ export default function MilestoneCard({ entry, currentUserId }: { entry: FeedMil
     const pct = Number(entry.data?.pct ?? 0)
     emoji = pct >= 100 ? '🏆' : '🎯'
     headline = pct >= 100 ? 'reached their goal weight!' : `is ${pct}% to their goal weight!`
+  } else if (entry.type === 'water_goal') {
+    emoji = '💧'
+    headline = 'hit their daily water goal!'
   }
 
   return (

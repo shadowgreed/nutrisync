@@ -10,7 +10,7 @@ import { summarize, microConsistency, type DayTotal } from '@/lib/trends'
 import { MACRO_KEYS, MACRO_META } from '@/lib/macros'
 import { kgToLbs, lbsToKg } from '@/lib/fitness'
 import { mlToOz } from '@/lib/water'
-import { userDayKey } from '@/lib/day'
+import { userDayKey, isSunday } from '@/lib/day'
 import type { MacroTargets } from '@/types'
 
 interface WeightLog { weight_kg: number; logged_at: string }
@@ -155,6 +155,9 @@ export default function TrendsClient({ series30, calorieTarget, macroTargets, we
   const waterDaysHit = waterChart.filter(d => d.oz >= waterTargetOz).length
   const avgWaterOz = waterLoggedDays ? Math.round(waterChart.reduce((s, d) => s + d.oz, 0) / waterLoggedDays) : 0
 
+  // The weekly review unlocks only on Sunday (in the user's timezone).
+  const weeklyUnlocked = isSunday(timeZone)
+
   return (
     <div className="min-h-screen bg-stone-950 pb-[calc(6rem+env(safe-area-inset-bottom))]">
       {/* Header */}
@@ -199,15 +202,25 @@ export default function TrendsClient({ series30, calorieTarget, macroTargets, we
         )}
       </div>
 
-      {/* Weekly recap entry point — revisit the Sunday story any day */}
-      <Link href="/weekly" className="mx-4 mb-4 flex items-center gap-3 bg-gradient-to-br from-purple-900/40 to-stone-900 border border-purple-800/40 rounded-2xl px-4 py-3 hover:border-purple-700/60 transition-colors">
-        <Sparkles size={18} className="text-purple-300 shrink-0" aria-hidden="true" />
-        <div className="flex-1 min-w-0">
-          <h2 className="text-white text-sm font-semibold">Your Week in Review</h2>
-          <p className="text-stone-400 text-xs">Replay this week’s recap story</p>
+      {/* Weekly recap entry point — unlocks on Sundays only */}
+      {weeklyUnlocked ? (
+        <Link href="/weekly" className="mx-4 mb-4 flex items-center gap-3 bg-gradient-to-br from-purple-900/40 to-stone-900 border border-purple-800/40 rounded-2xl px-4 py-3 hover:border-purple-700/60 transition-colors">
+          <Sparkles size={18} className="text-purple-300 shrink-0" aria-hidden="true" />
+          <div className="flex-1 min-w-0">
+            <h2 className="text-white text-sm font-semibold">Your Week in Review</h2>
+            <p className="text-stone-400 text-xs">Your Sunday recap is ready — tap to watch</p>
+          </div>
+          <ChevronRight size={16} className="text-stone-500 shrink-0" aria-hidden="true" />
+        </Link>
+      ) : (
+        <div className="mx-4 mb-4 flex items-center gap-3 bg-stone-900/60 border border-stone-800 rounded-2xl px-4 py-3 opacity-70" aria-disabled="true">
+          <Sparkles size={18} className="text-stone-500 shrink-0" aria-hidden="true" />
+          <div className="flex-1 min-w-0">
+            <h2 className="text-stone-300 text-sm font-semibold">Your Week in Review</h2>
+            <p className="text-stone-500 text-xs">Unlocks every Sunday</p>
+          </div>
         </div>
-        <ChevronRight size={16} className="text-stone-500 shrink-0" aria-hidden="true" />
-      </Link>
+      )}
 
       {/* Calorie balance — avg in / burned / net over the selected range */}
       <div className="mx-4 mb-4 grid grid-cols-3 gap-3">

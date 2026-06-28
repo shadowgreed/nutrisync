@@ -57,3 +57,16 @@ export function nextDayKey(key: string): string {
   d.setUTCDate(d.getUTCDate() + 1)
   return d.toISOString().slice(0, 10)
 }
+
+// Day of week (0 = Sunday … 6 = Saturday) for a YYYY-MM-DD key. Parsed at noon
+// UTC so the weekday never shifts.
+export function dayOfWeek(key: string): number {
+  return new Date(key + 'T12:00:00Z').getUTCDay()
+}
+
+// True when `now` falls on a Sunday in `timeZone`. This is the canonical
+// Sunday check — the weekly review is a Sunday-only ritual, and "Sunday" must
+// mean Sunday in the USER's zone, not UTC or the server's.
+export function isSunday(timeZone: string, now: Date = new Date()): boolean {
+  return dayOfWeek(userDayKey(now, timeZone)) === 0
+}
