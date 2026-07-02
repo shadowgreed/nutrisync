@@ -30,6 +30,10 @@ export default function InstallPrompt() {
     if (localStorage.getItem(DISMISS_KEY) === '1') return
 
     if (/iphone|ipad|ipod/i.test(navigator.userAgent)) {
+      // Mount-only browser detection must run post-hydration (a lazy useState
+      // initializer would render differently on server vs client and break
+      // hydration), so the sync setState here is deliberate.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setMode('ios')
       return
     }

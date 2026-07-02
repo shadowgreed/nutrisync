@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { rateLimit } from '@/lib/ratelimit'
+import { rateLimitDurable } from '@/lib/ratelimit'
 import { sendPushToUser } from '@/lib/push'
 import { getCheerReaction } from '@/lib/reactions'
 import { parseJson, badRequest, boundedString } from '@/lib/validate'
@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
   // caller's. Unknown/absent id falls back to a plain cheer.
   const reaction = getCheerReaction(reactionId)
   // Cheers create notifications + pushes — keep them special, not spammable.
-  if (!rateLimit(`cheer:${user.id}`, 20, 60 * 60 * 1000)) {
+  if (!(await rateLimitDurable(supabase, `cheer:${user.id}`, 20, 60 * 60 * 1000))) {
     return NextResponse.json({ error: "You've cheered a lot this hour — save some for later! 👏" }, { status: 429 })
   }
 

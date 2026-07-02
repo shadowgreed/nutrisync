@@ -42,6 +42,9 @@ export default function PushToggle({ mode = 'full' }: { mode?: 'prompt' | 'full'
     const standalone =
       window.matchMedia?.('(display-mode: standalone)').matches ||
       (navigator as unknown as { standalone?: boolean }).standalone === true
+    // Mount-only capability detection must run post-hydration (server render
+    // can't know the browser), so these sync setStates are deliberate.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (isIos && !standalone) { setState('ios-install'); return }
 
     const supported =

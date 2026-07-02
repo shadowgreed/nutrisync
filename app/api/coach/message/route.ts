@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { rateLimit } from '@/lib/ratelimit'
+import { rateLimitDurable } from '@/lib/ratelimit'
 import { sendPushToUser } from '@/lib/push'
 import { groupForCoachMember } from '@/lib/coach-server'
+import { parseJson, badRequest } from '@/lib/validate'
 
 // Send a ready-made coaching message (e.g. a "Recommended action" play) straight
 // to a member — no Copilot draft round-trip. Delivery mirrors /api/coach/send:
@@ -15,14 +16,16 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { memberId, text, title } = await req.json() as { memberId?: string; text?: string; title?: string }
+  const parsed = await parseJson<{ memberId?: string; text?: string; title?: string }>(req)
+  if (!parsed) return badRequest()
+  const { memberId, text, title } = parsed
   if (!memberId) return NextResponse.json({ error: 'Missing memberId' }, { status: 400 })
   const final = (text ?? '').trim()
   if (!final) return NextResponse.json({ error: 'Nothing to send' }, { status: 400 })
   if (final.length > 2000) return NextResponse.json({ error: 'Message is too long' }, { status: 400 })
 
   // Shares the daily cap with Copilot sends so total messages to a member stay bounded.
-  if (!rateLimit(`coach-send:${user.id}`, 200, 24 * 60 * 60 * 1000)) {
+  if (!(await rateLimitDurable(supabase, `coach-send:${user.id}`, 200, 24 * 60 * 60 * 1000))) {
     return NextResponse.json({ error: 'Daily message limit reached.' }, { status: 429 })
   }
 

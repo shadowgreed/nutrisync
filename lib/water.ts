@@ -37,6 +37,22 @@ export interface WaterWeek {
   goalDays: number   // 7
 }
 
+/**
+ * Total ml logged on one calendar day (`dayKey`, YYYY-MM-DD) in `timeZone`.
+ * The single source of truth for "did the user hit today's water goal" — used
+ * by both the widget snapshot (lib/widget) and the water-goal milestone
+ * (/api/log-water) so the two can never disagree.
+ */
+export function totalMlOnDay(
+  rows: { logged_at: string; amount_ml?: number | null }[],
+  timeZone: string,
+  dayKey: string,
+): number {
+  return rows
+    .filter(r => userDayKey(r.logged_at, timeZone) === dayKey)
+    .reduce((s, r) => s + (Number(r.amount_ml) || 0), 0)
+}
+
 /** Sum water (ml) per day for the last 7 days, bucketed in `timeZone` (the
  *  user's; defaults to runtime when unset). */
 export function waterByDay(rows: WeeklyWaterRow[], now = new Date(), timeZone?: string): Map<string, number> {

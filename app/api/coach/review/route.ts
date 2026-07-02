@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { groupForCoachMember } from '@/lib/coach-server'
+import { parseJson, badRequest } from '@/lib/validate'
 
 // Mark a client's workspace as reviewed (stamps reviewed_at on the coach↔member
 // settings row). Coach-only; RLS enforces ownership.
@@ -9,7 +10,9 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { memberId } = await req.json() as { memberId?: string }
+  const parsed = await parseJson<{ memberId?: string }>(req)
+  if (!parsed) return badRequest()
+  const { memberId } = parsed
   if (!memberId) return NextResponse.json({ error: 'Missing memberId' }, { status: 400 })
 
   const groupId = await groupForCoachMember(supabase, user.id, memberId)

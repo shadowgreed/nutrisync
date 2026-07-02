@@ -1,0 +1,49 @@
+# CI gate (engineering audit N7): every push/PR runs the unit suite, the
+# typecheck, a production build, and the e2e smoke suite. Lint is advisory
+# until the pre-existing react-hooks error backlog is burned down — flip
+# `continue-on-error` to false once `npx eslint app components lib` is clean.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Unit tests
+        run: npm test
+      - name: Typecheck
+        run: npx tsc --noEmit
+      - name: Build
+        run: npm run build
+      - name: Lint (advisory — see header comment)
+        run: npx eslint app components lib
+        continue-on-error: true
+
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+      - name: Build
+        run: npm run build
+      # No Supabase secrets needed: the smoke suite asserts public pages render
+      # and protected routes redirect. The authed spec self-skips without
+      # E2E_EMAIL / E2E_PASSWORD.
+      - name: E2E smoke
+        run: npm run test:e2e

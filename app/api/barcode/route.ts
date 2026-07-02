@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { rateLimit } from '@/lib/ratelimit'
+import { rateLimitDurable } from '@/lib/ratelimit'
 import { fetchProductByBarcode } from '@/lib/openfoodfacts'
 import { estimateFoodNutrition } from '@/lib/anthropic'
 import { MACRO_KEYS } from '@/lib/macros'
@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  if (!rateLimit(`barcode:${user.id}`, 30, 60 * 1000)) {
+  if (!(await rateLimitDurable(supabase, `barcode:${user.id}`, 30, 60 * 1000))) {
     return NextResponse.json({ error: 'Too many scans — give it a moment.' }, { status: 429 })
   }
 

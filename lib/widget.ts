@@ -1,4 +1,5 @@
 import { userDayKey } from './day'
+import { totalMlOnDay } from './water'
 
 // The snapshot a home-screen widget renders. Deliberately tiny and flat so it
 // serializes cheaply into a native shared container (iOS App Group /
@@ -37,9 +38,7 @@ export function buildWidgetSummary(input: {
     .filter(f => isToday(f.logged_at))
     .reduce((s, f) => s + (Number(f.total_calories) || 0), 0)
 
-  const waterMl = input.waterLogs
-    .filter(w => isToday(w.logged_at))
-    .reduce((s, w) => s + (Number(w.amount_ml) || 0), 0)
+  const waterMl = totalMlOnDay(input.waterLogs, input.timeZone, today)
 
   return {
     date: today,

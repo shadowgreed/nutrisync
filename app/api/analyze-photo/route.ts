@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { rateLimit } from '@/lib/ratelimit'
+import { rateLimitDurable } from '@/lib/ratelimit'
 import { analyzeFoodPhoto } from '@/lib/anthropic'
 import { emptyTotals, sumTotals } from '@/lib/nutrients'
 import { emptyMacros, sumMacros } from '@/lib/macros'
@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  if (!rateLimit(`analyze:${user.id}`, 30, 60 * 60 * 1000)) {
+  if (!(await rateLimitDurable(supabase, `analyze:${user.id}`, 30, 60 * 60 * 1000))) {
     return NextResponse.json({ error: 'Too many photo analyses — try again in a bit.' }, { status: 429 })
   }
 

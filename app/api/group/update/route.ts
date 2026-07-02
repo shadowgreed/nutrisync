@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { parseJson, badRequest } from '@/lib/validate'
 
 // Founder-only group edits (name / cover photo). Writes with the admin client
 // after verifying ownership, so a missing/incorrect RLS UPDATE policy can never
@@ -10,9 +11,9 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { groupId, name, photo_url } = await req.json() as {
-    groupId?: string; name?: string; photo_url?: string
-  }
+  const parsed = await parseJson<{ groupId?: string; name?: string; photo_url?: string }>(req)
+  if (!parsed) return badRequest()
+  const { groupId, name, photo_url } = parsed
   if (!groupId) return NextResponse.json({ error: 'Missing groupId' }, { status: 400 })
 
   const update: { name?: string; photo_url?: string } = {}

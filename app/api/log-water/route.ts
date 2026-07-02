@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { logEvent } from '@/lib/analytics'
 import { parseJson, badRequest, boundedNumber, boundedString } from '@/lib/validate'
 import { resolveTimeZone, userDayKey } from '@/lib/day'
+import { totalMlOnDay } from '@/lib/water'
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
@@ -46,9 +47,7 @@ export async function POST(req: NextRequest) {
       .select('amount_ml, logged_at')
       .eq('user_id', user.id)
       .gte('logged_at', since)
-    const totalToday = (recent ?? [])
-      .filter(w => userDayKey(w.logged_at as string, tz) === today)
-      .reduce((s, w) => s + (Number(w.amount_ml) || 0), 0)
+    const totalToday = totalMlOnDay((recent ?? []) as { logged_at: string; amount_ml: number }[], tz, today)
 
     if (totalToday >= targetMl) {
       // key includes the day → fires once per user per day (UNIQUE user_id,type,key).

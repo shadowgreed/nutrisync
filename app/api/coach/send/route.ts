@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { rateLimit } from '@/lib/ratelimit'
+import { rateLimitDurable } from '@/lib/ratelimit'
 import { sendPushToUser } from '@/lib/push'
+import { parseJson, badRequest } from '@/lib/validate'
 
 // Resolve a Copilot draft: 'send' delivers it to the member as a coach_message
 // notification + best-effort web push; 'dismiss' just closes it. This is the only
@@ -12,9 +13,9 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { draftId, action, text } = await req.json() as {
-    draftId?: string; action?: 'send' | 'dismiss'; text?: string
-  }
+  const parsed = await parseJson<{ draftId?: string; action?: 'send' | 'dismiss'; text?: string }>(req)
+  if (!parsed) return badRequest()
+  const { draftId, action, text } = parsed
   if (!draftId || (action !== 'send' && action !== 'dismiss')) {
     return NextResponse.json({ error: 'Missing draftId or action' }, { status: 400 })
   }
@@ -35,7 +36,7 @@ export async function POST(req: NextRequest) {
   }
 
   // ── send ───────────────────────────────────────────────────────────────────
-  if (!rateLimit(`coach-send:${user.id}`, 200, 24 * 60 * 60 * 1000)) {
+  if (!(await rateLimitDurable(supabase, `coach-send:${user.id}`, 200, 24 * 60 * 60 * 1000))) {
     return NextResponse.json({ error: 'Daily message limit reached.' }, { status: 429 })
   }
   const final = (text ?? '').trim() || draft.draft_text
