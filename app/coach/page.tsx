@@ -4,7 +4,7 @@ import { assessClient } from '@/lib/copilot'
 import { computeStreak } from '@/lib/streak'
 import { effectiveDiet, isDiet } from '@/lib/diets'
 import { calculateMacroTargets } from '@/lib/macros'
-import { resolveTimeZone } from '@/lib/day'
+import { resolveTimeZone, userDayKey } from '@/lib/day'
 import { buildIntel, rollupMember, buildGroupIntel, type IntelFood, type IntelWater, type IntelActivity, type MemberRollup } from '@/lib/coach-intel'
 import type { NutrientTotals, Diet, Goal } from '@/types'
 import CoachClient, { type CoachGroup, type RosterMember } from './CoachClient'
@@ -12,7 +12,6 @@ import CoachClient, { type CoachGroup, type RosterMember } from './CoachClient'
 export const dynamic = 'force-dynamic'
 
 const DAY_MS = 24 * 60 * 60 * 1000
-const dayKey = (iso: string) => iso.slice(0, 10)
 
 interface GroupMeta { id: string; name: string; plan: 'free' | 'coach'; member_cap: number }
 interface ProfileJoin {
@@ -97,7 +96,13 @@ export default async function CoachPage() {
 
   const since = new Date(Date.now() - 30 * DAY_MS).toISOString()
   const sevenDaysAgo = Date.now() - 7 * DAY_MS
-  const todayKey = dayKey(new Date().toISOString())
+  // "Today" is per-member: each log is bucketed in its owner's timezone, so the
+  // overview count is right even when the roster spans timezones.
+  const tzByUser = new Map(memberships.map(m => [
+    m.user_id,
+    resolveTimeZone((m.profile as { reminder_timezone?: string | null } | null)?.reminder_timezone),
+  ]))
+  const nowDate = new Date()
 
   const [{ data: foods }, { data: acts }, { data: waters }, { count: checkinsSent }] = await Promise.all([
     supabase.from('food_logs')
@@ -128,7 +133,10 @@ export default async function CoachPage() {
   for (const w of (waters ?? []) as WaterRow[]) {
     const arr = watersByUser.get(w.user_id) ?? []; arr.push(w); watersByUser.set(w.user_id, arr)
   }
-  const mealsToday = ((foods ?? []) as FoodRow[]).filter(f => dayKey(f.logged_at) === todayKey).length
+  const mealsToday = ((foods ?? []) as FoodRow[]).filter(f => {
+    const tz = tzByUser.get(f.user_id)
+    return tz ? userDayKey(f.logged_at, tz) === userDayKey(nowDate, tz) : false
+  }).length
 
   let hiddenCount = 0
   const members: RosterMember[] = []

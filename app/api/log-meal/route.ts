@@ -121,6 +121,24 @@ export async function POST(req: NextRequest) {
 
   const total_calories = Math.round(foods.reduce((s, f) => s + (f.calories ?? 0), 0))
 
+  // Idempotency: a double-tapped Save fires two identical POSTs back to back.
+  // If an identical meal (same type + same calories) landed within the last
+  // 15s, return it instead of inserting a duplicate.
+  try {
+    const { data: recent } = await supabase
+      .from('food_logs')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('meal_type', meal_type)
+      .gte('logged_at', new Date(Date.now() - 15_000).toISOString())
+      .order('logged_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (recent && recent.total_calories === total_calories) {
+      return NextResponse.json({ log: recent, deduped: true })
+    }
+  } catch { /* dedupe is best-effort */ }
+
   const baseRow = {
     user_id: user.id,
     meal_type,

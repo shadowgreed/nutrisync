@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { parseJson, badRequest } from '@/lib/validate'
 
 // Group founder approves or denies a pending join request. The SECURITY DEFINER
 // function verifies the caller actually owns the group before adding the member.
@@ -8,7 +9,9 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { requestId, approve } = await req.json() as { requestId?: string; approve?: boolean }
+  const parsed = await parseJson<{ requestId?: string; approve?: boolean }>(req)
+  if (!parsed) return badRequest()
+  const { requestId, approve } = parsed
   if (!requestId) return NextResponse.json({ error: 'Missing requestId' }, { status: 400 })
 
   const { data, error } = await supabase.rpc('resolve_join_request', {

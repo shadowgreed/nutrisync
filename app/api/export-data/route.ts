@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { rateLimit } from '@/lib/ratelimit'
+import { rateLimitDurable } from '@/lib/ratelimit'
 
 // Export everything the signed-in user has created, as a single JSON download.
 // Read with the user's own session, scoped to their rows — no admin client, no
@@ -12,7 +12,7 @@ export async function GET() {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   // Exports can be sizable — keep them modest per user.
-  if (!rateLimit(`export:${user.id}`, 10, 60 * 60 * 1000)) {
+  if (!(await rateLimitDurable(supabase, `export:${user.id}`, 10, 60 * 60 * 1000))) {
     return NextResponse.json({ error: 'You’ve exported a few times recently — try again later.' }, { status: 429 })
   }
 

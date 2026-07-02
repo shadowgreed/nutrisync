@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { parseJson, badRequest } from '@/lib/validate'
 
 // Founder-only: expel a member from a group they founded. Writes with the admin
 // client after verifying ownership (mirrors /api/group/update), so a missing RLS
@@ -10,7 +11,9 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { groupId, userId } = await req.json() as { groupId?: string; userId?: string }
+  const parsed = await parseJson<{ groupId?: string; userId?: string }>(req)
+  if (!parsed) return badRequest()
+  const { groupId, userId } = parsed
   if (!groupId || !userId) return NextResponse.json({ error: 'Missing groupId or userId' }, { status: 400 })
 
   let admin

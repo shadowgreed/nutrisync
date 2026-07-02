@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { rateLimit } from '@/lib/ratelimit'
+import { rateLimitDurable } from '@/lib/ratelimit'
 
 const KINDS = new Set(['incorrect_estimate', 'inappropriate', 'other'])
 
@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  if (!rateLimit(`ai-feedback:${user.id}`, 60, 60 * 60 * 1000)) {
+  if (!(await rateLimitDurable(supabase, `ai-feedback:${user.id}`, 60, 60 * 60 * 1000))) {
     return NextResponse.json({ error: 'Thanks — you’ve sent a lot of reports this hour.' }, { status: 429 })
   }
 

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { rateLimit } from '@/lib/ratelimit'
+import { rateLimitDurable } from '@/lib/ratelimit'
 
 const EVENTS = new Set([
   'weekly_review_opened',
@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  if (!rateLimit(`wr-event:${user.id}`, 400, 60 * 60 * 1000)) {
+  if (!(await rateLimitDurable(supabase, `wr-event:${user.id}`, 400, 60 * 60 * 1000))) {
     return NextResponse.json({ ok: true }) // best-effort; drop silently
   }
 

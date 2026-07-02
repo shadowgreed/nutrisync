@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { rateLimit } from '@/lib/ratelimit'
+import { rateLimitDurable } from '@/lib/ratelimit'
+import { parseJson, badRequest } from '@/lib/validate'
 
 // Coach private notes about a member. Writes go through the user's own client so
 // RLS (coach_client_notes policies, migration 032) enforces that the caller is a
@@ -11,13 +12,13 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  if (!rateLimit(`coach-note:${user.id}`, 60, 60_000)) {
+  if (!(await rateLimitDurable(supabase, `coach-note:${user.id}`, 60, 60_000))) {
     return NextResponse.json({ error: 'Slow down a moment' }, { status: 429 })
   }
 
-  const { groupId, memberId, body } = await req.json() as {
-    groupId?: string; memberId?: string; body?: string
-  }
+  const parsed = await parseJson<{ groupId?: string; memberId?: string; body?: string }>(req)
+  if (!parsed) return badRequest()
+  const { groupId, memberId, body } = parsed
   const text = (body ?? '').trim()
   if (!groupId || !memberId || !text) {
     return NextResponse.json({ error: 'Missing groupId, memberId or body' }, { status: 400 })
@@ -51,7 +52,8 @@ export async function DELETE(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { id } = await req.json() as { id?: string }
+  const parsed = await parseJson<{ id?: string }>(req)
+  const id = parsed?.id
   if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 })
 
   // RLS restricts deletes to the note's own coach.

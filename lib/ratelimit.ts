@@ -1,9 +1,15 @@
-// Minimal in-memory sliding-window rate limiter for API routes.
+// Rate limiting for API routes, in two tiers:
 //
-// Scope: per serverless instance. On Vercel each warm instance keeps its own
-// counters, so the effective global limit is (limit × instances) — imperfect,
-// but it stops the realistic abuse case (one user/script hammering an endpoint
-// through a single warm instance) with zero added latency or infrastructure.
+//  - `rateLimit` — in-memory sliding window, per serverless instance. Zero
+//    latency, but on Vercel each warm instance keeps its own counters, so the
+//    effective global limit is (limit × instances).
+//  - `rateLimitDurable` — the in-memory check first (fast local rejection),
+//    then a shared Postgres counter via the `check_rate_limit` RPC (migration
+//    050) that holds across instances. Fails OPEN if the RPC is missing or
+//    errors, so deploying this code before applying the migration only means
+//    falling back to the old per-instance behaviour — never a broken route.
+
+import type { SupabaseClient } from '@supabase/supabase-js'
 
 const buckets = new Map<string, number[]>()
 
@@ -19,8 +25,9 @@ function sweep(windowMs: number) {
 }
 
 /**
- * Returns true if `key` (e.g. `analyze:<userId>`) is within `limit` calls per
- * `windowMs`, and records the call. Returns false when over the limit.
+ * In-memory (per-instance) limiter. Returns true if `key` (e.g.
+ * `analyze:<userId>`) is within `limit` calls per `windowMs`, and records the
+ * call. Returns false when over the limit.
  */
 export function rateLimit(key: string, limit: number, windowMs: number): boolean {
   sweep(windowMs)
@@ -33,4 +40,39 @@ export function rateLimit(key: string, limit: number, windowMs: number): boolean
   hits.push(now)
   buckets.set(key, hits)
   return true
+}
+
+// Remember when the shared counter isn't available (pre-migration) so we don't
+// pay a failing round trip on every request from this instance.
+let durableUnavailable = false
+
+/**
+ * Distributed limiter: in-memory first (free, catches single-instance abuse
+ * immediately), then the shared Postgres window so the limit holds across all
+ * serverless instances. Pass the route's existing per-request Supabase client.
+ * Best-effort by design — any RPC failure falls back to the in-memory verdict.
+ */
+export async function rateLimitDurable(
+  supabase: SupabaseClient,
+  key: string,
+  limit: number,
+  windowMs: number,
+): Promise<boolean> {
+  if (!rateLimit(key, limit, windowMs)) return false
+  if (durableUnavailable) return true
+  try {
+    const { data, error } = await supabase.rpc('check_rate_limit', {
+      p_key: key,
+      p_limit: limit,
+      p_window_ms: windowMs,
+    })
+    if (error) {
+      // 42883 = undefined function → migration 050 not applied yet.
+      if (error.code === '42883' || /check_rate_limit/.test(error.message)) durableUnavailable = true
+      return true
+    }
+    return data !== false
+  } catch {
+    return true
+  }
 }

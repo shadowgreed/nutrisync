@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { rateLimit } from '@/lib/ratelimit'
+import { rateLimitDurable } from '@/lib/ratelimit'
 
 // Records a Help Center analytics event (search / view / feedback). Fire-and-
 // forget from the client — it returns ok even on validation no-ops so it never
@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   // Generous cap — views + debounced searches + feedback across a session.
-  if (!rateLimit(`help-event:${user.id}`, 600, 60 * 60 * 1000)) {
+  if (!(await rateLimitDurable(supabase, `help-event:${user.id}`, 600, 60 * 60 * 1000))) {
     return NextResponse.json({ ok: true }) // silently drop; analytics is best-effort
   }
 

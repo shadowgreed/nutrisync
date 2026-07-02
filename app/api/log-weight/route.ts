@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { logEvent } from '@/lib/analytics'
+import { parseJson, badRequest } from '@/lib/validate'
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { weight_kg } = await req.json()
-  const w = Number(weight_kg)
+  const body = await parseJson(req)
+  if (!body) return badRequest()
+  const w = Number(body.weight_kg)
   if (!Number.isFinite(w) || w <= 0 || w > 500) {
     return NextResponse.json({ error: 'Invalid weight' }, { status: 400 })
   }

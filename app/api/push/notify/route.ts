@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendPushToUser } from '@/lib/push'
+import { parseJson, badRequest } from '@/lib/validate'
 
 // Recipient's unread notification count, for the app-icon badge. Best-effort.
 async function unreadCount(userId: string): Promise<number | undefined> {
@@ -24,9 +25,11 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { foodLogId, kind, targetUserId } = await req.json() as {
-    foodLogId: string; kind: 'reaction' | 'comment' | 'reply'; targetUserId?: string
-  }
+  const parsed = await parseJson<{
+    foodLogId?: string; kind?: 'reaction' | 'comment' | 'reply'; targetUserId?: string
+  }>(req)
+  if (!parsed) return badRequest()
+  const { foodLogId, kind, targetUserId } = parsed
   if (!foodLogId) return NextResponse.json({ error: 'Missing foodLogId' }, { status: 400 })
 
   // Replies push the parent comment's author (passed by the client); reactions

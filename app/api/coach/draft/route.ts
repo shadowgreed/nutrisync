@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { rateLimit } from '@/lib/ratelimit'
+import { rateLimitDurable } from '@/lib/ratelimit'
 import { groupForCoachMember, assessMember, getDietOverride } from '@/lib/coach-server'
 import { chooseKind, draftCheckin } from '@/lib/copilot-ai'
 import { isDraftTone } from '@/lib/copilot-tones'
 import { inferVoice } from '@/lib/coach-voice'
 import { effectiveDiet, isDiet } from '@/lib/diets'
+import { parseJson, badRequest } from '@/lib/validate'
 
 // Generate (or regenerate) a Copilot check-in draft for one member. The draft is
 // stored as 'pending' — it does NOT reach the member until the coach sends it.
@@ -14,16 +15,17 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const body = await req.json() as { memberId?: string; tone?: string }
+  const body = await parseJson<{ memberId?: string; tone?: string }>(req)
+  if (!body) return badRequest()
   const { memberId } = body
   if (!memberId) return NextResponse.json({ error: 'Missing memberId' }, { status: 400 })
   const tone = isDraftTone(body.tone) ? body.tone : 'auto'
 
   // Drafting calls the LLM — keep it bounded per coach and per member.
-  if (!rateLimit(`coach-draft:${user.id}`, 60, 60 * 60 * 1000)) {
+  if (!(await rateLimitDurable(supabase, `coach-draft:${user.id}`, 60, 60 * 60 * 1000))) {
     return NextResponse.json({ error: 'Too many drafts this hour — try again soon.' }, { status: 429 })
   }
-  if (!rateLimit(`coach-draft:${user.id}:${memberId}`, 10, 60 * 60 * 1000)) {
+  if (!(await rateLimitDurable(supabase, `coach-draft:${user.id}:${memberId}`, 10, 60 * 60 * 1000))) {
     return NextResponse.json({ error: 'Plenty of drafts for this member already — give it a minute.' }, { status: 429 })
   }
 

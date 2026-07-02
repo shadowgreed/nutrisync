@@ -23,9 +23,12 @@ export function useFocusTrap<T extends HTMLElement = HTMLDivElement>(
   onClose: () => void,
 ) {
   const ref = useRef<T>(null)
-  // Keep the latest onClose without re-running the effect each render.
+  // Keep the latest onClose without re-running the trap effect each render.
+  // Written from an effect (not during render) so render stays pure.
   const onCloseRef = useRef(onClose)
-  onCloseRef.current = onClose
+  useEffect(() => {
+    onCloseRef.current = onClose
+  })
 
   useEffect(() => {
     const node = ref.current
