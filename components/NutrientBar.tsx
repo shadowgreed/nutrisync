@@ -1,6 +1,7 @@
 'use client'
 
 import { NUTRIENT_META } from '@/lib/nutrients'
+import { useI18n } from '@/components/I18nProvider'
 import type { NutrientKey } from '@/types'
 
 const STATUS_COLORS = {
@@ -15,11 +16,12 @@ const STATUS_BG = {
   green:  'bg-emerald-950/50 border-emerald-800/40',
 }
 
-// Text label so status isn't conveyed by colour alone (WCAG 1.4.1)
-const STATUS_LABEL = {
-  red:    { text: 'Low',     cls: 'text-red-300' },
-  yellow: { text: 'Halfway', cls: 'text-yellow-300' },
-  green:  { text: 'Hit ✓',   cls: 'text-emerald-300' },
+// Text label so status isn't conveyed by colour alone (WCAG 1.4.1); the
+// wording itself comes from the i18n dictionary.
+const STATUS_CLS = {
+  red:    'text-red-300',
+  yellow: 'text-yellow-300',
+  green:  'text-emerald-300',
 }
 
 interface Props {
@@ -30,12 +32,15 @@ interface Props {
 }
 
 export default function NutrientBar({ nutrientKey, value, onClick, compact }: Props) {
+  const { t } = useI18n()
   const meta = NUTRIENT_META[nutrientKey]
+  const displayLabel = t.nutrients[nutrientKey]
   const pct = Math.min(100, Math.round((value / meta.target) * 100))
   const status = pct >= 100 ? 'green' : pct >= 50 ? 'yellow' : 'red'
-  const label = STATUS_LABEL[status]
+  const statusText = status === 'red' ? t.nutrientUi.low : status === 'yellow' ? t.nutrientUi.halfway : t.nutrientUi.hit
+  const statusCls = STATUS_CLS[status]
   const valueStr = value % 1 === 0 ? String(value) : value.toFixed(1)
-  const ariaLabel = `${meta.label}: ${valueStr} of ${meta.target} ${meta.unit}, ${pct} percent, ${label.text}`
+  const ariaLabel = `${displayLabel}: ${valueStr} / ${meta.target} ${meta.unit}, ${pct}%, ${statusText}`
 
   if (compact) {
     return (
@@ -62,7 +67,7 @@ export default function NutrientBar({ nutrientKey, value, onClick, compact }: Pr
       <span className="text-xl w-7 text-center" aria-hidden="true">{meta.emoji}</span>
       <div className="flex-1 min-w-0">
         <div className="flex justify-between items-baseline mb-1">
-          <span className="text-white text-sm font-medium truncate">{meta.label}</span>
+          <span className="text-white text-sm font-medium truncate">{displayLabel}</span>
           <span className="text-stone-300 text-xs ml-2 shrink-0 tabular-nums">
             {valueStr} / {meta.target} {meta.unit}
           </span>
@@ -74,7 +79,7 @@ export default function NutrientBar({ nutrientKey, value, onClick, compact }: Pr
           />
         </div>
       </div>
-      <span className={`text-xs shrink-0 font-medium w-14 text-right ${label.cls}`} aria-hidden="true">{label.text}</span>
+      <span className={`text-xs shrink-0 font-medium w-14 text-right ${statusCls}`} aria-hidden="true">{statusText}</span>
     </button>
   )
 }

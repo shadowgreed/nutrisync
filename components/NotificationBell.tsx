@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react'
 import { Bell } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { setAppBadge } from '@/lib/badge'
+import { useI18n } from '@/components/I18nProvider'
 
 /**
  * Bell icon with a live unread-count badge. Fetches the initial count and then
@@ -12,6 +13,7 @@ import { setAppBadge } from '@/lib/badge'
  * notification row is inserted for the current user.
  */
 export default function NotificationBell() {
+  const { t } = useI18n()
   const [count, setCount] = useState(0)
 
   // Keep the installed-app icon badge in sync with the unread count while open.
@@ -52,7 +54,7 @@ export default function NotificationBell() {
   return (
     <Link
       href="/notifications"
-      aria-label={count > 0 ? `Notifications, ${count} unread` : 'Notifications'}
+      aria-label={count > 0 ? t.bell.unreadAria(count) : t.bell.notifications}
       className="relative flex items-center justify-center w-11 h-11 -m-1 text-stone-300 hover:text-white transition-colors"
     >
       <Bell size={20} aria-hidden="true" />

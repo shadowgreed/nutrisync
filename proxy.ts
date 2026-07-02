@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { isLocale, LOCALE_COOKIE } from '@/lib/i18n'
 
 export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
@@ -37,6 +38,22 @@ export async function proxy(request: NextRequest) {
 
   if (user && pathname === '/') {
     return NextResponse.redirect(new URL('/dashboard', request.url))
+  }
+
+  // Language backfill: a signed-in user on a device with no locale cookie (new
+  // phone, reinstalled PWA, cleared storage) gets their saved account language
+  // without having to re-pick it. One extra query only in that state — once the
+  // cookie is set this branch never runs again.
+  if (user && !request.cookies.get(LOCALE_COOKIE)) {
+    try {
+      const { data: prof } = await supabase
+        .from('profiles').select('language').eq('id', user.id).single()
+      if (isLocale(prof?.language)) {
+        supabaseResponse.cookies.set(LOCALE_COOKIE, prof.language, {
+          path: '/', maxAge: 60 * 60 * 24 * 365, sameSite: 'lax', httpOnly: false,
+        })
+      }
+    } catch { /* missing column (migration 051) or transient error — skip */ }
   }
 
   return supabaseResponse

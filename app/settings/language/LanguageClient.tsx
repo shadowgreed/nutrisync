@@ -3,8 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Check } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
-import { useI18n, setLocaleCookie } from '@/components/I18nProvider'
+import { useI18n } from '@/components/I18nProvider'
 import type { Locale } from '@/lib/i18n'
 import { SettingsShell } from '../_ui'
 
@@ -12,7 +11,7 @@ export default function LanguageClient({ saved }: { saved: Locale | null }) {
   const router = useRouter()
   const { t, locale } = useI18n()
   const [saving, setSaving] = useState(false)
-  const [savedFlash, setSavedFlash] = useState(false)
+  const [savedFlash, setSavedFlash] = useState<'account' | 'device' | null>(null)
   // The profile value wins for display; fall back to the device cookie.
   const current = saved ?? locale
 
@@ -20,17 +19,16 @@ export default function LanguageClient({ saved }: { saved: Locale | null }) {
     if (next === current || saving) return
     setSaving(true)
     try {
-      // Device first (instant), then the account (durable, cross-device).
-      setLocaleCookie(next)
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (user) {
-        // PGRST204 = language column missing (migration 051 not applied yet).
-        // The cookie still works on this device; the account sync just waits.
-        const { error } = await supabase.from('profiles').update({ language: next }).eq('id', user.id)
-        if (error && error.code !== 'PGRST204' && !/language/.test(error.message)) throw error
-      }
-      setSavedFlash(true)
+      // One server call sets the device cookie (Set-Cookie survives Safari's
+      // 7-day cap on JS cookies) and writes profiles.language when possible.
+      // `account` is false when the profile column is missing (migration 051
+      // not applied) — surface that instead of claiming a full save.
+      const res = await fetch('/api/language', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ language: next }),
+      })
+      const data = res.ok ? await res.json() as { account?: boolean } : {}
+      setSavedFlash(data.account ? 'account' : 'device')
       router.refresh()
     } finally {
       setSaving(false)
@@ -69,8 +67,11 @@ export default function LanguageClient({ saved }: { saved: Locale | null }) {
         })}
       </div>
 
-      {savedFlash && (
+      {savedFlash === 'account' && (
         <p className="px-4 mt-3 text-emerald-300 text-sm" role="status">{t.settings.languageSaved}</p>
+      )}
+      {savedFlash === 'device' && (
+        <p className="px-4 mt-3 text-amber-300 text-sm" role="status">{t.settings.languageSavedDevice}</p>
       )}
       <p className="px-4 mt-3 text-stone-400 text-xs">{t.settings.languageNote}</p>
     </SettingsShell>

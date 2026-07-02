@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useI18n } from '@/components/I18nProvider'
 import { Download, Share, X } from 'lucide-react'
 
 interface BeforeInstallPromptEvent extends Event {
@@ -17,6 +18,7 @@ const DISMISS_KEY = 'installPromptDismissed'
  * Hidden when already installed (standalone) or previously dismissed.
  */
 export default function InstallPrompt() {
+  const { t } = useI18n()
   const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null)
   const [mode, setMode] = useState<'hidden' | 'android' | 'ios'>('hidden')
 
@@ -67,12 +69,12 @@ export default function InstallPrompt() {
         <Download size={18} className="text-emerald-300" />
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-white text-sm font-semibold">Install NutriSync</p>
+        <p className="text-white text-sm font-semibold">{t.install.title}</p>
         {mode === 'android' ? (
-          <p className="text-stone-400 text-xs mt-0.5">Add it to your home screen for a full-screen app + notifications.</p>
+          <p className="text-stone-400 text-xs mt-0.5">{t.install.androidBody}</p>
         ) : (
           <p className="text-stone-400 text-xs mt-0.5 inline-flex items-center gap-1 flex-wrap">
-            Tap <Share size={12} className="text-stone-200 inline" aria-label="Share" /> then “Add to Home Screen” to install &amp; enable notifications.
+            {t.install.iosTapPre}<Share size={12} className="text-stone-200 inline" aria-label={t.install.shareAria} />{t.install.iosTapPost}
           </p>
         )}
       </div>
@@ -81,10 +83,10 @@ export default function InstallPrompt() {
           onClick={install}
           className="shrink-0 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold px-3 py-2 rounded-lg transition-colors"
         >
-          Install
+          {t.install.install}
         </button>
       )}
-      <button onClick={dismiss} aria-label="Dismiss install prompt" className="shrink-0 flex items-center justify-center w-11 h-11 -mr-1 text-stone-400 hover:text-white transition-colors">
+      <button onClick={dismiss} aria-label={t.install.dismissAria} className="shrink-0 flex items-center justify-center w-11 h-11 -mr-1 text-stone-400 hover:text-white transition-colors">
         <X size={16} aria-hidden="true" />
       </button>
     </div>

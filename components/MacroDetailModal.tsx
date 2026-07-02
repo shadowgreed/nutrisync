@@ -3,6 +3,7 @@
 import { X } from 'lucide-react'
 import { MACRO_META } from '@/lib/macros'
 import { useFocusTrap } from '@/lib/useFocusTrap'
+import { useI18n } from '@/components/I18nProvider'
 import type { MacroKey, MacroTotals } from '@/types'
 
 interface FoodItem {
@@ -21,6 +22,8 @@ export default function MacroDetailModal({
   macroKey, foods, onClose,
 }: { macroKey: MacroKey; foods: FoodItem[]; onClose: () => void }) {
   const meta = MACRO_META[macroKey]
+  const { t } = useI18n()
+  const displayLabel = t.macros[macroKey]
   // useFocusTrap handles Escape, focus-in on open, and focus restore on close.
   const trapRef = useFocusTrap<HTMLDivElement>(onClose)
 
@@ -43,7 +46,7 @@ export default function MacroDetailModal({
         ref={trapRef}
         role="dialog"
         aria-modal="true"
-        aria-label={`${meta.label} breakdown for today`}
+        aria-label={t.nutrientUi.breakdownAria(displayLabel)}
         tabIndex={-1}
         className="w-full sm:max-w-sm bg-stone-900 border border-stone-700 rounded-t-3xl sm:rounded-3xl p-5 max-h-[80vh] overflow-y-auto"
         onClick={e => e.stopPropagation()}
@@ -51,17 +54,17 @@ export default function MacroDetailModal({
         <div className="flex items-center gap-2.5 mb-4">
           <span className="text-2xl" aria-hidden="true">{meta.emoji}</span>
           <div className="flex-1">
-            <p className="text-white font-bold leading-tight">{meta.label} today</p>
-            <p className="text-stone-400 text-xs">{Math.round(total)}{meta.unit} from {items.length} food{items.length === 1 ? '' : 's'}</p>
+            <p className="text-white font-bold leading-tight">{t.nutrientUi.macroToday(displayLabel)}</p>
+            <p className="text-stone-400 text-xs">{Math.round(total)}{meta.unit} {t.nutrientUi.fromFoods(items.length)}</p>
           </div>
-          <button onClick={onClose} aria-label="Close" className="flex items-center justify-center w-11 h-11 -mr-1 text-stone-400 hover:text-white">
+          <button onClick={onClose} aria-label={t.common.close} className="flex items-center justify-center w-11 h-11 -mr-1 text-stone-400 hover:text-white">
             <X size={18} aria-hidden="true" />
           </button>
         </div>
 
         {items.length === 0 ? (
           <p className="text-stone-400 text-sm text-center py-8">
-            None of today&apos;s logged foods have {meta.label.toLowerCase()} yet.
+            {t.nutrientUi.noneYet(displayLabel.toLowerCase())}
           </p>
         ) : (
           <ul className="space-y-2.5">

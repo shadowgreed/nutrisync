@@ -153,9 +153,9 @@ export default function DashboardClient({
 
   const greeting = () => {
     const h = new Date().getHours()
-    if (h < 12) return 'Good morning'
-    if (h < 17) return 'Good afternoon'
-    return 'Good evening'
+    if (h < 12) return t.dashboard.goodMorning
+    if (h < 17) return t.dashboard.goodAfternoon
+    return t.dashboard.goodEvening
   }
 
   async function logWater(ml: number) {
@@ -200,12 +200,12 @@ export default function DashboardClient({
             <div
               className="flex items-center gap-1.5 bg-orange-950/60 border border-orange-700/50 rounded-full px-3 py-1.5"
               role="status"
-              aria-label={`${streak} day logging streak`}
+              aria-label={t.dashboard.streakAria(streak)}
             >
               <span className="text-base leading-none" aria-hidden="true">🔥</span>
               <div className="leading-none">
                 <span className="text-orange-300 font-bold text-sm">{streak}</span>
-                <span className="text-orange-400 text-xs"> day{streak !== 1 ? 's' : ''}</span>
+                <span className="text-orange-400 text-xs"> {t.dashboard.daySuffix(streak)}</span>
               </div>
             </div>
           )}
@@ -219,7 +219,7 @@ export default function DashboardClient({
       {logsWithNoData.length > 0 && (
         <div className="mx-4 mb-4 bg-amber-950/50 border border-amber-700/50 rounded-2xl px-4 py-3 flex items-center gap-3">
           <div className="flex-1">
-            <p className="text-amber-300 text-sm font-semibold">Finish a few meals</p>
+            <p className="text-amber-300 text-sm font-semibold">{t.dashboard.finishMeals}</p>
             <p className="text-amber-500 text-xs mt-0.5">Tap to fill in nutrition for {logsWithNoData.length} meal{logsWithNoData.length > 1 ? 's' : ''}</p>
           </div>
           <button
@@ -228,7 +228,7 @@ export default function DashboardClient({
             className="flex items-center gap-1.5 bg-amber-700 hover:bg-amber-600 disabled:opacity-50 text-white text-xs font-semibold px-3 py-2 rounded-xl transition-colors shrink-0"
           >
             <RefreshCw size={12} className={backfilling ? 'animate-spin' : ''} />
-            {backfilling ? 'Fixing…' : 'Fix now'}
+            {backfilling ? t.dashboard.fixing : t.dashboard.fixNow}
           </button>
         </div>
       )}
@@ -236,8 +236,8 @@ export default function DashboardClient({
       {/* Calorie budget hero — the page's anchor: how much you have left today */}
       <div className="mx-4 mb-4 bg-stone-900 border border-stone-800 rounded-3xl p-5">
         <div className="flex items-center gap-1 mb-4">
-          <p className="text-stone-300 text-sm font-medium">Calorie budget</p>
-          <InfoTip label={t.dashboard.caloriesLeft} text="Your daily goal, plus any calories you burned through activity, minus what you've eaten." />
+          <p className="text-stone-300 text-sm font-medium">{t.dashboard.calorieBudget}</p>
+          <InfoTip label={t.dashboard.caloriesLeft} text={t.dashboard.caloriesTip} />
         </div>
 
         <div className="flex items-center gap-5">
@@ -256,7 +256,7 @@ export default function DashboardClient({
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center">
               <span className="text-white text-3xl font-extrabold tabular-nums leading-none">{Math.abs(remaining).toLocaleString()}</span>
-              <span className={`text-xs font-medium mt-1 ${over ? 'text-red-300' : 'text-stone-400'}`}>{over ? 'kcal over' : 'kcal left'}</span>
+              <span className={`text-xs font-medium mt-1 ${over ? 'text-red-300' : 'text-stone-400'}`}>{over ? t.dashboard.kcalOver : t.dashboard.kcalLeft}</span>
             </div>
           </div>
 
@@ -265,21 +265,21 @@ export default function DashboardClient({
             <div className="flex items-center gap-2.5">
               <span className="w-7 h-7 rounded-lg bg-stone-800 flex items-center justify-center shrink-0"><Target size={14} className="text-stone-300" aria-hidden="true" /></span>
               <div className="min-w-0">
-                <p className="text-stone-400 text-xs leading-none">Goal</p>
+                <p className="text-stone-400 text-xs leading-none">{t.dashboard.goal}</p>
                 <p className="text-white text-base font-bold tabular-nums leading-tight">{baseTarget.toLocaleString()}</p>
               </div>
             </div>
             <div className="flex items-center gap-2.5">
               <span className="w-7 h-7 rounded-lg bg-emerald-950/60 flex items-center justify-center shrink-0"><Utensils size={14} className="text-emerald-400" aria-hidden="true" /></span>
               <div className="min-w-0">
-                <p className="text-stone-400 text-xs leading-none">Eaten</p>
+                <p className="text-stone-400 text-xs leading-none">{t.dashboard.eaten}</p>
                 <p className="text-white text-base font-bold tabular-nums leading-tight">{caloriesIn.toLocaleString()}</p>
               </div>
             </div>
             <div className="flex items-center gap-2.5">
               <span className="w-7 h-7 rounded-lg bg-orange-950/60 flex items-center justify-center shrink-0"><Flame size={14} className="text-orange-400" aria-hidden="true" /></span>
               <div className="min-w-0">
-                <p className="text-stone-400 text-xs leading-none">Burned</p>
+                <p className="text-stone-400 text-xs leading-none">{t.dashboard.burned}</p>
                 <p className="text-white text-base font-bold tabular-nums leading-tight">{caloriesBurnedToday.toLocaleString()}</p>
               </div>
             </div>
@@ -304,7 +304,7 @@ export default function DashboardClient({
               <button
                 key={key}
                 onClick={() => setActiveMacro(key)}
-                aria-label={`See which foods provided ${meta.label} today`}
+                aria-label={t.dashboard.whichFoodsAria(t.macros[key])}
                 className="flex flex-col items-center rounded-xl -mx-1 px-1 py-1 hover:bg-stone-800/70 transition-colors"
               >
                 <div className="relative w-full h-2.5 rounded-full bg-stone-700 overflow-hidden mb-2">
@@ -312,7 +312,7 @@ export default function DashboardClient({
                 </div>
                 <span className="text-base leading-none mb-1" aria-hidden="true">{meta.emoji}</span>
                 <span className="text-white text-sm font-bold leading-none tabular-nums">{current}<span className="text-stone-400 text-xs font-normal">g</span></span>
-                <span className="text-stone-400 text-xs mt-0.5">{meta.label}</span>
+                <span className="text-stone-400 text-xs mt-0.5">{t.macros[key]}</span>
                 <span className="text-stone-400 text-xs tabular-nums">/ {target}g · {pct}%</span>
               </button>
             )
@@ -366,7 +366,7 @@ export default function DashboardClient({
           <button
             onClick={() => logWater(waterBottleMl)}
             disabled={addingWater}
-            aria-label={`Add one bottle, ${waterLabel(waterBottleMl)}`}
+            aria-label={t.dashboard.addBottleAria(waterLabel(waterBottleMl))}
             className="flex-1 flex items-center justify-center gap-1.5 bg-sky-800/60 hover:bg-sky-700/60 border border-sky-700/40 text-sky-200 text-sm font-medium py-3 rounded-xl transition-colors disabled:opacity-50"
           >
             <Droplets size={14} aria-hidden="true" />
@@ -375,7 +375,7 @@ export default function DashboardClient({
           <button
             onClick={() => logWater(Math.round(waterBottleMl / 2))}
             disabled={addingWater}
-            aria-label={`Add half a bottle, ${waterLabel(Math.round(waterBottleMl / 2))}`}
+            aria-label={t.dashboard.addHalfAria(waterLabel(Math.round(waterBottleMl / 2)))}
             className="flex-1 flex items-center justify-center gap-1.5 bg-stone-800 hover:bg-stone-700 text-stone-200 text-sm py-3 rounded-xl transition-colors disabled:opacity-50"
           >
             +½ bottle <span className="text-stone-400">· {waterLabel(Math.round(waterBottleMl / 2))}</span>
@@ -383,7 +383,7 @@ export default function DashboardClient({
           {waterLogs.length > 0 && (
             <button
               onClick={undoLastWater}
-              aria-label="Undo last water entry"
+              aria-label={t.dashboard.undoAria}
               className="px-4 bg-stone-800 hover:bg-stone-700 text-stone-300 hover:text-red-300 text-xs py-3 rounded-xl transition-colors"
             >
               Undo
@@ -394,7 +394,7 @@ export default function DashboardClient({
         {waterSurpassed ? (
           <p className="text-center text-cyan-300 text-xs mt-2 font-medium">Goal surpassed! 🌊 +{waterLabel(totalWater - waterTargetMl)} over</p>
         ) : waterPct >= 100 ? (
-          <p className="text-center text-sky-400 text-xs mt-2 font-medium">Goal reached! 🎉</p>
+          <p className="text-center text-sky-400 text-xs mt-2 font-medium">{t.dashboard.waterReached}</p>
         ) : null}
       </div>
 
@@ -403,18 +403,18 @@ export default function DashboardClient({
         <div className="flex items-center justify-between mb-1">
           <div className="flex items-center gap-1">
             <h2 className="text-white font-semibold text-sm">{t.dashboard.micronutrients}</h2>
-            <InfoTip label="Micronutrients" text="Vitamins and minerals your body needs in small amounts (mg = milligrams, mcg = micrograms). Aim to reach 100% of each daily target." />
+            <InfoTip label={t.dashboard.micronutrients} text={t.dashboard.microTip} />
           </div>
-          <span className="text-stone-300 text-xs tabular-nums">{greenCount} of {gaps.length} on track</span>
+          <span className="text-stone-300 text-xs tabular-nums">{t.dashboard.onTrack(greenCount, gaps.length)}</span>
         </div>
 
         {!anyLogged ? (
-          <p className="text-stone-400 text-sm mt-2">Log a meal to see your vitamins &amp; minerals.</p>
+          <p className="text-stone-400 text-sm mt-2">{t.dashboard.logToSee}</p>
         ) : focusGaps.length === 0 ? (
-          <p className="text-emerald-300 text-sm mt-2">🎉 Every nutrient on track today — great work!</p>
+          <p className="text-emerald-300 text-sm mt-2">{t.dashboard.allOnTrack}</p>
         ) : (
           <>
-            <p className="text-stone-400 text-xs mt-1 mb-3">Focus on these {focusGaps.length} to round out your day:</p>
+            <p className="text-stone-400 text-xs mt-1 mb-3">{t.dashboard.focusThese(focusGaps.length)}</p>
             <div className="space-y-2">
               {focusGaps.map(gap => (
                 <NutrientBar key={gap.nutrient} nutrientKey={gap.nutrient as NutrientKey} value={gap.current} onClick={() => setActiveGap(gap)} />
@@ -430,7 +430,7 @@ export default function DashboardClient({
               aria-expanded={showAllNutrients}
               className="mt-3 w-full flex items-center justify-center gap-1 text-stone-300 hover:text-white text-xs font-medium py-2.5 rounded-lg hover:bg-stone-800 transition-colors"
             >
-              {showAllNutrients ? 'Hide' : `View all ${gaps.length} nutrients`}
+              {showAllNutrients ? t.dashboard.hide : t.dashboard.viewAll(gaps.length)}
               <ChevronDown size={14} className={`transition-transform ${showAllNutrients ? 'rotate-180' : ''}`} aria-hidden="true" />
             </button>
             {showAllNutrients && (
@@ -452,7 +452,7 @@ export default function DashboardClient({
       {/* Today's meals */}
       {logs.length > 0 && (
         <div className="px-4 mb-4">
-          <p className="text-stone-400 text-xs uppercase tracking-wider mb-3">Today's meals</p>
+          <p className="text-stone-400 text-xs uppercase tracking-wider mb-3">{t.dashboard.todaysMeals}</p>
           <div className="space-y-2">
             {logs.map(log => (
               <div key={log.id} className="bg-stone-900 border border-stone-800 rounded-2xl px-4 py-3">
@@ -484,7 +484,7 @@ export default function DashboardClient({
                     ) : (
                       <button
                         onClick={() => setConfirmDeleteId(log.id)}
-                        aria-label={`Delete ${log.meal_type}`}
+                        aria-label={t.dashboard.deleteMealAria(t.mealTypes[log.meal_type as keyof typeof t.mealTypes]?.label ?? log.meal_type)}
                         className="text-stone-400 hover:text-red-300 transition-colors p-2.5 -m-1.5"
                       >
                         <Trash2 size={16} aria-hidden="true" />
@@ -504,10 +504,10 @@ export default function DashboardClient({
       {logs.length === 0 && (
         <div className="mx-4 text-center py-10 bg-stone-900/50 border border-dashed border-stone-800 rounded-2xl">
           <p className="text-3xl mb-2">🥗</p>
-          <p className="text-white text-sm font-semibold">No meals logged yet</p>
-          <p className="text-stone-400 text-xs mt-1 mb-4">Add your first meal to start today&apos;s tracking.</p>
+          <p className="text-white text-sm font-semibold">{t.dashboard.noMeals}</p>
+          <p className="text-stone-400 text-xs mt-1 mb-4">{t.dashboard.addFirst}</p>
           <Link href="/log" className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition-colors">
-            <Plus size={16} aria-hidden="true" /> Log a meal
+            <Plus size={16} aria-hidden="true" /> {t.dashboard.logAMeal}
           </Link>
         </div>
       )}

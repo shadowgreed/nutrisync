@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { track } from '@/lib/analytics-client'
-import { useI18n, setLocaleCookie } from '@/components/I18nProvider'
+import { useI18n } from '@/components/I18nProvider'
 import { LOCALES, isLocale, type Locale, type Dict } from '@/lib/i18n'
 
 const TERMS_VERSION = '2026-06-14'
@@ -46,11 +46,17 @@ export default function LoginPage() {
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
 
-  // Pre-auth language switch: persist the device cookie, then re-render the
-  // whole page server-side in the new language. Saved to the profile at signup.
-  function switchLocale(next: Locale) {
+  // Pre-auth language switch: the API sets the cookie server-side (works with
+  // no account), then the page re-renders in the new language. Saved to the
+  // profile at signup.
+  async function switchLocale(next: Locale) {
     if (next === locale) return
-    setLocaleCookie(next)
+    try {
+      await fetch('/api/language', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ language: next }),
+      })
+    } catch { /* offline — leave as-is */ }
     router.refresh()
   }
 
@@ -84,9 +90,12 @@ export default function LoginPage() {
         // Instant session (email confirmation off) — the signup is complete.
         track('signup', { method: 'password' })
         // Persist the language chosen at signup to the account (best-effort).
-        if (data.user) {
-          try { await supabase.from('profiles').update({ language: locale }).eq('id', data.user.id) } catch { /* ignore */ }
-        }
+        try {
+          await fetch('/api/language', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ language: locale }),
+          })
+        } catch { /* ignore */ }
       } else {
         const { data, error } = await supabase.auth.signInWithPassword({ email, password })
         if (error) { setError(friendlyAuthError(error.message, t)); return }
@@ -98,11 +107,14 @@ export default function LoginPage() {
           try {
             const { data: prof } = await supabase
               .from('profiles').select('language').eq('id', data.user.id).single()
-            if (isLocale(prof?.language)) {
-              if (prof.language !== locale) setLocaleCookie(prof.language)
-            } else {
-              await supabase.from('profiles').update({ language: locale }).eq('id', data.user.id)
-            }
+            // Account preference wins; a profile without one adopts this
+            // device's choice. Either way the API route sets the cookie
+            // server-side and keeps profile + cookie consistent.
+            const wanted = isLocale(prof?.language) ? prof.language : locale
+            await fetch('/api/language', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ language: wanted }),
+            })
           } catch { /* ignore */ }
         }
       }
