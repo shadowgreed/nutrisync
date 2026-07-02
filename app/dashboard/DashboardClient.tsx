@@ -12,6 +12,7 @@ import NotificationBell from '@/components/NotificationBell'
 import InstallPrompt from '@/components/InstallPrompt'
 import LogFab from '@/components/LogFab'
 import TimeZoneSync from '@/components/TimeZoneSync'
+import { useI18n } from '@/components/I18nProvider'
 import { formatOz } from '@/lib/water'
 import { WEEKLY_SEEN_KEY, currentWeekKey } from '@/lib/weekly'
 import { sumTotals, emptyTotals, buildGapCorrections } from '@/lib/nutrients'
@@ -53,6 +54,7 @@ export default function DashboardClient({
   waterTargetMl, waterBottleMl, initialWaterLogs,
 }: Props) {
   const router = useRouter()
+  const { t } = useI18n()
   const todayKey = localDayKey(Date.now())
   const logs = allLogs.filter(l => localDayKey(l.logged_at) === todayKey)
   const caloriesBurnedToday = activities
@@ -191,7 +193,7 @@ export default function DashboardClient({
       <div className="px-4 pt-12 pb-4 flex items-end justify-between gap-3">
         <div className="min-w-0">
           <p className="text-stone-400 text-sm">{greeting()}, {displayName} 👋</p>
-          <h1 className="text-white text-2xl font-bold mt-0.5">Today's snapshot</h1>
+          <h1 className="text-white text-2xl font-bold mt-0.5">{t.dashboard.snapshotTitle}</h1>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {streak > 0 && (
@@ -235,7 +237,7 @@ export default function DashboardClient({
       <div className="mx-4 mb-4 bg-stone-900 border border-stone-800 rounded-3xl p-5">
         <div className="flex items-center gap-1 mb-4">
           <p className="text-stone-300 text-sm font-medium">Calorie budget</p>
-          <InfoTip label="Calories left" text="Your daily goal, plus any calories you burned through activity, minus what you've eaten." />
+          <InfoTip label={t.dashboard.caloriesLeft} text="Your daily goal, plus any calories you burned through activity, minus what you've eaten." />
         </div>
 
         <div className="flex items-center gap-5">
@@ -289,7 +291,7 @@ export default function DashboardClient({
       {/* ── Macros section ── */}
       <div className="mx-4 mb-4 bg-stone-900 border border-stone-800 rounded-2xl p-4">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-white font-semibold text-sm">Macros today</h2>
+          <h2 className="text-white font-semibold text-sm">{t.dashboard.macrosToday}</h2>
           <span className="text-stone-400 text-xs">tap for details</span>
         </div>
         <div className="grid grid-cols-4 gap-3">
@@ -323,7 +325,7 @@ export default function DashboardClient({
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <Droplets size={16} className="text-sky-400" />
-            <h2 className="text-white font-semibold text-sm">Hydration today</h2>
+            <h2 className="text-white font-semibold text-sm">{t.dashboard.hydrationToday}</h2>
           </div>
           <span className={`font-bold text-sm transition-colors ${waterSurpassed ? 'text-cyan-300' : 'text-sky-400'}`}>
             {waterLabel(totalWater)} / {waterLabel(waterTargetMl)}
@@ -400,7 +402,7 @@ export default function DashboardClient({
       <div className="mx-4 mb-4 bg-stone-900 border border-stone-800 rounded-2xl p-4">
         <div className="flex items-center justify-between mb-1">
           <div className="flex items-center gap-1">
-            <h2 className="text-white font-semibold text-sm">Micronutrients</h2>
+            <h2 className="text-white font-semibold text-sm">{t.dashboard.micronutrients}</h2>
             <InfoTip label="Micronutrients" text="Vitamins and minerals your body needs in small amounts (mg = milligrams, mcg = micrograms). Aim to reach 100% of each daily target." />
           </div>
           <span className="text-stone-300 text-xs tabular-nums">{greenCount} of {gaps.length} on track</span>
@@ -526,11 +528,12 @@ export default function DashboardClient({
 }
 
 export function BottomNav({ active }: { active: string }) {
+  const { t } = useI18n()
   const items = [
-    { href: '/dashboard', label: 'today',   emoji: '📊', key: 'dashboard' },
-    { href: '/trends',    label: 'trends',   emoji: '📈', key: 'trends' },
-    { href: '/feed',      label: 'feed',     emoji: '👥', key: 'feed' },
-    { href: '/profile',   label: 'profile',  emoji: '👤', key: 'profile' },
+    { href: '/dashboard', label: t.nav.today,   emoji: '📊', key: 'dashboard' },
+    { href: '/trends',    label: t.nav.trends,  emoji: '📈', key: 'trends' },
+    { href: '/feed',      label: t.nav.feed,    emoji: '👥', key: 'feed' },
+    { href: '/profile',   label: t.nav.profile, emoji: '👤', key: 'profile' },
   ]
   return (
     <nav aria-label="Primary" className="fixed bottom-0 left-0 right-0 bg-stone-950 border-t border-stone-800 flex pb-[env(safe-area-inset-bottom)]">

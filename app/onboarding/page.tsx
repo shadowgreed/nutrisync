@@ -4,8 +4,9 @@ import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { track } from '@/lib/analytics-client'
+import { useI18n } from '@/components/I18nProvider'
 import {
-  GOAL_LABELS, GOAL_EMOJIS, ACTIVITY_LABELS,
+  GOAL_EMOJIS,
   calculateBMR, calculateTDEE, calculateCalorieTarget,
   lbsToKg, ftInToCm,
 } from '@/lib/fitness'
@@ -13,21 +14,10 @@ import { mlToOz, ozToMl, BOTTLE_OZ_PRESETS, TARGET_OZ_PRESETS } from '@/lib/wate
 import type { Goal, ActivityLevel } from '@/types'
 
 const GOALS: Goal[] = ['lose_weight', 'maintain', 'build_muscle', 'improve_health']
-const GOAL_DESC: Record<Goal, string> = {
-  lose_weight:    'Eat at a calorie deficit',
-  maintain:       'Stay at your current weight',
-  build_muscle:   'Eat slightly more to grow',
-  improve_health: 'Focus on nutrients, not the scale',
-}
 const ACTIVITY_LEVELS: ActivityLevel[] = ['sedentary', 'light', 'moderate', 'active', 'very_active']
 
-// Feature highlights shown on the welcome screen.
-const FEATURES = [
-  { emoji: '📸', title: 'Snap a photo', desc: 'Our AI reads the calories, macros & 10 key micronutrients — no barcodes, no searching.' },
-  { emoji: '🎯', title: 'Spend a calorie budget', desc: 'See exactly how much you have left for the day as you eat and move.' },
-  { emoji: '👥', title: 'Eat with friends', desc: 'A private group feed with hearts, comments and milestone confetti. Accountability that’s actually fun.' },
-  { emoji: '✨', title: 'Get your weekly wrap', desc: 'Every Sunday, a recap of your week — streaks, wins and where to nudge.' },
-]
+// Feature emojis for the welcome screen (titles/text live in lib/i18n).
+const FEATURE_EMOJIS = ['📸', '🎯', '👥', '✨']
 
 // The data-collection steps that the progress bar tracks (welcome & reveal sit outside it).
 const FORM_STEPS = 5
@@ -35,6 +25,7 @@ const FORM_STEPS = 5
 export default function OnboardingPage() {
   const router = useRouter()
   const supabase = createClient()
+  const { t } = useI18n()
 
   // step 0 = welcome, 1..5 = form, 6 = plan reveal
   const [step, setStep] = useState(0)
@@ -144,7 +135,7 @@ export default function OnboardingPage() {
           {/* Step indicator (only during the form) */}
           {step >= 1 && step <= FORM_STEPS && (
             <p className="text-stone-400 text-sm text-center mb-8">
-              Step {step} of {FORM_STEPS}
+              {t.onboarding.stepOf(step, FORM_STEPS)}
             </p>
           )}
 
@@ -153,16 +144,16 @@ export default function OnboardingPage() {
             <div className="space-y-7 animate-fadeIn">
               <div className="text-center">
                 <div className="text-6xl mb-4" aria-hidden="true">🌿</div>
-                <h1 className="text-white text-3xl font-bold leading-tight">Welcome to NutriSync</h1>
+                <h1 className="text-white text-3xl font-bold leading-tight">{t.onboarding.welcomeTitle}</h1>
                 <p className="text-stone-400 text-base mt-3">
-                  Nutrition tracking that doesn&apos;t feel like homework. Here&apos;s what you&apos;re getting into:
+                  {t.onboarding.welcomeIntro}
                 </p>
               </div>
 
               <div className="space-y-3">
-                {FEATURES.map(f => (
+                {t.onboarding.features.map((f, i) => (
                   <div key={f.title} className="flex gap-3.5 items-start bg-stone-900 border border-stone-800 rounded-2xl p-4">
-                    <span className="text-2xl shrink-0" aria-hidden="true">{f.emoji}</span>
+                    <span className="text-2xl shrink-0" aria-hidden="true">{FEATURE_EMOJIS[i]}</span>
                     <div className="min-w-0">
                       <p className="text-white font-semibold text-sm">{f.title}</p>
                       <p className="text-stone-400 text-xs mt-0.5 leading-relaxed">{f.desc}</p>
@@ -176,9 +167,9 @@ export default function OnboardingPage() {
                   onClick={() => setStep(1)}
                   className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-4 rounded-2xl transition-colors text-lg"
                 >
-                  Let&apos;s set you up →
+                  {t.onboarding.letsSetUp}
                 </button>
-                <p className="text-stone-500 text-xs text-center">Takes about a minute. No wrong answers.</p>
+                <p className="text-stone-500 text-xs text-center">{t.onboarding.takesAMinute}</p>
               </div>
             </div>
           )}
@@ -188,27 +179,27 @@ export default function OnboardingPage() {
             <div className="space-y-6 animate-fadeIn">
               <div className="text-center">
                 <div className="text-5xl mb-4" aria-hidden="true">👋</div>
-                <h1 className="text-white text-2xl font-bold">First things first — what should we call you?</h1>
-                <p className="text-stone-400 text-sm mt-2">This is the name your group will see on the feed.</p>
+                <h1 className="text-white text-2xl font-bold">{t.onboarding.nameTitle}</h1>
+                <p className="text-stone-400 text-sm mt-2">{t.onboarding.nameSub}</p>
               </div>
               <input
                 type="text"
                 value={displayName}
                 onChange={e => setDisplayName(e.target.value)}
-                placeholder="Your name"
+                placeholder={t.onboarding.namePlaceholder}
                 autoFocus
                 className="w-full bg-stone-900 border border-stone-700 rounded-2xl px-4 py-4 text-white text-lg text-center placeholder-stone-600 focus:outline-none focus:ring-2 focus:ring-emerald-500"
               />
               <div className="flex gap-3">
                 <button onClick={() => setStep(0)} className="flex-1 bg-stone-800 hover:bg-stone-700 text-stone-300 font-semibold py-4 rounded-2xl transition-colors">
-                  ← Back
+                  {t.common.back}
                 </button>
                 <button
                   onClick={() => setStep(2)}
                   disabled={!displayName.trim()}
                   className="flex-1 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white font-semibold py-4 rounded-2xl transition-colors"
                 >
-                  Continue →
+                  {t.common.continueArrow}
                 </button>
               </div>
             </div>
@@ -219,8 +210,8 @@ export default function OnboardingPage() {
             <div className="space-y-5 animate-fadeIn">
               <div className="text-center">
                 <div className="text-5xl mb-4" aria-hidden="true">📏</div>
-                <h1 className="text-white text-2xl font-bold">A few numbers</h1>
-                <p className="text-stone-400 text-sm mt-2">These power your personal calorie budget. Skip anything you&apos;d rather not share — we&apos;ll fill in sensible defaults.</p>
+                <h1 className="text-white text-2xl font-bold">{t.onboarding.statsTitle}</h1>
+                <p className="text-stone-400 text-sm mt-2">{t.onboarding.statsSub}</p>
               </div>
 
               {/* Unit toggle */}
@@ -231,7 +222,7 @@ export default function OnboardingPage() {
                     useMetric ? 'bg-stone-600 text-white' : 'text-stone-400 hover:text-white'
                   }`}
                 >
-                  Metric (kg, cm)
+                  {t.onboarding.metric}
                 </button>
                 <button
                   onClick={() => setUseMetric(false)}
@@ -239,14 +230,14 @@ export default function OnboardingPage() {
                     !useMetric ? 'bg-stone-600 text-white' : 'text-stone-400 hover:text-white'
                   }`}
                 >
-                  Imperial (lbs, ft)
+                  {t.onboarding.imperial}
                 </button>
               </div>
 
               {/* Weight */}
               <div>
                 <label className="text-stone-400 text-xs mb-1.5 block">
-                  Weight ({useMetric ? 'kg' : 'lbs'})
+                  {t.onboarding.weightLabel} ({useMetric ? 'kg' : 'lbs'})
                 </label>
                 {useMetric ? (
                   <input
@@ -270,7 +261,7 @@ export default function OnboardingPage() {
               {/* Height */}
               <div>
                 <label className="text-stone-400 text-xs mb-1.5 block">
-                  Height ({useMetric ? 'cm' : 'ft / in'})
+                  {t.onboarding.heightLabel} ({useMetric ? 'cm' : 'ft / in'})
                 </label>
                 {useMetric ? (
                   <input
@@ -311,7 +302,7 @@ export default function OnboardingPage() {
               </div>
 
               <div>
-                <label className="text-stone-400 text-xs mb-1.5 block">Birth year</label>
+                <label className="text-stone-400 text-xs mb-1.5 block">{t.onboarding.birthYearLabel}</label>
                 <input
                   type="number"
                   value={birthYear}
@@ -322,7 +313,7 @@ export default function OnboardingPage() {
               </div>
 
               <div>
-                <label className="text-stone-400 text-xs mb-2 block">Biological sex</label>
+                <label className="text-stone-400 text-xs mb-2 block">{t.onboarding.sexLabel}</label>
                 <div className="grid grid-cols-3 gap-2">
                   {(['male', 'female', 'prefer_not_to_say'] as const).map(s => (
                     <button
@@ -332,7 +323,7 @@ export default function OnboardingPage() {
                         sex === s ? 'bg-emerald-700 text-white' : 'bg-stone-800 text-stone-400 hover:text-white'
                       }`}
                     >
-                      {s === 'prefer_not_to_say' ? 'Prefer not' : s.charAt(0).toUpperCase() + s.slice(1)}
+                      {s === 'prefer_not_to_say' ? t.onboarding.sexPreferNot : s === 'male' ? t.onboarding.sexMale : t.onboarding.sexFemale}
                     </button>
                   ))}
                 </div>
@@ -340,10 +331,10 @@ export default function OnboardingPage() {
 
               <div className="flex gap-3">
                 <button onClick={() => setStep(1)} className="flex-1 bg-stone-800 hover:bg-stone-700 text-stone-300 font-semibold py-4 rounded-2xl transition-colors">
-                  ← Back
+                  {t.common.back}
                 </button>
                 <button onClick={() => setStep(3)} className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-4 rounded-2xl transition-colors">
-                  Continue →
+                  {t.common.continueArrow}
                 </button>
               </div>
             </div>
@@ -354,8 +345,8 @@ export default function OnboardingPage() {
             <div className="space-y-5 animate-fadeIn">
               <div className="text-center">
                 <div className="text-5xl mb-4" aria-hidden="true">🎯</div>
-                <h1 className="text-white text-2xl font-bold">What are you here for?</h1>
-                <p className="text-stone-400 text-sm mt-2">Pick all that apply — we&apos;ll tune your numbers around it.</p>
+                <h1 className="text-white text-2xl font-bold">{t.onboarding.goalsTitle}</h1>
+                <p className="text-stone-400 text-sm mt-2">{t.onboarding.goalsSub}</p>
               </div>
 
               <div className="space-y-2">
@@ -373,8 +364,8 @@ export default function OnboardingPage() {
                     >
                       <span className="text-2xl" aria-hidden="true">{GOAL_EMOJIS[g]}</span>
                       <div className="flex-1 min-w-0">
-                        <p className={`font-medium ${selected ? 'text-white' : 'text-stone-300'}`}>{GOAL_LABELS[g]}</p>
-                        <p className="text-stone-400 text-xs mt-0.5">{GOAL_DESC[g]}</p>
+                        <p className={`font-medium ${selected ? 'text-white' : 'text-stone-300'}`}>{t.onboarding.goalLabels[g]}</p>
+                        <p className="text-stone-400 text-xs mt-0.5">{t.onboarding.goalDescs[g]}</p>
                       </div>
                       {/* Checkbox indicator (not colour-only) */}
                       <span className={`shrink-0 w-6 h-6 rounded-md border-2 flex items-center justify-center ${
@@ -389,14 +380,14 @@ export default function OnboardingPage() {
 
               <div className="flex gap-3">
                 <button onClick={() => setStep(2)} className="flex-1 bg-stone-800 hover:bg-stone-700 text-stone-300 font-semibold py-4 rounded-2xl transition-colors">
-                  ← Back
+                  {t.common.back}
                 </button>
                 <button
                   onClick={() => setStep(4)}
                   disabled={goals.length === 0}
                   className="flex-1 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white font-semibold py-4 rounded-2xl transition-colors"
                 >
-                  Continue →
+                  {t.common.continueArrow}
                 </button>
               </div>
             </div>
@@ -407,8 +398,8 @@ export default function OnboardingPage() {
             <div className="space-y-5 animate-fadeIn">
               <div className="text-center">
                 <div className="text-5xl mb-4" aria-hidden="true">🏃</div>
-                <h1 className="text-white text-2xl font-bold">How active is a normal week?</h1>
-                <p className="text-stone-400 text-sm mt-2">This sets your baseline burn. You can still log workouts on top.</p>
+                <h1 className="text-white text-2xl font-bold">{t.onboarding.activityTitle}</h1>
+                <p className="text-stone-400 text-sm mt-2">{t.onboarding.activitySub}</p>
               </div>
 
               <div className="space-y-2">
@@ -424,24 +415,24 @@ export default function OnboardingPage() {
                   >
                     <div className="flex items-center justify-between">
                       <span className={`font-medium capitalize ${activityLevel === level ? 'text-white' : 'text-stone-300'}`}>
-                        {level.replace('_', ' ')}
+                        {t.onboarding.activityNames[level]}
                       </span>
                       {activityLevel === level && <span className="text-emerald-400" aria-hidden="true">✓</span>}
                     </div>
-                    <p className="text-stone-400 text-xs mt-0.5">{ACTIVITY_LABELS[level]}</p>
+                    <p className="text-stone-400 text-xs mt-0.5">{t.onboarding.activityDescs[level]}</p>
                   </button>
                 ))}
               </div>
 
               <div className="flex gap-3">
                 <button onClick={() => setStep(3)} className="flex-1 bg-stone-800 hover:bg-stone-700 text-stone-300 font-semibold py-4 rounded-2xl transition-colors">
-                  ← Back
+                  {t.common.back}
                 </button>
                 <button
                   onClick={() => setStep(5)}
                   className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-4 rounded-2xl transition-colors"
                 >
-                  Continue →
+                  {t.common.continueArrow}
                 </button>
               </div>
             </div>
@@ -452,13 +443,13 @@ export default function OnboardingPage() {
             <div className="space-y-5 animate-fadeIn">
               <div className="text-center">
                 <div className="text-5xl mb-4" aria-hidden="true">💧</div>
-                <h1 className="text-white text-2xl font-bold">Last one — hydration</h1>
-                <p className="text-stone-400 text-sm mt-2">Tell us your go-to bottle and we&apos;ll nudge you through the day.</p>
+                <h1 className="text-white text-2xl font-bold">{t.onboarding.waterTitle}</h1>
+                <p className="text-stone-400 text-sm mt-2">{t.onboarding.waterSub}</p>
               </div>
 
               {/* Bottle size */}
               <div>
-                <label className="text-stone-400 text-xs uppercase tracking-wider mb-2 block">Your bottle / glass size</label>
+                <label className="text-stone-400 text-xs uppercase tracking-wider mb-2 block">{t.onboarding.bottleSize}</label>
                 <div className="grid grid-cols-3 gap-2">
                   {BOTTLE_OZ_PRESETS.map(oz => (
                     <button
@@ -475,7 +466,7 @@ export default function OnboardingPage() {
                   ))}
                 </div>
                 <div className="mt-2">
-                  <label className="text-stone-400 text-xs mb-1 block">Or enter custom (oz)</label>
+                  <label className="text-stone-400 text-xs mb-1 block">{t.onboarding.customOz}</label>
                   <input
                     type="number"
                     inputMode="numeric"
@@ -489,7 +480,7 @@ export default function OnboardingPage() {
 
               {/* Daily target */}
               <div>
-                <label className="text-stone-400 text-xs uppercase tracking-wider mb-2 block">Daily water target</label>
+                <label className="text-stone-400 text-xs uppercase tracking-wider mb-2 block">{t.onboarding.dailyTarget}</label>
                 <div className="grid grid-cols-2 gap-2">
                   {TARGET_OZ_PRESETS.map(oz => (
                     <button
@@ -506,7 +497,7 @@ export default function OnboardingPage() {
                   ))}
                 </div>
                 <div className="mt-2">
-                  <label className="text-stone-400 text-xs mb-1 block">Or enter custom (oz)</label>
+                  <label className="text-stone-400 text-xs mb-1 block">{t.onboarding.customOz}</label>
                   <input
                     type="number"
                     inputMode="numeric"
@@ -521,20 +512,20 @@ export default function OnboardingPage() {
               {/* Summary chip */}
               <div className="bg-sky-950/50 border border-sky-800/40 rounded-xl px-4 py-3 flex items-center justify-between">
                 <span className="text-sky-300 text-sm">
-                  {Math.ceil(waterTargetMl / waterBottleMl)} × {mlToOz(waterBottleMl)} oz bottle{Math.ceil(waterTargetMl / waterBottleMl) !== 1 ? 's' : ''} per day
+                  {t.onboarding.bottlesPerDay(Math.ceil(waterTargetMl / waterBottleMl), mlToOz(waterBottleMl))}
                 </span>
                 <span className="text-sky-400 font-bold">{mlToOz(waterTargetMl)} oz</span>
               </div>
 
               <div className="flex gap-3">
                 <button onClick={() => setStep(4)} className="flex-1 bg-stone-800 hover:bg-stone-700 text-stone-300 font-semibold py-4 rounded-2xl transition-colors">
-                  ← Back
+                  {t.common.back}
                 </button>
                 <button
                   onClick={() => setStep(6)}
                   className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-4 rounded-2xl transition-colors"
                 >
-                  See my plan →
+                  {t.onboarding.seeMyPlan}
                 </button>
               </div>
             </div>
@@ -546,32 +537,32 @@ export default function OnboardingPage() {
               <div className="text-center">
                 <div className="text-5xl mb-4" aria-hidden="true">🎉</div>
                 <h1 className="text-white text-2xl font-bold">
-                  You&apos;re all set{displayName.trim() ? `, ${displayName.trim()}` : ''}!
+                  {t.onboarding.revealTitle(displayName.trim())}
                 </h1>
-                <p className="text-stone-400 text-sm mt-2">Here&apos;s your starting point — tweak it any time in your profile.</p>
+                <p className="text-stone-400 text-sm mt-2">{t.onboarding.revealSub}</p>
               </div>
 
               {/* Calorie budget hero */}
               <div className="bg-gradient-to-br from-emerald-900/40 to-stone-900 border border-emerald-800/40 rounded-3xl p-6 text-center">
-                <p className="text-emerald-300/80 text-xs uppercase tracking-wider">Your daily calorie budget</p>
+                <p className="text-emerald-300/80 text-xs uppercase tracking-wider">{t.onboarding.calorieBudget}</p>
                 <p className="text-white text-5xl font-bold tabular-nums mt-1">{plan.calorieTarget.toLocaleString()}</p>
-                <p className="text-stone-400 text-sm mt-1">kcal · tuned for {GOAL_LABELS[plan.primaryGoal].toLowerCase()}</p>
+                <p className="text-stone-400 text-sm mt-1">{t.onboarding.tunedFor(t.onboarding.goalLabels[plan.primaryGoal])}</p>
               </div>
 
               {/* What happens next */}
               <div className="space-y-2.5">
-                <p className="text-stone-400 text-xs uppercase tracking-wider">What to do first</p>
+                <p className="text-stone-400 text-xs uppercase tracking-wider">{t.onboarding.whatFirst}</p>
                 <div className="flex gap-3 items-start">
                   <span className="text-xl shrink-0" aria-hidden="true">📸</span>
-                  <p className="text-stone-300 text-sm">Log your next meal with a photo — watch your micronutrients fill up.</p>
+                  <p className="text-stone-300 text-sm">{t.onboarding.firstMeal}</p>
                 </div>
                 <div className="flex gap-3 items-start">
                   <span className="text-xl shrink-0" aria-hidden="true">👥</span>
-                  <p className="text-stone-300 text-sm">Join or start a group so the feed has friends in it.</p>
+                  <p className="text-stone-300 text-sm">{t.onboarding.firstGroup}</p>
                 </div>
                 <div className="flex gap-3 items-start">
                   <span className="text-xl shrink-0" aria-hidden="true">🔔</span>
-                  <p className="text-stone-300 text-sm">Turn on reminders so a busy day never breaks your streak.</p>
+                  <p className="text-stone-300 text-sm">{t.onboarding.firstReminders}</p>
                 </div>
               </div>
 
@@ -579,14 +570,14 @@ export default function OnboardingPage() {
 
               <div className="flex gap-3">
                 <button onClick={() => setStep(5)} disabled={saving} className="flex-1 bg-stone-800 hover:bg-stone-700 disabled:opacity-50 text-stone-300 font-semibold py-4 rounded-2xl transition-colors">
-                  ← Back
+                  {t.common.back}
                 </button>
                 <button
                   onClick={finish}
                   disabled={saving}
                   className="flex-[2] bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-semibold py-4 rounded-2xl transition-colors text-lg"
                 >
-                  {saving ? 'Saving…' : 'Enter NutriSync 🚀'}
+                  {saving ? t.common.saving : t.onboarding.enterApp}
                 </button>
               </div>
             </div>
