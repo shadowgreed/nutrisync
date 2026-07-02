@@ -10,6 +10,7 @@ import { createClient } from '@/lib/supabase/client'
 import { NUTRIENT_KEYS } from '@/lib/nutrients'
 import { MACRO_KEYS } from '@/lib/macros'
 import type { FoodEntry, MealType } from '@/types'
+import { useI18n } from '@/components/I18nProvider'
 
 // The barcode scanner pulls in the heavy @zxing libraries. Load it only when the
 // user actually opens the scanner so it stays out of the initial /log bundle.
@@ -64,6 +65,7 @@ function smartDefaultMeal(): MealType {
 interface Props { onLogged?: () => void }
 
 export default function MealLogger({ onLogged }: Props) {
+  const { t } = useI18n()
   const router = useRouter()
   const [mealType, setMealType] = useState<MealType>(smartDefaultMeal)
   const [foods, setFoods] = useState<FoodEntry[]>([])
@@ -138,13 +140,13 @@ export default function MealLogger({ onLogged }: Props) {
     let files = Array.from(e.target.files ?? []).filter(f => f.type.startsWith('image/') && f.size <= MAX_BYTES)
     const room = MAX_PHOTOS - photoFiles.length
     if (room <= 0) {
-      setError(`Max ${MAX_PHOTOS} photos per meal.`)
+      setError(t.logger.maxPhotos(MAX_PHOTOS))
       if (fileRef.current) fileRef.current.value = ''
       return
     }
     files = files.slice(0, room)
     if (!files.length) {
-      setError('Photos must be images under 8 MB.')
+      setError(t.logger.photosTooBig)
       if (fileRef.current) fileRef.current.value = ''
       return
     }
@@ -167,7 +169,7 @@ export default function MealLogger({ onLogged }: Props) {
         setPhotoPreviews(prev => [...prev, ...ok.map(r => URL.createObjectURL(r.file))])
       }
       const failed = settled.length - ok.length
-      if (failed) setError(`${failed} photo${failed > 1 ? "s couldn't" : " couldn't"} be analyzed — try a clearer shot.`)
+      if (failed) setError(t.logger.analyzeFailed(failed))
     } finally {
       setAnalyzing(false)
       if (fileRef.current) fileRef.current.value = ''
@@ -206,7 +208,7 @@ export default function MealLogger({ onLogged }: Props) {
             const { error: upErr } = await supabase.storage
               .from('meal-photos')
               .upload(path, pf, { contentType: pf.type || 'image/jpeg', upsert: false })
-            if (upErr) throw new Error(`Photo upload failed: ${upErr.message}`)
+            if (upErr) throw new Error(t.logger.uploadFailed(upErr.message))
             return supabase.storage.from('meal-photos').getPublicUrl(path).data.publicUrl
           }))
         }
@@ -239,7 +241,7 @@ export default function MealLogger({ onLogged }: Props) {
         router.push('/trends')
       }, 1400)
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to save')
+      setError(err instanceof Error ? err.message : t.logger.saveFailed)
     } finally {
       setSaving(false)
     }
@@ -262,9 +264,9 @@ export default function MealLogger({ onLogged }: Props) {
             <span className="text-xl">{meta.emoji}</span>
             <div className="text-left">
               <p className={`text-sm font-semibold leading-none ${mealType === key ? 'text-emerald-400' : ''}`}>
-                {meta.label}
+                {t.mealTypes[key].label}
               </p>
-              <p className="text-xs text-stone-400 mt-0.5">{meta.desc}</p>
+              <p className="text-xs text-stone-400 mt-0.5">{t.mealTypes[key].desc}</p>
             </div>
             {mealType === key && <span className="ml-auto text-emerald-400 text-xs font-bold">✓</span>}
           </button>
@@ -281,10 +283,10 @@ export default function MealLogger({ onLogged }: Props) {
               <div className="grid grid-cols-3 gap-2">
                 {photoPreviews.map((url, i) => (
                   <div key={i} className="relative aspect-square rounded-xl overflow-hidden">
-                    <img src={url} alt={`Meal photo ${i + 1}`} className="w-full h-full object-cover" />
+                    <img src={url} alt={t.logger.mealPhotoAlt(i + 1)} className="w-full h-full object-cover" />
                     <button
                       onClick={() => removePhoto(i)}
-                      aria-label={`Remove photo ${i + 1}`}
+                      aria-label={t.logger.removePhotoAria(i + 1)}
                       className="absolute top-1 right-1 bg-black/60 hover:bg-black/80 rounded-full p-1 text-white transition-colors"
                     >
                       <X size={12} />
@@ -294,14 +296,14 @@ export default function MealLogger({ onLogged }: Props) {
                 <button
                   onClick={() => fileRef.current?.click()}
                   disabled={analyzing}
-                  aria-label="Add more photos"
+                  aria-label={t.logger.addMorePhotos}
                   className="aspect-square rounded-xl border border-dashed border-stone-600 flex items-center justify-center text-stone-400 hover:text-white transition-colors disabled:opacity-50"
                 >
                   {analyzing ? <Loader2 size={18} className="animate-spin" /> : <Camera size={18} />}
                 </button>
               </div>
               <p className="text-stone-400 text-xs">
-                {foods.length} item{foods.length !== 1 ? 's' : ''} detected · tap + to add more photos
+                {t.logger.itemsDetected(foods.length)}
               </p>
             </div>
           ) : (
@@ -311,9 +313,9 @@ export default function MealLogger({ onLogged }: Props) {
               className="w-full flex items-center justify-center gap-2 bg-stone-800 hover:bg-stone-700 border border-dashed border-stone-600 rounded-xl py-4 text-stone-400 hover:text-white transition-colors disabled:opacity-50 text-sm"
             >
               {analyzing ? (
-                <><Loader2 size={15} className="animate-spin" /> Analyzing photos…</>
+                <><Loader2 size={15} className="animate-spin" /> {t.logger.analyzing}</>
               ) : (
-                <><Camera size={15} /> Scan meal — add one or more photos</>
+                <><Camera size={15} /> {t.logger.scanMeal}</>
               )}
             </button>
           )}
@@ -324,12 +326,12 @@ export default function MealLogger({ onLogged }: Props) {
           <div>
             <div className="flex items-center gap-2 mb-1.5">
               <MessageSquarePlus size={13} className="text-stone-400" />
-              <label className="text-stone-400 text-xs">Add a caption (optional)</label>
+              <label className="text-stone-400 text-xs">{t.logger.captionLabel}</label>
             </div>
             <textarea
               value={caption}
               onChange={e => setCaption(e.target.value.slice(0, 200))}
-              placeholder="What's on your plate? Add a note for your group…"
+              placeholder={t.logger.captionPlaceholder}
               rows={2}
               className="w-full bg-stone-800 border border-stone-700 rounded-xl px-3 py-2.5 text-white text-sm placeholder-stone-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 resize-none"
             />
@@ -346,7 +348,7 @@ export default function MealLogger({ onLogged }: Props) {
           </div>
           <button
             onClick={() => setShowScanner(true)}
-            aria-label="Scan barcode"
+            aria-label={t.logger.scanBarcodeAria}
             className="shrink-0 flex items-center gap-1.5 bg-stone-800 hover:bg-stone-700 border border-stone-700 rounded-xl px-3 text-stone-300 hover:text-white text-sm transition-colors"
           >
             <ScanLine size={16} className="text-emerald-400" />
@@ -369,14 +371,14 @@ export default function MealLogger({ onLogged }: Props) {
                       {f.calories > 0 && (
                         <span className="text-emerald-400 text-xs font-semibold shrink-0 tabular-nums">{Math.round(f.calories)} kcal</span>
                       )}
-                      <button onClick={() => removeFood(i)} aria-label={`Remove ${f.name}`} className="text-stone-400 hover:text-red-400 transition-colors shrink-0">
+                      <button onClick={() => removeFood(i)} aria-label={t.logger.removeFoodAria(f.name)} className="text-stone-400 hover:text-red-400 transition-colors shrink-0">
                         <X size={14} />
                       </button>
                     </div>
 
                     {/* Portion: Small / Medium / Large + quantity */}
                     <div className="flex items-center gap-2 flex-wrap">
-                      <div className="flex rounded-lg bg-stone-700/60 p-0.5" role="group" aria-label={`Portion size for ${f.name}`}>
+                      <div className="flex rounded-lg bg-stone-700/60 p-0.5" role="group" aria-label={t.logger.portionSizeAria(f.name)}>
                         {SIZE_OPTIONS.map(s => {
                           const active = Math.abs(activeFactor - s.factor) < 0.05
                           return (
@@ -388,16 +390,16 @@ export default function MealLogger({ onLogged }: Props) {
                                 active ? 'bg-emerald-600 text-white' : 'text-stone-300 hover:text-white'
                               }`}
                             >
-                              {s.label}
+                              {t.logger.sizes[s.key as keyof typeof t.logger.sizes] ?? s.label}
                             </button>
                           )
                         })}
                       </div>
 
-                      <div className="flex items-center bg-stone-700/60 rounded-lg" role="group" aria-label={`Servings of ${f.name}`}>
-                        <button onClick={() => setPortion(i, { quantity: Math.max(1, qty - 1) })} aria-label="Fewer servings" className="px-2.5 py-1 text-stone-300 hover:text-white text-sm leading-none">−</button>
+                      <div className="flex items-center bg-stone-700/60 rounded-lg" role="group" aria-label={t.logger.servingsAria(f.name)}>
+                        <button onClick={() => setPortion(i, { quantity: Math.max(1, qty - 1) })} aria-label={t.logger.fewerServings} className="px-2.5 py-1 text-stone-300 hover:text-white text-sm leading-none">−</button>
                         <span className="px-1 text-stone-100 text-xs tabular-nums min-w-[2.25rem] text-center">×{qty}</span>
-                        <button onClick={() => setPortion(i, { quantity: Math.min(20, qty + 1) })} aria-label="More servings" className="px-2.5 py-1 text-stone-300 hover:text-white text-sm leading-none">+</button>
+                        <button onClick={() => setPortion(i, { quantity: Math.min(20, qty + 1) })} aria-label={t.logger.moreServings} className="px-2.5 py-1 text-stone-300 hover:text-white text-sm leading-none">+</button>
                       </div>
                     </div>
 
@@ -413,7 +415,7 @@ export default function MealLogger({ onLogged }: Props) {
                           value={servingDrafts[i] ?? String(Math.round(f.servingSizeG))}
                           onChange={e => updateServing(i, e.target.value)}
                           onBlur={() => commitServing(i)}
-                          aria-label={`Exact grams for ${f.name}`}
+                          aria-label={t.logger.exactGramsAria(f.name)}
                           className="w-12 bg-transparent text-stone-200 text-right focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                         />
                         <span>g</span>
@@ -428,7 +430,7 @@ export default function MealLogger({ onLogged }: Props) {
             </ul>
             {totalCalories > 0 && (
               <div className="flex items-center justify-between px-3 py-2 bg-stone-800 border-t border-stone-700">
-                <span className="text-stone-400 text-xs">Total</span>
+                <span className="text-stone-400 text-xs">{t.logger.total}</span>
                 <span className="text-white font-semibold text-sm">{totalCalories} kcal</span>
               </div>
             )}
@@ -445,7 +447,7 @@ export default function MealLogger({ onLogged }: Props) {
               disabled={reportedEstimate}
               className="text-stone-500 hover:text-stone-300 text-[11px] underline underline-offset-2 disabled:no-underline disabled:text-emerald-400"
             >
-              {reportedEstimate ? 'Thanks — report sent ✓' : 'Report an incorrect estimate'}
+              {reportedEstimate ? t.logger.reportSent : t.logger.reportEstimate}
             </button>
           </div>
         )}
@@ -462,8 +464,8 @@ export default function MealLogger({ onLogged }: Props) {
           <div className="flex items-center gap-2 min-w-0">
             <Users size={15} className={shareToFeed ? 'text-emerald-400 shrink-0' : 'text-stone-500 shrink-0'} aria-hidden="true" />
             <div className="min-w-0">
-              <p className="text-white text-sm font-medium">Share to group feed</p>
-              <p className="text-stone-400 text-xs truncate">{shareToFeed ? 'Your group will see this meal' : 'Kept private to you'}</p>
+              <p className="text-white text-sm font-medium">{t.logger.shareToFeed}</p>
+              <p className="text-stone-400 text-xs truncate">{shareToFeed ? t.logger.groupWillSee : t.logger.keptPrivate}</p>
             </div>
           </div>
           <span className={`relative inline-flex h-6 w-10 shrink-0 rounded-full transition-colors ${shareToFeed ? 'bg-emerald-600' : 'bg-stone-600'}`}>
@@ -481,14 +483,14 @@ export default function MealLogger({ onLogged }: Props) {
         >
           {saved ? (
             <span className="flex items-center justify-center gap-2">
-              <CheckCircle size={16} /> {MEAL_META[mealType].emoji} {MEAL_META[mealType].label} logged!
+              <CheckCircle size={16} /> {MEAL_META[mealType].emoji} {t.mealTypes[mealType].logged}
             </span>
           ) : saving ? (
             <span className="flex items-center justify-center gap-2">
               <Loader2 size={16} className="animate-spin" /> Saving…
             </span>
           ) : (
-            `Log ${MEAL_META[mealType].label}${foods.length > 0 ? ` (${foods.length} item${foods.length > 1 ? 's' : ''})` : ''}`
+            t.logger.logMeal(t.mealTypes[mealType].label, foods.length)
           )}
         </button>
       </div>

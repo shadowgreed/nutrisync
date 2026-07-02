@@ -7,6 +7,7 @@ import { DecodeHintType, BarcodeFormat } from '@zxing/library'
 import type { FoodEntry, NutrientTotals, MacroTotals } from '@/types'
 import { emptyTotals, NUTRIENT_KEYS } from '@/lib/nutrients'
 import { scaleMacros } from '@/lib/macros'
+import { useI18n } from '@/components/I18nProvider'
 
 function scaleNutrients(per100g: NutrientTotals, servingG: number): NutrientTotals {
   const factor = servingG / 100
@@ -36,6 +37,7 @@ hints.set(DecodeHintType.POSSIBLE_FORMATS, [
 ])
 
 export default function BarcodeScanner({ onAdd, onClose }: Props) {
+  const { t } = useI18n()
   const videoRef = useRef<HTMLVideoElement>(null)
   const controlsRef = useRef<IScannerControls | null>(null)
   const handledRef = useRef(false)
@@ -55,15 +57,15 @@ export default function BarcodeScanner({ onAdd, onClose }: Props) {
     handledRef.current = true
     stopCamera()
     setStatus('looking-up')
-    setMessage(`Looking up ${code}…`)
+    setMessage(t.barcode.lookingUp(code))
     try {
       const res = await fetch(`/api/barcode?code=${encodeURIComponent(code)}`)
       const data = await res.json()
       if (!res.ok || !data.food) {
         setStatus('error')
         setMessage(data.error === 'Product not found'
-          ? `No product found for ${code}. Try manual search instead.`
-          : 'Lookup failed. Try again.')
+          ? t.barcode.notFound(code)
+          : t.barcode.lookupFailed)
         handledRef.current = false
         return
       }
@@ -81,7 +83,7 @@ export default function BarcodeScanner({ onAdd, onClose }: Props) {
       onClose()
     } catch {
       setStatus('error')
-      setMessage('Lookup failed. Check your connection and try again.')
+      setMessage(t.barcode.lookupFailedNetwork)
       handledRef.current = false
     }
   }
@@ -90,7 +92,7 @@ export default function BarcodeScanner({ onAdd, onClose }: Props) {
     if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
       setCameraOk(false)
       setStatus('error')
-      setMessage('Camera not available here — enter the barcode number below.')
+      setMessage(t.barcode.noCamera)
       return
     }
 
@@ -111,12 +113,12 @@ export default function BarcodeScanner({ onAdd, onClose }: Props) {
         if (cancelled) { controls.stop(); return }
         controlsRef.current = controls
         setStatus('scanning')
-        setMessage('Point your camera at a barcode')
+        setMessage(t.barcode.point)
       } catch {
         if (cancelled) return
         setCameraOk(false)
         setStatus('error')
-        setMessage('Couldn’t access the camera. Allow camera access, or enter the barcode below.')
+        setMessage(t.barcode.cameraDenied)
       }
     })()
 
@@ -135,9 +137,9 @@ export default function BarcodeScanner({ onAdd, onClose }: Props) {
       <div className="flex items-center justify-between px-4 pt-12 pb-3">
         <div className="flex items-center gap-2 text-white">
           <ScanLine size={18} className="text-emerald-400" aria-hidden="true" />
-          <span className="font-semibold">Scan barcode</span>
+          <span className="font-semibold">{t.barcode.title}</span>
         </div>
-        <button onClick={() => { stopCamera(); onClose() }} aria-label="Close scanner" className="flex items-center justify-center w-11 h-11 -mr-2 text-white/70 hover:text-white">
+        <button onClick={() => { stopCamera(); onClose() }} aria-label={t.barcode.closeAria} className="flex items-center justify-center w-11 h-11 -mr-2 text-white/70 hover:text-white">
           <X size={24} aria-hidden="true" />
         </button>
       </div>
@@ -158,22 +160,22 @@ export default function BarcodeScanner({ onAdd, onClose }: Props) {
         )}
 
         <p className="text-stone-300 text-sm mt-5 text-center min-h-[20px]">
-          {status === 'starting' && 'Starting camera…'}
+          {status === 'starting' && t.barcode.starting}
           {message}
         </p>
 
         <form onSubmit={submitManual} className="w-full max-w-sm mt-6">
           <div className="flex items-center gap-2 text-stone-400 text-xs mb-2">
             <Keyboard size={13} aria-hidden="true" />
-            <span>Or type the barcode number</span>
+            <span>{t.barcode.orType}</span>
           </div>
           <div className="flex gap-2">
             <input
               value={manualCode}
               onChange={e => setManualCode(e.target.value)}
               inputMode="numeric"
-              placeholder="e.g. 3017620422003"
-              aria-label="Barcode number"
+              placeholder={t.barcode.placeholder}
+              aria-label={t.barcode.numberAria}
               className="flex-1 min-w-0 bg-stone-800 border border-stone-700 rounded-xl px-3 py-3 text-white text-sm placeholder-stone-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
             />
             <button

@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Utensils, Flame, CheckCircle, Repeat, Activity as ActivityIcon, ChevronDown, Pencil } from 'lucide-react'
 import MealLogger from '@/components/MealLogger'
+import { useI18n } from '@/components/I18nProvider'
 import {
   ACTIVITY_OPTIONS, estimateCaloriesBurned,
   isDistanceActivity, activityUsesSteps,
@@ -23,11 +24,12 @@ const EMOJI: Record<string, string> = {
 const emoji = (name: string) => EMOJI[name] ?? '⚡'
 
 // Intensity scales the MET-based estimate (effort the user actually put in).
+// Labels come from the i18n dict (t.log.intensityLevels).
 type Intensity = 'easy' | 'moderate' | 'hard'
-const INTENSITY: { key: Intensity; label: string; mult: number }[] = [
-  { key: 'easy', label: 'Easy', mult: 0.8 },
-  { key: 'moderate', label: 'Moderate', mult: 1.0 },
-  { key: 'hard', label: 'Hard', mult: 1.2 },
+const INTENSITY: { key: Intensity; mult: number }[] = [
+  { key: 'easy', mult: 0.8 },
+  { key: 'moderate', mult: 1.0 },
+  { key: 'hard', mult: 1.2 },
 ]
 
 interface RecentActivity { activity_name: string; duration_minutes: number | null; distance_km: number | null; steps: number | null; logged_at: string }
@@ -40,6 +42,7 @@ export default function LogClient({
   weightKg: number; initialTab?: 'food' | 'activity'; recentActivities?: RecentActivity[]
 }) {
   const [tab, setTab] = useState<'food' | 'activity'>(initialTab)
+  const { t } = useI18n()
 
   // ── Activity state ──────────────────────────────────────────────────────────
   const [activityName, setActivityName] = useState('')
@@ -103,10 +106,10 @@ export default function LogClient({
 
   // Dynamic CTA label.
   const cta = !activityName
-    ? 'Select an activity'
+    ? t.log.selectActivity
     : durNum > 0
-      ? `Log ${durNum}-min ${activityName}`
-      : `Log ${activityName}`
+      ? t.log.logActivityMin(durNum, t.log.activityName(activityName))
+      : t.log.logActivity(t.log.activityName(activityName))
 
   async function logActivity() {
     if (!canSave) return
@@ -128,7 +131,7 @@ export default function LogClient({
     })
     if (!res.ok) {
       const data = await res.json().catch(() => ({}))
-      setError(data.error ?? 'Failed to save activity')
+      setError(data.error ?? t.log.saveFailed)
     } else {
       const newMinutes = todayMinutes + durNum
       setSuccess({ name: activityName, minutes: durNum, pct: Math.min(100, Math.round((newMinutes / DAILY_GOAL_MIN) * 100)) })
@@ -149,7 +152,7 @@ export default function LogClient({
             tab === 'food' ? 'bg-emerald-700 text-white' : 'bg-stone-800 text-stone-400 hover:text-white'
           }`}
         >
-          <Utensils size={16} /> Food
+          <Utensils size={16} /> {t.log.foodTab}
         </button>
         <button
           onClick={() => setTab('activity')}
@@ -157,7 +160,7 @@ export default function LogClient({
             tab === 'activity' ? 'bg-orange-700 text-white' : 'bg-stone-800 text-stone-400 hover:text-white'
           }`}
         >
-          <Flame size={16} /> Activity
+          <Flame size={16} /> {t.log.activityTab}
         </button>
       </div>
 
@@ -168,34 +171,34 @@ export default function LogClient({
           {/* ── Today's activity summary ── */}
           <div className="bg-stone-900 border border-stone-800 rounded-2xl p-4">
             <div className="flex items-center justify-between mb-2">
-              <p className="text-stone-300 text-sm font-semibold">Today&apos;s activity</p>
+              <p className="text-stone-300 text-sm font-semibold">{t.log.todaysActivity}</p>
               <span className="text-orange-400 text-sm font-bold tabular-nums">{goalPct}%</span>
             </div>
-            <div className="h-2.5 rounded-full bg-stone-800 overflow-hidden" role="progressbar" aria-valuenow={goalPct} aria-valuemin={0} aria-valuemax={100} aria-label="Daily activity goal progress">
+            <div className="h-2.5 rounded-full bg-stone-800 overflow-hidden" role="progressbar" aria-valuenow={goalPct} aria-valuemin={0} aria-valuemax={100} aria-label={t.log.goalProgressAria}>
               <div className="h-full rounded-full bg-gradient-to-r from-orange-600 to-orange-400" style={{ width: `${goalPct}%` }} />
             </div>
             <p className="text-stone-400 text-xs mt-2">
-              {todayMinutes} of {DAILY_GOAL_MIN} min · {todayMinutes >= DAILY_GOAL_MIN ? 'goal reached 🎉' : `${DAILY_GOAL_MIN - todayMinutes} min to goal`}
+              {t.log.minOfGoal(todayMinutes, DAILY_GOAL_MIN)} · {todayMinutes >= DAILY_GOAL_MIN ? t.log.goalReached : t.log.minToGoal(DAILY_GOAL_MIN - todayMinutes)}
             </p>
           </div>
 
           {/* ── Recent activities ── */}
           {recentUnique.length > 0 && (
             <div>
-              <p className="text-stone-400 text-xs mb-2 uppercase tracking-wider">Recent</p>
+              <p className="text-stone-400 text-xs mb-2 uppercase tracking-wider">{t.log.recent}</p>
               <div className="space-y-2">
                 {recentUnique.map((a, i) => (
                   <div key={i} className="flex items-center gap-3 bg-stone-900 border border-stone-800 rounded-2xl px-3 py-2.5">
                     <span className="text-xl shrink-0" aria-hidden="true">{emoji(a.activity_name)}</span>
                     <div className="min-w-0 flex-1">
-                      <p className="text-white text-sm font-medium truncate">{a.activity_name}</p>
+                      <p className="text-white text-sm font-medium truncate">{t.log.activityName(a.activity_name)}</p>
                       {a.duration_minutes ? <p className="text-stone-500 text-xs">{a.duration_minutes} min</p> : null}
                     </div>
                     <button
                       onClick={() => logAgain(a)}
                       className="shrink-0 flex items-center gap-1.5 bg-stone-800 hover:bg-stone-700 text-stone-100 text-xs font-semibold px-3 py-2 rounded-xl transition-colors"
                     >
-                      <Repeat size={13} /> Log again
+                      <Repeat size={13} /> {t.log.logAgain}
                     </button>
                   </div>
                 ))}
@@ -210,13 +213,13 @@ export default function LogClient({
             className="w-full flex items-center gap-3 bg-stone-900 border border-stone-800 rounded-2xl px-4 py-3 opacity-60 cursor-default"
           >
             <ActivityIcon size={16} className="text-stone-400 shrink-0" />
-            <span className="flex-1 text-left text-sm text-stone-200">Connect Apple Health</span>
-            <span className="text-[10px] font-semibold text-stone-500 bg-stone-800 border border-stone-700 px-1.5 py-0.5 rounded-full">Soon</span>
+            <span className="flex-1 text-left text-sm text-stone-200">{t.log.connectAppleHealth}</span>
+            <span className="text-[10px] font-semibold text-stone-500 bg-stone-800 border border-stone-700 px-1.5 py-0.5 rounded-full">{t.common.soon}</span>
           </button>
 
           {/* ── Activity selection (compact chips) ── */}
           <div>
-            <p className="text-stone-400 text-xs mb-2 uppercase tracking-wider">Activity</p>
+            <p className="text-stone-400 text-xs mb-2 uppercase tracking-wider">{t.log.activitySection}</p>
             <div className="flex flex-wrap gap-2">
               {(showMore ? ACTIVITY_OPTIONS : PRIMARY_CHIPS).map(name => (
                 <button
@@ -226,7 +229,7 @@ export default function LogClient({
                     activityName === name ? 'bg-orange-600 text-white' : 'bg-stone-800 text-stone-300 hover:bg-stone-700'
                   }`}
                 >
-                  <span aria-hidden="true">{emoji(name)}</span> {name}
+                  <span aria-hidden="true">{emoji(name)}</span> {t.log.activityName(name)}
                 </button>
               ))}
               {!showMore && (
@@ -234,7 +237,7 @@ export default function LogClient({
                   onClick={() => setShowMore(true)}
                   className="flex items-center gap-1 px-3 py-2 rounded-full text-sm font-medium min-h-[44px] bg-stone-800 text-stone-300 hover:bg-stone-700 transition-colors"
                 >
-                  More <ChevronDown size={14} />
+                  {t.log.more} <ChevronDown size={14} />
                 </button>
               )}
             </div>
@@ -244,12 +247,12 @@ export default function LogClient({
           {activityName && (
             <div className="space-y-4 bg-stone-900/60 border border-stone-800 rounded-2xl p-4">
               <p className="text-white font-semibold flex items-center gap-2">
-                <span className="text-xl" aria-hidden="true">{emoji(activityName)}</span> {activityName}
+                <span className="text-xl" aria-hidden="true">{emoji(activityName)}</span> {t.log.activityName(activityName)}
               </p>
 
               {/* Duration — required */}
               <div>
-                <label htmlFor="act-duration" className="text-stone-400 text-xs mb-1.5 block uppercase tracking-wider">Duration (minutes)</label>
+                <label htmlFor="act-duration" className="text-stone-400 text-xs mb-1.5 block uppercase tracking-wider">{t.log.durationLabel}</label>
                 <input
                   id="act-duration"
                   type="number" inputMode="numeric" min="1"
@@ -262,7 +265,7 @@ export default function LogClient({
 
               {/* Intensity — required, default Moderate */}
               <div>
-                <p className="text-stone-400 text-xs mb-1.5 uppercase tracking-wider">Intensity</p>
+                <p className="text-stone-400 text-xs mb-1.5 uppercase tracking-wider">{t.log.intensityLabel}</p>
                 <div className="flex bg-stone-950 border border-stone-700 rounded-xl p-1 gap-1">
                   {INTENSITY.map(o => (
                     <button
@@ -272,7 +275,7 @@ export default function LogClient({
                         intensity === o.key ? 'bg-orange-600 text-white' : 'text-stone-400 hover:text-white'
                       }`}
                     >
-                      {o.label}
+                      {t.log.intensityLevels[o.key]}
                     </button>
                   ))}
                 </div>
@@ -281,24 +284,24 @@ export default function LogClient({
               {/* Optional steps / distance per activity */}
               {showSteps && (
                 <div>
-                  <label htmlFor="act-steps" className="text-stone-400 text-xs mb-1.5 block uppercase tracking-wider">Steps <span className="text-stone-400 normal-case">· optional</span></label>
+                  <label htmlFor="act-steps" className="text-stone-400 text-xs mb-1.5 block uppercase tracking-wider">{t.log.stepsLabel} <span className="text-stone-400 normal-case">{t.log.optional}</span></label>
                   <input
                     id="act-steps" type="number" inputMode="numeric" min="1"
-                    value={steps} onChange={e => setSteps(e.target.value)} placeholder="e.g. 6000"
+                    value={steps} onChange={e => setSteps(e.target.value)} placeholder={t.log.stepsPlaceholder}
                     className="w-full bg-stone-950 border border-stone-700 rounded-xl px-4 py-3 text-white placeholder-stone-600 focus:outline-none focus:ring-2 focus:ring-orange-500"
                   />
                 </div>
               )}
               {showDistance && (
                 <div>
-                  <label htmlFor="act-distance" className="text-stone-400 text-xs mb-1.5 block uppercase tracking-wider">Distance (miles) <span className="text-stone-400 normal-case">· optional</span></label>
+                  <label htmlFor="act-distance" className="text-stone-400 text-xs mb-1.5 block uppercase tracking-wider">{t.log.distanceLabel} <span className="text-stone-400 normal-case">{t.log.optional}</span></label>
                   <input
                     id="act-distance" type="number" inputMode="decimal" min="0" step="0.1"
-                    value={distanceMi} onChange={e => setDistanceMi(e.target.value)} placeholder="e.g. 3.0"
+                    value={distanceMi} onChange={e => setDistanceMi(e.target.value)} placeholder={t.log.distancePlaceholder}
                     className="w-full bg-stone-950 border border-stone-700 rounded-xl px-4 py-3 text-white placeholder-stone-600 focus:outline-none focus:ring-2 focus:ring-orange-500"
                   />
                   {showSteps && steps !== '' && distanceMi === '' && (
-                    <p className="text-stone-500 text-[11px] mt-1.5">≈ {kmToMiles(stepsToKm(Number(steps) || 0)).toFixed(2)} mi from steps</p>
+                    <p className="text-stone-500 text-[11px] mt-1.5">{t.log.miFromSteps(kmToMiles(stepsToKm(Number(steps) || 0)).toFixed(2))}</p>
                   )}
                 </div>
               )}
@@ -306,7 +309,7 @@ export default function LogClient({
               {/* Estimated burn — calculated; edit is secondary */}
               {estimate != null && (
                 <div className="bg-orange-950/40 border border-orange-800/40 rounded-xl px-4 py-3">
-                  <p className="text-stone-400 text-[11px] uppercase tracking-wider mb-0.5">Estimated burn</p>
+                  <p className="text-stone-400 text-[11px] uppercase tracking-wider mb-0.5">{t.log.estimatedBurn}</p>
                   {editingCals ? (
                     <div className="flex items-center gap-2">
                       <span className="text-orange-400 font-bold text-lg shrink-0">−</span>
@@ -314,17 +317,17 @@ export default function LogClient({
                         type="number" inputMode="numeric" min={0} autoFocus
                         value={shownCalories}
                         onChange={e => setCaloriesInput(e.target.value)}
-                        aria-label="Calories burned"
+                        aria-label={t.log.caloriesBurnedAria}
                         className="flex-1 min-w-0 bg-transparent text-orange-400 font-bold text-lg focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       />
                       <span className="text-stone-400 text-sm shrink-0">kcal</span>
-                      <button type="button" onClick={() => { setCaloriesInput(null); setEditingCals(false) }} className="shrink-0 text-stone-400 hover:text-white text-xs underline underline-offset-2">reset</button>
+                      <button type="button" onClick={() => { setCaloriesInput(null); setEditingCals(false) }} className="shrink-0 text-stone-400 hover:text-white text-xs underline underline-offset-2">{t.log.reset}</button>
                     </div>
                   ) : (
                     <div className="flex items-center justify-between">
                       <p className="text-orange-400 font-bold text-lg">−{finalCalories} <span className="text-stone-400 text-sm font-normal">kcal</span></p>
                       <button type="button" onClick={() => setEditingCals(true)} className="flex items-center gap-1 text-stone-400 hover:text-white text-xs">
-                        <Pencil size={12} /> Edit estimate
+                        <Pencil size={12} /> {t.log.editEstimate}
                       </button>
                     </div>
                   )}
@@ -339,9 +342,9 @@ export default function LogClient({
           {success && (
             <div className="bg-emerald-950/50 border border-emerald-800/60 rounded-2xl p-4 text-center">
               <p className="text-2xl mb-1">🔥</p>
-              <p className="text-white font-bold">Great work</p>
-              <p className="text-emerald-200 text-sm mt-0.5">{success.name} logged · {success.minutes} min added</p>
-              <p className="text-stone-400 text-xs mt-1">Today&apos;s goal: {success.pct}% complete</p>
+              <p className="text-white font-bold">{t.log.greatWork}</p>
+              <p className="text-emerald-200 text-sm mt-0.5">{t.log.activityLogged(t.log.activityName(success.name), success.minutes)}</p>
+              <p className="text-stone-400 text-xs mt-1">{t.log.goalPctComplete(success.pct)}</p>
             </div>
           )}
 
@@ -351,7 +354,7 @@ export default function LogClient({
             disabled={saving || !canSave}
             className="w-full bg-orange-600 hover:bg-orange-500 disabled:opacity-40 text-white font-semibold py-4 rounded-2xl transition-colors flex items-center justify-center gap-2"
           >
-            {saving ? 'Saving…' : !canSave && !!activityName ? cta : !activityName ? cta : <><CheckCircle size={16} /> {cta}</>}
+            {saving ? t.common.saving : !canSave && !!activityName ? cta : !activityName ? cta : <><CheckCircle size={16} /> {cta}</>}
           </button>
         </div>
       )}
