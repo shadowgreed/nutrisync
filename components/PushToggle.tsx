@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useI18n } from '@/components/I18nProvider'
 import { Bell, BellOff, Loader2 } from 'lucide-react'
 
 const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? ''
@@ -20,6 +21,7 @@ type State = 'loading' | 'unsupported' | 'ios-install' | 'off' | 'enabling' | 'o
 // push is on — so the notifications page is just the list. `full` (settings page)
 // shows the manage controls (test / turn off).
 export default function PushToggle({ mode = 'full' }: { mode?: 'prompt' | 'full' }) {
+  const { t } = useI18n()
   const [state, setState] = useState<State>('loading')
   const [testStatus, setTestStatus] = useState<'idle' | 'sending' | 'sent'>('idle')
 
@@ -107,9 +109,9 @@ export default function PushToggle({ mode = 'full' }: { mode?: 'prompt' | 'full'
       <div className="bg-stone-900 border border-stone-800 rounded-2xl px-4 py-3 flex items-start gap-3">
         <BellOff size={18} className="text-stone-300 shrink-0 mt-0.5" aria-hidden="true" />
         <div className="flex-1 min-w-0">
-          <p className="text-white text-sm font-medium">Turn on push on iPhone</p>
+          <p className="text-white text-sm font-medium">{t.push.iosTitle}</p>
           <p className="text-stone-400 text-xs mt-0.5">
-            Tap the <span className="text-stone-200">Share</span> icon → <span className="text-stone-200">Add to Home Screen</span>, then open NutriSync from your home screen and enable notifications here.
+            {t.push.iosPre}<span className="text-stone-200">{t.push.iosShare}</span>{t.push.iosMid}<span className="text-stone-200">{t.push.iosAdd}</span>{t.push.iosPost}
           </p>
         </div>
       </div>
@@ -122,11 +124,11 @@ export default function PushToggle({ mode = 'full' }: { mode?: 'prompt' | 'full'
         {state === 'on' ? <Bell size={18} className="text-emerald-400" /> : <BellOff size={18} />}
       </span>
       <div className="flex-1 min-w-0">
-        <p className="text-white text-sm font-medium">Push notifications</p>
+        <p className="text-white text-sm font-medium">{t.push.title}</p>
         <p className="text-stone-400 text-xs">
-          {state === 'on' ? 'On — you’ll be notified even when the app is closed.'
-            : state === 'denied' ? 'Blocked. Enable notifications for this site in your browser settings.'
-            : 'Get pinged when your group reacts or comments.'}
+          {state === 'on' ? t.push.onBody
+            : state === 'denied' ? t.push.blockedBody
+            : t.push.offBody}
         </p>
       </div>
       {state === 'on' ? (
@@ -136,10 +138,10 @@ export default function PushToggle({ mode = 'full' }: { mode?: 'prompt' | 'full'
             disabled={testStatus === 'sending'}
             className="text-emerald-300 hover:text-emerald-200 text-xs font-semibold px-3 py-2 bg-emerald-900/40 hover:bg-emerald-900/60 disabled:opacity-60 rounded-lg transition-colors"
           >
-            {testStatus === 'sent' ? 'Sent ✓' : testStatus === 'sending' ? 'Sending…' : 'Send test'}
+            {testStatus === 'sent' ? t.push.sent : testStatus === 'sending' ? t.push.sending : t.push.sendTest}
           </button>
-          <button onClick={disable} aria-label="Turn off push notifications" className="text-stone-300 hover:text-white text-xs font-semibold px-3 py-2 bg-stone-800 hover:bg-stone-700 rounded-lg transition-colors">
-            Off
+          <button onClick={disable} aria-label={t.push.turnOffAria} className="text-stone-300 hover:text-white text-xs font-semibold px-3 py-2 bg-stone-800 hover:bg-stone-700 rounded-lg transition-colors">
+            {t.push.off}
           </button>
         </div>
       ) : state === 'denied' ? null : (
@@ -149,7 +151,7 @@ export default function PushToggle({ mode = 'full' }: { mode?: 'prompt' | 'full'
           className="shrink-0 flex items-center gap-1.5 text-white text-xs font-semibold px-3 py-2 bg-emerald-700 hover:bg-emerald-600 disabled:opacity-60 rounded-lg transition-colors"
         >
           {state === 'enabling' ? <Loader2 size={13} className="animate-spin" aria-hidden="true" /> : null}
-          {state === 'enabling' ? 'Enabling…' : 'Enable'}
+          {state === 'enabling' ? t.push.enabling : t.push.enable}
         </button>
       )}
     </div>

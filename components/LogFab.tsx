@@ -3,18 +3,20 @@
 import Link from 'next/link'
 import { useState } from 'react'
 import { Plus, X, Utensils, Dumbbell, Droplet, Scale } from 'lucide-react'
+import { useI18n } from '@/components/I18nProvider'
 
 // Global quick-log button (PRD FR-006). Floats above the bottom nav on the four
 // main tabs and expands to the logging entry points, keeping logging within two
 // taps from anywhere. Routes to the existing loggers rather than duplicating them.
 const ACTIONS = [
-  { label: 'Log meal', href: '/log', icon: Utensils, color: 'bg-emerald-600' },
-  { label: 'Log activity', href: '/log?tab=activity', icon: Dumbbell, color: 'bg-orange-600' },
-  { label: 'Log water', href: '/dashboard?log=water', icon: Droplet, color: 'bg-sky-600' },
-  { label: 'Log weight', href: '/trends?log=weight', icon: Scale, color: 'bg-violet-600' },
+  { label: 'logMeal', href: '/log', icon: Utensils, color: 'bg-emerald-600' },
+  { label: 'logActivity', href: '/log?tab=activity', icon: Dumbbell, color: 'bg-orange-600' },
+  { label: 'logWater', href: '/dashboard?log=water', icon: Droplet, color: 'bg-sky-600' },
+  { label: 'logWeight', href: '/trends?log=weight', icon: Scale, color: 'bg-violet-600' },
 ]
 
 export default function LogFab() {
+  const { t } = useI18n()
   const [open, setOpen] = useState(false)
 
   return (
@@ -22,7 +24,7 @@ export default function LogFab() {
       {/* Tap-out backdrop */}
       {open && (
         <button
-          aria-label="Close quick log"
+          aria-label={t.fab.closeQuickLog}
           onClick={() => setOpen(false)}
           className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[2px]"
         />
@@ -33,13 +35,13 @@ export default function LogFab() {
           const Icon = a.icon
           return (
             <Link
-              key={a.label}
+              key={t.fab[a.label as keyof typeof t.fab]}
               href={a.href}
               onClick={() => setOpen(false)}
               className="flex items-center gap-2.5 animate-in fade-in slide-in-from-bottom-1 duration-150"
             >
               <span className="bg-stone-900 border border-stone-700 text-stone-100 text-sm font-medium px-3 py-1.5 rounded-xl shadow-lg">
-                {a.label}
+                {t.fab[a.label as keyof typeof t.fab]}
               </span>
               <span className={`w-11 h-11 rounded-full ${a.color} flex items-center justify-center text-white shadow-lg`}>
                 <Icon size={18} />
@@ -50,7 +52,7 @@ export default function LogFab() {
 
         <button
           onClick={() => setOpen(o => !o)}
-          aria-label={open ? 'Close quick log' : 'Quick log'}
+          aria-label={open ? t.fab.closeQuickLog : t.fab.quickLog}
           aria-expanded={open}
           className="w-14 h-14 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white flex items-center justify-center shadow-xl shadow-emerald-900/40 transition-transform active:scale-95"
         >
