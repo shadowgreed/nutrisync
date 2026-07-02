@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { track } from '@/lib/analytics-client'
-import { useI18n } from '@/components/I18nProvider'
+import { useI18n, setLocaleCookie } from '@/components/I18nProvider'
 import { LOCALES, isLocale, type Locale, type Dict } from '@/lib/i18n'
 
 const TERMS_VERSION = '2026-06-14'
@@ -46,17 +46,16 @@ export default function LoginPage() {
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
 
-  // Pre-auth language switch: the API sets the cookie server-side (works with
-  // no account), then the page re-renders in the new language. Saved to the
-  // profile at signup.
-  async function switchLocale(next: Locale) {
+  // Pre-auth language switch. The JS cookie flips the page instantly; the API
+  // call runs in the background to replace it with a server-set cookie (immune
+  // to Safari's 7-day JS-cookie cap) — no need to block the UI on it.
+  function switchLocale(next: Locale) {
     if (next === locale) return
-    try {
-      await fetch('/api/language', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ language: next }),
-      })
-    } catch { /* offline — leave as-is */ }
+    setLocaleCookie(next)
+    fetch('/api/language', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ language: next }),
+    }).catch(() => { /* offline — the JS cookie still holds */ })
     router.refresh()
   }
 
