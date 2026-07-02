@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { track } from '@/lib/analytics-client'
+import { useI18n, setLocaleCookie } from '@/components/I18nProvider'
+import { LOCALES, isLocale, type Locale, type Dict } from '@/lib/i18n'
 
 const TERMS_VERSION = '2026-06-14'
 
@@ -12,33 +14,45 @@ const TERMS_VERSION = '2026-06-14'
 // rate-limited during development). Re-enable it before public sharing — the old
 // signInWithOtp flow lived here and can be restored from git history.
 
-// Turn raw Supabase auth errors into something a non-technical friend understands.
-function friendlyAuthError(message: string): string {
+// Turn raw Supabase auth errors into something a non-technical friend
+// understands, in the user's language.
+function friendlyAuthError(message: string, t: Dict): string {
   const m = message.toLowerCase()
   if (m.includes('already registered') || m.includes('already been registered')) {
-    return 'That email already has an account — try signing in instead.'
+    return t.auth.errAlreadyRegistered
   }
   if (m.includes('invalid login credentials')) {
-    return 'Email or password is incorrect.'
+    return t.auth.errInvalidCredentials
   }
   if (m.includes('rate limit') || m.includes('too many') || m.includes('for security purposes')) {
-    return 'Too many attempts right now — please wait a minute and try again.'
+    return t.auth.errRateLimited
   }
   if (m.includes('password')) {
-    return 'Password must be at least 6 characters.'
+    return t.auth.errPasswordLength
   }
   return message
 }
 
+const LOCALE_NAMES: Record<Locale, string> = { en: 'English', es: 'Español' }
+
 export default function LoginPage() {
   const router = useRouter()
   const supabase = createClient()
+  const { t, locale } = useI18n()
   const [mode, setMode] = useState<'signin' | 'signup'>('signin')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+
+  // Pre-auth language switch: persist the device cookie, then re-render the
+  // whole page server-side in the new language. Saved to the profile at signup.
+  function switchLocale(next: Locale) {
+    if (next === locale) return
+    setLocaleCookie(next)
+    router.refresh()
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -49,7 +63,7 @@ export default function LoginPage() {
     try {
       if (mode === 'signup') {
         const { data, error } = await supabase.auth.signUp({ email, password })
-        if (error) { setError(friendlyAuthError(error.message)); return }
+        if (error) { setError(friendlyAuthError(error.message, t)); return }
         // Record consent (timestamp + terms version) for the audit trail. Best-effort.
         try {
           await fetch('/api/consent', {
@@ -61,17 +75,36 @@ export default function LoginPage() {
           // No instant session means email confirmation is on — the user must
           // click the link we just emailed before they can sign in. We can't
           // track signup here (no authenticated session yet); the first login
-          // after confirmation is captured below instead.
-          setNotice('Account created! Check your email for a confirmation link, then come back and sign in.')
+          // after confirmation is captured below instead. The language choice
+          // lives in the cookie and is synced to the profile on first login.
+          setNotice(t.auth.noticeConfirmEmail)
           setMode('signin')
           return
         }
         // Instant session (email confirmation off) — the signup is complete.
         track('signup', { method: 'password' })
+        // Persist the language chosen at signup to the account (best-effort).
+        if (data.user) {
+          try { await supabase.from('profiles').update({ language: locale }).eq('id', data.user.id) } catch { /* ignore */ }
+        }
       } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password })
-        if (error) { setError(friendlyAuthError(error.message)); return }
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+        if (error) { setError(friendlyAuthError(error.message, t)); return }
         track('login', { method: 'password' })
+        // The account's saved language wins over this device's cookie — and if
+        // the account has none yet (signed up pre-confirmation), adopt the
+        // device's choice. Best-effort either way.
+        if (data.user) {
+          try {
+            const { data: prof } = await supabase
+              .from('profiles').select('language').eq('id', data.user.id).single()
+            if (isLocale(prof?.language)) {
+              if (prof.language !== locale) setLocaleCookie(prof.language)
+            } else {
+              await supabase.from('profiles').update({ language: locale }).eq('id', data.user.id)
+            }
+          } catch { /* ignore */ }
+        }
       }
 
       const next = new URLSearchParams(window.location.search).get('next') || '/dashboard'
@@ -79,7 +112,7 @@ export default function LoginPage() {
       router.refresh()
     } catch {
       // Network failure, CORS, etc. — without this the button would spin forever.
-      setError('Something went wrong. Check your connection and try again.')
+      setError(t.common.networkError)
     } finally {
       // Always clear the spinner so the screen can never get stuck on "Please wait…".
       setLoading(false)
@@ -89,16 +122,35 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-stone-950 flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
+        {/* Language picker — usable before any account exists */}
+        <div className="flex justify-center mb-6" role="group" aria-label={t.auth.languageLabel}>
+          <div className="flex bg-stone-900 border border-stone-800 rounded-xl p-1">
+            {LOCALES.map(l => (
+              <button
+                key={l}
+                type="button"
+                onClick={() => switchLocale(l)}
+                aria-pressed={locale === l}
+                className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                  locale === l ? 'bg-emerald-700 text-white' : 'text-stone-400 hover:text-white'
+                }`}
+              >
+                {LOCALE_NAMES[l]}
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div className="text-center mb-8">
           <div className="text-4xl mb-3" aria-hidden="true">🌿</div>
           <h1 className="text-2xl font-bold text-white">NutriSync</h1>
-          <p className="text-stone-400 text-sm mt-1">Track every nutrient. See what your crew eats.</p>
+          <p className="text-stone-400 text-sm mt-1">{t.auth.tagline}</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <input
             type="email"
-            placeholder="your@email.com"
+            placeholder={t.auth.emailPlaceholder}
             value={email}
             onChange={e => setEmail(e.target.value)}
             required
@@ -107,7 +159,7 @@ export default function LoginPage() {
           />
           <input
             type="password"
-            placeholder="Password"
+            placeholder={t.auth.passwordPlaceholder}
             value={password}
             onChange={e => setPassword(e.target.value)}
             required
@@ -118,7 +170,7 @@ export default function LoginPage() {
 
           {mode === 'signin' && (
             <div className="text-right -mt-1">
-              <Link href="/forgot-password" className="text-stone-400 hover:text-emerald-300 text-xs">Forgot password?</Link>
+              <Link href="/forgot-password" className="text-stone-400 hover:text-emerald-300 text-xs">{t.auth.forgotPassword}</Link>
             </div>
           )}
 
@@ -130,25 +182,25 @@ export default function LoginPage() {
             disabled={loading}
             className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-semibold py-3 rounded-xl transition-colors"
           >
-            {loading ? 'Please wait…' : mode === 'signup' ? 'Create account' : 'Sign in'}
+            {loading ? t.auth.pleaseWait : mode === 'signup' ? t.auth.createAccount : t.auth.signIn}
           </button>
 
           {/* Consent — required acknowledgment with clickable links (Privacy/Legal). */}
           <p className="text-center text-stone-500 text-xs leading-relaxed">
-            By {mode === 'signup' ? 'creating an account' : 'continuing'}, you agree to our{' '}
-            <Link href="/terms" className="text-emerald-400 hover:text-emerald-300 underline">Terms of Service</Link>{' '}and{' '}
-            <Link href="/privacy" className="text-emerald-400 hover:text-emerald-300 underline">Privacy Policy</Link>.
+            {mode === 'signup' ? t.auth.agreeCreating : t.auth.agreeContinuing}{' '}
+            <Link href="/terms" className="text-emerald-400 hover:text-emerald-300 underline">{t.auth.terms}</Link>{' '}{t.auth.and}{' '}
+            <Link href="/privacy" className="text-emerald-400 hover:text-emerald-300 underline">{t.auth.privacy}</Link>.
           </p>
         </form>
 
         <p className="text-center text-stone-400 text-sm mt-5">
-          {mode === 'signup' ? 'Already have an account?' : 'New here?'}{' '}
+          {mode === 'signup' ? t.auth.haveAccount : t.auth.newHere}{' '}
           <button
             type="button"
             onClick={() => { setMode(mode === 'signup' ? 'signin' : 'signup'); setError(''); setNotice('') }}
             className="text-emerald-400 hover:text-emerald-300 font-medium"
           >
-            {mode === 'signup' ? 'Sign in' : 'Create one'}
+            {mode === 'signup' ? t.auth.signInAction : t.auth.createOneAction}
           </button>
         </p>
       </div>

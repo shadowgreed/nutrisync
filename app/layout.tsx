@@ -2,6 +2,9 @@ import type { Metadata, Viewport } from "next";
 import { Geist } from "next/font/google";
 import "./globals.css";
 import SplashScreen from "@/components/SplashScreen";
+import { I18nProvider } from "@/components/I18nProvider";
+import { htmlLang } from "@/lib/i18n";
+import { getLocale } from "@/lib/i18n/server";
 
 const geist = Geist({ subsets: ["latin"], display: "swap" });
 
@@ -27,16 +30,21 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  // Locale comes from the preference cookie (see lib/i18n). Reading it here
+  // makes every route dynamic — acceptable: the app's core routes already are,
+  // and it's what lets <html lang> and all client text render in the user's
+  // language server-side with no hydration flash.
+  const locale = await getLocale();
   return (
-    <html lang="en" className="h-full">
+    <html lang={htmlLang(locale)} className="h-full">
       <body className={`${geist.className} min-h-full bg-stone-950 text-white antialiased`}>
         <SplashScreen />
-        {children}
+        <I18nProvider locale={locale}>{children}</I18nProvider>
       </body>
     </html>
   );
