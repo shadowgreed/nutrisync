@@ -5,10 +5,14 @@ import { X, Flame, CalendarCheck, Target, Utensils, Dumbbell, UserMinus, Chevron
 import { createClient } from '@/lib/supabase/client'
 import { computeStreak } from '@/lib/streak'
 import { useFocusTrap } from '@/lib/useFocusTrap'
-import { GOAL_LABELS, GOAL_EMOJIS, kgToLbs } from '@/lib/fitness'
+import { GOAL_EMOJIS, kgToLbs } from '@/lib/fitness'
 import { ACTIVE_DAYS_GOAL } from '@/lib/weekly'
 import { CHEER_REACTIONS } from '@/lib/reactions'
+import { useI18n } from '@/components/I18nProvider'
+import type { Dict } from '@/lib/i18n/dictionaries'
 import type { Goal } from '@/types'
+
+type MiniProfileStrings = Dict['miniProfile']
 
 interface Achievement { emoji: string; text: string }
 
@@ -32,39 +36,34 @@ interface MiniData {
 const localDay = (ts: string) => new Date(ts).toLocaleDateString('en-CA')
 
 // The four daily slots shown in Today's Progress, in the order people eat them.
-const MEAL_SLOTS: { type: string; label: string }[] = [
-  { type: 'breakfast', label: 'Breakfast' },
-  { type: 'lunch', label: 'Lunch' },
-  { type: 'dinner', label: 'Dinner' },
-  { type: 'snack', label: 'Snack' },
-]
+const MEAL_SLOTS = ['breakfast', 'lunch', 'dinner', 'snack'] as const
 
 // Turn the member's most recent milestone row into a single highlight. Falls
 // back to thresholds derived from their stats when no milestone has posted.
-function achievementFromMilestone(row: { type: string; data: Record<string, unknown> } | null): Achievement | null {
+function achievementFromMilestone(row: { type: string; data: Record<string, unknown> } | null, m: MiniProfileStrings): Achievement | null {
   if (!row) return null
   if (row.type === 'streak') {
     const days = Number(row.data?.days ?? 0)
-    return days > 0 ? { emoji: '🔥', text: `Logged ${days} days straight` } : null
+    return days > 0 ? { emoji: '🔥', text: m.achLoggedDaysStraight(days) } : null
   }
   if (row.type === 'goal_weight') {
     const pct = Number(row.data?.pct ?? 0)
     return pct >= 100
-      ? { emoji: '🏆', text: 'Reached their goal weight' }
-      : { emoji: '🎯', text: `${pct}% of the way to goal weight` }
+      ? { emoji: '🏆', text: m.achReachedGoal }
+      : { emoji: '🎯', text: m.achPctToGoal(pct) }
   }
   return null
 }
 
-function deriveAchievement(streak: number, totalMeals: number, activeDays: number, lbsToGo: number | null): Achievement | null {
-  if (lbsToGo === 0) return { emoji: '🏆', text: 'Reached their goal weight' }
+function deriveAchievement(streak: number, totalMeals: number, activeDays: number, lbsToGo: number | null, m: MiniProfileStrings): Achievement | null {
+  if (lbsToGo === 0) return { emoji: '🏆', text: m.achReachedGoal }
   for (const d of [30, 14, 10, 7, 3]) {
-    if (streak >= d) return { emoji: '🔥', text: `Logged ${d} days straight` }
+    if (streak >= d) return { emoji: '🔥', text: m.achLoggedDaysStraight(d) }
   }
-  for (const m of [100, 50, 25, 10]) {
-    if (totalMeals >= m) return { emoji: '🏆', text: `${m} meals logged` }
+  for (const mealCount of [100, 50, 25, 10]) {
+    if (totalMeals >= mealCount) return { emoji: '🏆', text: m.achMealsLogged(mealCount) }
   }
-  if (activeDays >= ACTIVE_DAYS_GOAL) return { emoji: '🏃', text: 'Active week complete' }
+  if (activeDays >= ACTIVE_DAYS_GOAL) return { emoji: '🏃', text: m.achActiveWeek }
   return null
 }
 
@@ -75,9 +74,10 @@ function rankingHeadline(
   peerIds: string[],
   memberId: string,
   now: number,
+  s: MiniProfileStrings,
 ): string | null {
-  const m = peerIds.length
-  if (m < 3) return null
+  const memberCount = peerIds.length
+  if (memberCount < 3) return null
   const weekAgo = now - 7 * 86400000
   const streaks = peerIds.map(id => ({ id, v: computeStreak(logsByUser.get(id) ?? []) }))
   const weekly = peerIds.map(id => ({
@@ -87,11 +87,11 @@ function rankingHeadline(
   const myStreak = streaks.find(s => s.id === memberId)?.v ?? 0
   const streakRank = 1 + streaks.filter(s => s.v > myStreak).length
   const myWeekly = weekly.find(w => w.id === memberId)?.v ?? 0
-  const beatenPct = Math.round((weekly.filter(w => w.v < myWeekly).length / m) * 100)
+  const beatenPct = Math.round((weekly.filter(w => w.v < myWeekly).length / memberCount) * 100)
 
-  if (myStreak > 0 && streakRank === 1) return '🏅 Longest current streak in the group'
-  if (myWeekly > 0 && beatenPct >= 70) return `📊 More consistent than ${beatenPct}% of the group`
-  if (myStreak > 0 && streakRank <= 3) return `🔥 Rank #${streakRank} in current streaks`
+  if (myStreak > 0 && streakRank === 1) return s.rankLongestStreak
+  if (myWeekly > 0 && beatenPct >= 70) return s.rankMoreConsistent(beatenPct)
+  if (myStreak > 0 && streakRank <= 3) return s.rankInStreaks(streakRank)
   return null
 }
 
@@ -105,6 +105,9 @@ interface MiniProfileProps {
 }
 
 export default function MiniProfileModal({ userId, name, onClose, moderation = null, onRemoveMember }: MiniProfileProps) {
+  const { t, locale } = useI18n()
+  const m = t.miniProfile
+  const dateLocale = locale === 'es' ? 'es-419' : 'en-US'
   const trapRef = useFocusTrap<HTMLDivElement>(onClose)
   const [data, setData] = useState<MiniData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -171,7 +174,7 @@ export default function MiniProfileModal({ userId, name, onClose, moderation = n
 
       const created = profile?.created_at ? new Date(profile.created_at as string) : null
       const memberSince = created
-        ? created.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+        ? created.toLocaleDateString(dateLocale, { month: 'short', year: 'numeric' })
         : null
 
       const streak = computeStreak((logs60 ?? []).map(l => l.logged_at as string))
@@ -196,11 +199,11 @@ export default function MiniProfileModal({ userId, name, onClose, moderation = n
           .map(r => r.photo_url)
           .filter(u => !!u && !u.startsWith('blob:'))
           .slice(0, 3),
-        achievement: achievementFromMilestone(milestone) ?? deriveAchievement(streak, totalMeals, activeDays, lbsToGo),
+        achievement: achievementFromMilestone(milestone, m) ?? deriveAchievement(streak, totalMeals, activeDays, lbsToGo, m),
       })
       setLoading(false)
     })()
-  }, [userId])
+  }, [userId, m, dateLocale])
 
   // Group ranking loads separately so it never blocks the main profile. The RPC
   // returns everyone who shares a group with the viewer (which includes this
@@ -223,12 +226,12 @@ export default function MiniProfileModal({ userId, name, onClose, moderation = n
         ;((peerLogs ?? []) as { user_id: string; logged_at: string }[]).forEach(l => {
           byUser.get(l.user_id)?.push(l.logged_at)
         })
-        setRanking(rankingHeadline(byUser, peerIds, userId, Date.now()))
+        setRanking(rankingHeadline(byUser, peerIds, userId, Date.now(), m))
       } catch {
         /* ranking is best-effort — never surface an error */
       }
     })()
-  }, [userId])
+  }, [userId, m])
 
   async function send(reactionId: string, label: string) {
     if (sending || sent) return
@@ -252,11 +255,11 @@ export default function MiniProfileModal({ userId, name, onClose, moderation = n
   // Dynamic primary CTA: streak → cheer it; else a recent achievement → celebrate;
   // else hasn't logged today → encourage; otherwise a plain cheer.
   const cta = (() => {
-    if (!data) return { label: `👏 Cheer ${name} on`, reactionId: 'nice_job' }
-    if (data.streak >= 2) return { label: `🔥 Cheer ${name}'s ${data.streak}-day streak`, reactionId: 'keep_going' }
-    if (data.achievement) return { label: `🎯 Celebrate ${name}'s progress`, reactionId: 'goal_crusher' }
-    if (data.todayMeals.length === 0) return { label: `💪 Encourage ${name} to log today`, reactionId: 'you_got_this' }
-    return { label: `👏 Cheer ${name} on`, reactionId: 'nice_job' }
+    if (!data) return { label: m.ctaCheer(name), reactionId: 'nice_job' }
+    if (data.streak >= 2) return { label: m.ctaCheerStreak(name, data.streak), reactionId: 'keep_going' }
+    if (data.achievement) return { label: m.ctaCelebrate(name), reactionId: 'goal_crusher' }
+    if (data.todayMeals.length === 0) return { label: m.ctaEncourage(name), reactionId: 'you_got_this' }
+    return { label: m.ctaCheer(name), reactionId: 'nice_job' }
   })()
 
   const goal = data?.goals[0] ?? null
@@ -270,7 +273,7 @@ export default function MiniProfileModal({ userId, name, onClose, moderation = n
         onClick={e => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
-        aria-label={`${name}'s profile`}
+        aria-label={m.profileAria(name)}
       >
         {/* ── Section 1: Header ─────────────────────────────────────────────── */}
         <div className="flex items-start gap-3 p-5 pb-3 shrink-0">
@@ -284,19 +287,19 @@ export default function MiniProfileModal({ userId, name, onClose, moderation = n
             <div className="flex flex-wrap gap-1.5 mt-1">
               {data && data.streak > 0 && (
                 <span className="inline-flex items-center gap-1 text-xs font-semibold bg-orange-950/60 text-orange-300 border border-orange-800/50 px-2 py-0.5 rounded-full">
-                  <span aria-hidden="true">🔥</span> {data.streak} day streak
+                  <span aria-hidden="true">🔥</span> {m.dayStreak(data.streak)}
                 </span>
               )}
               {goal && (
                 <span className="inline-flex items-center gap-1 text-xs font-medium bg-emerald-900/40 text-emerald-300 border border-emerald-800/50 px-2 py-0.5 rounded-full">
-                  <span aria-hidden="true">{GOAL_EMOJIS[goal]}</span> {GOAL_LABELS[goal]}
+                  <span aria-hidden="true">{GOAL_EMOJIS[goal]}</span> {t.onboarding.goalLabels[goal]}
                 </span>
               )}
             </div>
           </div>
           <button
             onClick={onClose}
-            aria-label="Close"
+            aria-label={m.close}
             className="flex items-center justify-center w-11 h-11 -mr-2 -mt-2 text-stone-400 hover:text-white"
           >
             <X size={18} aria-hidden="true" />
@@ -306,7 +309,7 @@ export default function MiniProfileModal({ userId, name, onClose, moderation = n
         {/* ── Scrollable body ───────────────────────────────────────────────── */}
         <div className="flex-1 overflow-y-auto px-5">
           {loading ? (
-            <div className="space-y-3 pb-2" aria-label="Loading profile">
+            <div className="space-y-3 pb-2" aria-label={m.loadingAria}>
               <div className="h-24 bg-stone-800 rounded-xl animate-pulse" />
               <div className="h-20 bg-stone-800 rounded-xl animate-pulse" style={{ animationDelay: '80ms' }} />
               <div className="h-16 bg-stone-800 rounded-xl animate-pulse" style={{ animationDelay: '160ms' }} />
@@ -314,19 +317,20 @@ export default function MiniProfileModal({ userId, name, onClose, moderation = n
           ) : data && (
             <div className="space-y-3 pb-3">
               {/* ── Section 2: Today's Progress ──────────────────────────────── */}
-              <section aria-label="Today's progress" className="bg-stone-800/60 rounded-xl p-3">
-                <h3 className="text-stone-400 text-[11px] font-semibold uppercase tracking-wide mb-2">Today&apos;s Progress</h3>
+              <section aria-label={m.todaysProgress} className="bg-stone-800/60 rounded-xl p-3">
+                <h3 className="text-stone-400 text-[11px] font-semibold uppercase tracking-wide mb-2">{m.todaysProgress}</h3>
                 <ul className="grid grid-cols-2 gap-x-3 gap-y-1.5">
                   {MEAL_SLOTS.map(slot => {
-                    const done = data.todayMeals.includes(slot.type)
+                    const done = data.todayMeals.includes(slot)
+                    const label = t.mealTypes[slot].label
                     return (
                       <li
-                        key={slot.type}
+                        key={slot}
                         className={`flex items-center gap-1.5 text-xs ${done ? 'text-emerald-300' : 'text-stone-500'}`}
-                        aria-label={`${slot.label} ${done ? 'logged' : 'pending'}`}
+                        aria-label={m.slotAria(label, done)}
                       >
                         <span aria-hidden="true">{done ? '✅' : '⬜'}</span>
-                        <span>{slot.label}</span>
+                        <span>{label}</span>
                       </li>
                     )
                   })}
@@ -334,32 +338,32 @@ export default function MiniProfileModal({ userId, name, onClose, moderation = n
               </section>
 
               {/* ── Section 3: Progress Snapshot ─────────────────────────────── */}
-              <section aria-label="Progress snapshot" className="bg-stone-800/60 rounded-xl p-3 space-y-1.5">
-                <h3 className="text-stone-400 text-[11px] font-semibold uppercase tracking-wide mb-1">Progress Snapshot</h3>
+              <section aria-label={m.progressSnapshot} className="bg-stone-800/60 rounded-xl p-3 space-y-1.5">
+                <h3 className="text-stone-400 text-[11px] font-semibold uppercase tracking-wide mb-1">{m.progressSnapshot}</h3>
                 <div className="flex items-center gap-2 text-xs">
                   <Flame size={13} className="text-orange-400 shrink-0" aria-hidden="true" />
-                  <span className="text-stone-200">{data.streak} day streak</span>
+                  <span className="text-stone-200">{m.dayStreak(data.streak)}</span>
                 </div>
                 <div className="flex items-center gap-2 text-xs">
                   <CalendarCheck size={13} className="text-emerald-400 shrink-0" aria-hidden="true" />
-                  <span className="text-stone-200">Logged {data.mealsThisWeek} meal{data.mealsThisWeek === 1 ? '' : 's'} this week</span>
+                  <span className="text-stone-200">{m.mealsThisWeek(data.mealsThisWeek)}</span>
                 </div>
                 <div className="flex items-center gap-2 text-xs">
                   <Utensils size={13} className="text-emerald-400 shrink-0" aria-hidden="true" />
-                  <span className="text-stone-200">{data.totalMeals} meals total</span>
+                  <span className="text-stone-200">{m.mealsTotal(data.totalMeals)}</span>
                 </div>
               </section>
 
               {/* ── Section 4: Goal Progress ─────────────────────────────────── */}
               {(data.lbsToGo != null || data.avgKcal != null || data.activeDays > 0) && (
-                <section aria-label="Goal progress" className="bg-stone-800/60 rounded-xl p-3 space-y-1.5">
-                  <h3 className="text-stone-400 text-[11px] font-semibold uppercase tracking-wide mb-1">Goal Progress</h3>
+                <section aria-label={m.goalProgress} className="bg-stone-800/60 rounded-xl p-3 space-y-1.5">
+                  <h3 className="text-stone-400 text-[11px] font-semibold uppercase tracking-wide mb-1">{m.goalProgress}</h3>
                   {/* Privacy: distance to goal only — absolute weights are never shared. */}
                   {data.lbsToGo != null && (
                     <div className="flex items-center gap-2 text-xs">
                       <Target size={13} className="text-sky-400 shrink-0" aria-hidden="true" />
                       <span className="text-stone-200">
-                        {data.lbsToGo === 0 ? 'At goal weight 🎉' : `${data.lbsToGo} lbs remaining`}
+                        {data.lbsToGo === 0 ? m.atGoalWeight : m.lbsRemaining(data.lbsToGo)}
                       </span>
                     </div>
                   )}
@@ -367,16 +371,16 @@ export default function MiniProfileModal({ userId, name, onClose, moderation = n
                     <div className="flex items-center gap-2 text-xs">
                       <Utensils size={13} className="text-emerald-400 shrink-0" aria-hidden="true" />
                       <span className="text-stone-200">
-                        Average {data.avgKcal.toLocaleString()} kcal/day
-                        {data.kcalTarget ? <span className="text-stone-400"> · goal {data.kcalTarget.toLocaleString()}</span> : null}
+                        {m.avgKcal(data.avgKcal.toLocaleString(dateLocale))}
+                        {data.kcalTarget ? <span className="text-stone-400">{m.goalSuffix(data.kcalTarget.toLocaleString(dateLocale))}</span> : null}
                       </span>
                     </div>
                   )}
                   <div className="flex items-center gap-2 text-xs">
                     <Dumbbell size={13} className="text-orange-400 shrink-0" aria-hidden="true" />
                     <span className="text-stone-200">
-                      {data.activeDays} active day{data.activeDays === 1 ? '' : 's'} this week
-                      <span className="text-stone-400"> · goal {ACTIVE_DAYS_GOAL}</span>
+                      {m.activeDays(data.activeDays)}
+                      <span className="text-stone-400">{m.goalSuffix(String(ACTIVE_DAYS_GOAL))}</span>
                     </span>
                   </div>
                 </section>
@@ -385,22 +389,22 @@ export default function MiniProfileModal({ userId, name, onClose, moderation = n
               {/* ── Section 5: Achievement Highlight ─────────────────────────── */}
               {data.achievement && (
                 <section
-                  aria-label={`Achievement: ${data.achievement.text}`}
+                  aria-label={m.achievementAria(data.achievement.text)}
                   className="flex items-center gap-2.5 bg-gradient-to-r from-amber-900/40 to-stone-800/40 border border-amber-800/40 rounded-xl px-3 py-2.5"
                 >
                   <span className="text-xl shrink-0" aria-hidden="true">{data.achievement.emoji}</span>
                   <div className="min-w-0">
                     <p className="text-amber-200 text-sm font-semibold leading-tight">{data.achievement.text}</p>
-                    <p className="text-amber-400/70 text-[10px] uppercase tracking-wide">Achievement</p>
+                    <p className="text-amber-400/70 text-[10px] uppercase tracking-wide">{m.achievement}</p>
                   </div>
                 </section>
               )}
 
               {/* ── Section 6: Recent Meals ──────────────────────────────────── */}
               {data.photos.length > 0 && (
-                <section aria-label="Recent meals" className="grid grid-cols-3 gap-1.5">
+                <section aria-label={m.recentMeals} className="grid grid-cols-3 gap-1.5">
                   {data.photos.map((url, i) => (
-                    <img key={i} src={url} alt="Logged meal" loading="lazy" className="w-full aspect-square object-cover rounded-lg" />
+                    <img key={i} src={url} alt={m.loggedMealAlt} loading="lazy" className="w-full aspect-square object-cover rounded-lg" />
                   ))}
                 </section>
               )}
@@ -408,7 +412,7 @@ export default function MiniProfileModal({ userId, name, onClose, moderation = n
               {/* ── Section 7: Group Ranking ─────────────────────────────────── */}
               {ranking && (
                 <section
-                  aria-label={`Group ranking: ${ranking}`}
+                  aria-label={m.groupRankingAria(ranking)}
                   className="flex items-center gap-2 bg-sky-950/40 border border-sky-800/40 rounded-xl px-3 py-2 text-xs text-sky-200"
                 >
                   <Trophy size={13} className="text-sky-400 shrink-0" aria-hidden="true" />
@@ -423,19 +427,19 @@ export default function MiniProfileModal({ userId, name, onClose, moderation = n
                   aria-expanded={aboutOpen}
                   className="flex items-center justify-between w-full min-h-11 text-stone-400 hover:text-stone-200 text-xs font-medium transition-colors"
                 >
-                  <span>About</span>
+                  <span>{m.about}</span>
                   <ChevronDown size={15} className={`transition-transform ${aboutOpen ? 'rotate-180' : ''}`} aria-hidden="true" />
                 </button>
                 {aboutOpen && (
                   <dl className="pb-1 space-y-1 text-xs">
                     {data.memberSince && (
                       <div className="flex justify-between">
-                        <dt className="text-stone-500">Member since</dt>
+                        <dt className="text-stone-500">{m.memberSince}</dt>
                         <dd className="text-stone-300">{data.memberSince}</dd>
                       </div>
                     )}
                     <div className="flex justify-between">
-                      <dt className="text-stone-500">Meals logged</dt>
+                      <dt className="text-stone-500">{m.mealsLogged}</dt>
                       <dd className="text-stone-300">{data.totalMeals}</dd>
                     </div>
                   </dl>
@@ -448,7 +452,7 @@ export default function MiniProfileModal({ userId, name, onClose, moderation = n
                   {confirmRemove ? (
                     <div className="pt-2 space-y-2">
                       <p className="text-stone-300 text-xs">
-                        Remove <span className="text-white font-medium">{name}</span> from {moderation.groupName}? They&apos;ll lose access to the group feed.
+                        {m.removeConfirmPrefix}<span className="text-white font-medium">{name}</span>{m.removeConfirmSuffix(moderation.groupName)}
                       </p>
                       <div className="flex gap-2">
                         <button
@@ -456,14 +460,14 @@ export default function MiniProfileModal({ userId, name, onClose, moderation = n
                           disabled={removing}
                           className="flex-1 bg-red-900/70 hover:bg-red-900 text-red-100 text-xs font-semibold min-h-11 rounded-lg transition-colors disabled:opacity-50"
                         >
-                          {removing ? 'Removing…' : 'Remove'}
+                          {removing ? m.removing : t.common.remove}
                         </button>
                         <button
                           onClick={() => setConfirmRemove(false)}
                           disabled={removing}
                           className="flex-1 text-stone-300 hover:text-white text-xs min-h-11 transition-colors disabled:opacity-50"
                         >
-                          Cancel
+                          {t.common.cancel}
                         </button>
                       </div>
                     </div>
@@ -472,7 +476,7 @@ export default function MiniProfileModal({ userId, name, onClose, moderation = n
                       onClick={() => setConfirmRemove(true)}
                       className="flex items-center gap-1.5 text-stone-500 hover:text-red-300 text-xs font-medium min-h-11 transition-colors"
                     >
-                      <UserMinus size={13} aria-hidden="true" /> Remove from group
+                      <UserMinus size={13} aria-hidden="true" /> {m.removeFromGroup}
                     </button>
                   )}
                 </div>
@@ -485,17 +489,20 @@ export default function MiniProfileModal({ userId, name, onClose, moderation = n
         {!loading && (
           <div className="shrink-0 border-t border-stone-800 p-5 pt-3 space-y-2.5">
             <div className="flex gap-2 overflow-x-auto -mx-1 px-1 pb-0.5">
-              {CHEER_REACTIONS.map(r => (
-                <button
-                  key={r.id}
-                  onClick={() => send(r.id, r.label)}
-                  disabled={sending || !!sent}
-                  aria-label={`Send ${r.label} reaction`}
-                  className="shrink-0 inline-flex items-center gap-1 min-h-11 px-3 rounded-full text-xs font-medium bg-stone-800 hover:bg-stone-700 text-stone-200 border border-stone-700 transition-colors disabled:opacity-50"
-                >
-                  <span aria-hidden="true">{r.emoji}</span> {r.label}
-                </button>
-              ))}
+              {CHEER_REACTIONS.map(r => {
+                const label = t.reactions[r.id as keyof typeof t.reactions] ?? r.label
+                return (
+                  <button
+                    key={r.id}
+                    onClick={() => send(r.id, label)}
+                    disabled={sending || !!sent}
+                    aria-label={m.sendReactionAria(label)}
+                    className="shrink-0 inline-flex items-center gap-1 min-h-11 px-3 rounded-full text-xs font-medium bg-stone-800 hover:bg-stone-700 text-stone-200 border border-stone-700 transition-colors disabled:opacity-50"
+                  >
+                    <span aria-hidden="true">{r.emoji}</span> {label}
+                  </button>
+                )
+              })}
             </div>
 
             <button
@@ -507,7 +514,7 @@ export default function MiniProfileModal({ userId, name, onClose, moderation = n
                   : 'bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-60'
               }`}
             >
-              {sent ? `✓ Sent “${sent}”` : sending ? 'Sending…' : cheerError ? 'Try again' : cta.label}
+              {sent ? m.sentLabel(sent) : sending ? m.sending : cheerError ? t.common.tryAgain : cta.label}
             </button>
           </div>
         )}
