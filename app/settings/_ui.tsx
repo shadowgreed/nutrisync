@@ -8,7 +8,7 @@ import type { ReactNode } from 'react'
 export function SettingsShell({ title, back = '/settings', children }: { title: string; back?: string; children: ReactNode }) {
   return (
     <div className="min-h-screen bg-stone-950 text-white pb-[calc(6rem+env(safe-area-inset-bottom))]">
-      <header className="px-4 pt-12 pb-3 flex items-center gap-3">
+      <header className="px-4 pt-safe pb-3 flex items-center gap-3">
         <Link href={back} aria-label="Back" className="text-stone-300 hover:text-white">
           <ArrowLeft size={22} />
         </Link>

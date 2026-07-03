@@ -10,7 +10,7 @@ export default function LegalPage({
   const router = useRouter()
   return (
     <div className="min-h-screen bg-stone-950 pb-16">
-      <div className="px-4 pt-12 pb-4 flex items-center gap-3">
+      <div className="px-4 pt-safe pb-4 flex items-center gap-3">
         <button onClick={() => router.back()} aria-label="Back" className="flex items-center justify-center w-11 h-11 -ml-2 text-stone-300 hover:text-white">
           <ArrowLeft size={20} aria-hidden="true" />
         </button>

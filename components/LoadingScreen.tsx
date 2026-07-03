@@ -6,7 +6,7 @@ import { BottomNav } from '@/app/dashboard/DashboardClient'
 export default function LoadingScreen({ active, cards = 4 }: { active: string; cards?: number }) {
   return (
     <div className="min-h-screen bg-stone-950 pb-24">
-      <div className="px-4 pt-12 pb-4">
+      <div className="px-4 pt-safe pb-4">
         <div className="h-4 w-32 bg-stone-800 rounded mb-2 animate-pulse" />
         <div className="h-7 w-48 bg-stone-800 rounded animate-pulse" />
       </div>

@@ -99,7 +99,7 @@ export default function ProfileClient({
   return (
     <div className="min-h-screen bg-stone-950 pb-[calc(6rem+env(safe-area-inset-bottom))]">
       {/* Header */}
-      <div className="px-4 pt-12 pb-5 flex items-start justify-between">
+      <div className="px-4 pt-safe pb-5 flex items-start justify-between">
         <div className="flex items-center gap-4">
           <AvatarUpload initialUrl={profile.avatar_url} name={profile.display_name} size="md" />
           <div>

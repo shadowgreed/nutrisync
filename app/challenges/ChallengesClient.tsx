@@ -203,7 +203,7 @@ export default function ChallengesClient({ group, currentUserId, challenges, nee
   if (!group) {
     return (
       <div className="min-h-screen bg-stone-950 pb-[calc(6rem+env(safe-area-inset-bottom))]">
-        <div className="px-4 pt-12 pb-4">
+        <div className="px-4 pt-safe pb-4">
           <h1 className="text-white text-2xl font-bold">Challenges</h1>
         </div>
         <div className="mx-4 text-center py-12 bg-stone-900/50 border border-dashed border-stone-800 rounded-2xl">
@@ -223,7 +223,7 @@ export default function ChallengesClient({ group, currentUserId, challenges, nee
   return (
     <div className="min-h-screen bg-stone-950 pb-[calc(6rem+env(safe-area-inset-bottom))]">
       {/* Header */}
-      <div className="px-4 pt-12 pb-4 flex items-center justify-between">
+      <div className="px-4 pt-safe pb-4 flex items-center justify-between">
         <div>
           <p className="text-stone-400 text-sm flex items-center gap-1.5"><Trophy size={13} className="text-amber-400" /> {group.name}</p>
           <h1 className="text-white text-2xl font-bold mt-0.5">Challenges</h1>

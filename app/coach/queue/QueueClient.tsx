@@ -110,7 +110,7 @@ export default function QueueClient({ initialItems }: { initialItems: QueueItem[
 
   return (
     <div className="min-h-screen bg-stone-950 text-white pb-16">
-      <header className="px-4 pt-12 pb-3 flex items-center gap-3">
+      <header className="px-4 pt-safe pb-3 flex items-center gap-3">
         <Link href="/coach" aria-label="Back to roster" className="text-stone-300 hover:text-white">
           <ArrowLeft size={22} />
         </Link>
