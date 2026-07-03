@@ -127,7 +127,7 @@ export default function EditProfileClient({ profile }: Props) {
   return (
     <div className="min-h-screen bg-stone-950">
       {/* Header */}
-      <div className="px-4 pt-12 pb-4 flex items-center gap-3">
+      <div className="px-4 pt-safe pb-4 flex items-center gap-3">
         <button onClick={() => router.back()} className="text-stone-400 hover:text-white transition-colors">
           <ArrowLeft size={20} />
         </button>

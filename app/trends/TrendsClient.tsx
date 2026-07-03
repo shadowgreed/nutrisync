@@ -161,7 +161,7 @@ export default function TrendsClient({ series30, calorieTarget, macroTargets, we
   return (
     <div className="min-h-screen bg-stone-950 pb-[calc(6rem+env(safe-area-inset-bottom))]">
       {/* Header */}
-      <div className="px-4 pt-12 pb-4 flex items-center justify-between">
+      <div className="px-4 pt-safe pb-4 flex items-center justify-between">
         <div>
           <p className="text-stone-400 text-sm">Your progress</p>
           <h1 className="text-white text-2xl font-bold mt-0.5">Trends</h1>

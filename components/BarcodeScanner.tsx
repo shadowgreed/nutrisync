@@ -134,7 +134,7 @@ export default function BarcodeScanner({ onAdd, onClose }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 bg-black/90 flex flex-col overflow-hidden">
-      <div className="flex items-center justify-between px-4 pt-12 pb-3">
+      <div className="flex items-center justify-between px-4 pt-safe pb-3">
         <div className="flex items-center gap-2 text-white">
           <ScanLine size={18} className="text-emerald-400" aria-hidden="true" />
           <span className="font-semibold">{t.barcode.title}</span>

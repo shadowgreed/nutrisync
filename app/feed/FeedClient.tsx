@@ -324,7 +324,7 @@ export default function FeedClient({ entries: initial, activities, milestones, c
 
   return (
     <div className="min-h-screen bg-stone-950 pb-[calc(6rem+env(safe-area-inset-bottom))]">
-      <div className="px-4 pt-12 pb-4 flex items-center justify-between gap-3">
+      <div className="px-4 pt-safe pb-4 flex items-center justify-between gap-3">
         <button
           type="button"
           onClick={() => groupMembers.length > 0 && setShowMembers(true)}

@@ -1,5 +1,16 @@
 @import "tailwindcss";
 
+/* Top padding that clears the device status bar / Dynamic Island.
+   The app renders under the status bar (viewport-fit=cover +
+   black-translucent), so a fixed pad collides with taller cutouts like the
+   iPhone 17 Pro Max's Dynamic Island. max() keeps the original 3rem where the
+   safe-area inset is small (browser, non-notched — no visual change) and grows
+   to inset + a small gap only where a cutout demands it. Replaces the fixed
+   `pt-12` on page headers. */
+@utility pt-safe {
+  padding-top: max(3rem, calc(env(safe-area-inset-top) + 0.75rem));
+}
+
 :root {
   --background: #ffffff;
   --foreground: #171717;

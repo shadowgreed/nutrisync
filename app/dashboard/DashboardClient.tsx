@@ -190,7 +190,7 @@ export default function DashboardClient({
     <div className="min-h-screen bg-stone-950 pb-[calc(6rem+env(safe-area-inset-bottom))]">
       <TimeZoneSync />
       {/* Header */}
-      <div className="px-4 pt-12 pb-4 flex items-end justify-between gap-3">
+      <div className="px-4 pt-safe pb-4 flex items-end justify-between gap-3">
         <div className="min-w-0">
           <p className="text-stone-400 text-sm">{greeting()}, {displayName} 👋</p>
           <h1 className="text-white text-2xl font-bold mt-0.5">{t.dashboard.snapshotTitle}</h1>
