@@ -1,29 +1,31 @@
 'use client'
 
 import { useState } from 'react'
+import { useI18n } from '@/components/I18nProvider'
 import MiniProfileModal from '@/components/MiniProfileModal'
 import type { FeedMilestoneEntry } from '@/types'
 
 const CONFETTI = ['#34d399', '#fbbf24', '#f87171', '#60a5fa', '#c084fc', '#f472b6']
 
 export default function MilestoneCard({ entry, currentUserId }: { entry: FeedMilestoneEntry; currentUserId: string }) {
+  const { t } = useI18n()
   const [showProfile, setShowProfile] = useState(false)
   const isOwn = entry.user_id === currentUserId
   const name = entry.profile.display_name
 
   let emoji = '🎉'
-  let headline = 'hit a milestone'
+  let headline = t.milestones.generic(isOwn)
   if (entry.type === 'streak') {
     const days = Number(entry.data?.days ?? 0)
     emoji = '🔥'
-    headline = `hit a ${days}-day logging streak!`
+    headline = t.milestones.streak(days, isOwn)
   } else if (entry.type === 'goal_weight') {
     const pct = Number(entry.data?.pct ?? 0)
     emoji = pct >= 100 ? '🏆' : '🎯'
-    headline = pct >= 100 ? 'reached their goal weight!' : `is ${pct}% to their goal weight!`
+    headline = t.milestones.goalWeight(pct, isOwn)
   } else if (entry.type === 'water_goal') {
     emoji = '💧'
-    headline = 'hit their daily water goal!'
+    headline = t.milestones.water(isOwn)
   }
 
   return (
@@ -42,7 +44,7 @@ export default function MilestoneCard({ entry, currentUserId }: { entry: FeedMil
       <span className="text-5xl block mb-2 relative" aria-hidden="true">{emoji}</span>
       <p className="text-white font-bold leading-snug">
         {isOwn ? (
-          <span>You</span>
+          <span>{t.milestones.you}</span>
         ) : (
           <button onClick={() => setShowProfile(true)} className="underline decoration-amber-400/50 underline-offset-2 hover:text-amber-200 transition-colors">
             {name}
@@ -50,7 +52,7 @@ export default function MilestoneCard({ entry, currentUserId }: { entry: FeedMil
         )}{' '}
         {headline}
       </p>
-      <p className="text-amber-300 text-xs mt-1.5 font-medium">Milestone unlocked ✨</p>
+      <p className="text-amber-300 text-xs mt-1.5 font-medium">{t.milestones.unlocked}</p>
 
       {showProfile && (
         <MiniProfileModal userId={entry.user_id} name={name} onClose={() => setShowProfile(false)} />

@@ -446,6 +446,42 @@ const en = {
     closeQuickLog: 'Close quick log',
   },
 
+  milestones: {
+    you: 'You',
+    unlocked: 'Milestone unlocked ✨',
+    generic: (own: boolean): string => own ? 'unlocked a milestone!' : 'unlocked a milestone!',
+    streak: (days: number, own: boolean): string => own
+      ? `hit a ${days}-day logging streak!`
+      : `hit a ${days}-day logging streak!`,
+    goalWeight: (pct: number, own: boolean): string => pct >= 100
+      ? (own ? 'reached your goal weight!' : 'reached their goal weight!')
+      : (own ? `are ${pct}% to your goal weight!` : `is ${pct}% to their goal weight!`),
+    water: (own: boolean): string => own ? 'hit your daily water goal!' : 'hit their daily water goal!',
+  },
+  social: {
+    userFallback: 'User',
+    noComments: 'No comments yet — be first!',
+    addComment: 'Add a comment…',
+    deleteComment: 'Delete',
+    likeCommentAria: 'Like comment',
+    unlikeCommentAria: 'Unlike comment',
+    founderTools: 'Founder tools',
+    postOptions: 'Post options',
+    removePostConfirm: (name: string) => `Remove ${name}'s post? This can't be undone.`,
+    removePost: 'Remove post',
+    cheer: 'Cheer',
+    cheered: 'Cheered',
+    cheerAria: (name: string) => `Cheer ${name}`,
+    viewProfileAria: (name: string) => `View ${name}'s profile`,
+    likeAria: (n: number): string => `Like${n > 0 ? `, ${n}` : ''}`,
+    commentsAria: (n: number): string => `Comments${n > 0 ? `, ${n}` : ''}`,
+  },
+
+  activityCard: {
+    completedWorkout: 'completed a workout',
+    steps: 'steps',
+    kcalBurned: 'kcal burned',
+  },
   settings: {
     title: 'Settings',
     account: 'Account',
@@ -891,6 +927,42 @@ const es: Dict = {
     closeQuickLog: 'Cerrar registro rápido',
   },
 
+  milestones: {
+    you: 'Tú',
+    unlocked: 'Logro desbloqueado ✨',
+    generic: (own: boolean): string => own ? '¡desbloqueaste un logro!' : 'desbloqueó un logro',
+    streak: (days: number, own: boolean): string => own
+      ? `lograste una racha de ${days} día${days === 1 ? '' : 's'} registrando!`
+      : `logró una racha de ${days} día${days === 1 ? '' : 's'} registrando`,
+    goalWeight: (pct: number, own: boolean): string => pct >= 100
+      ? (own ? '¡alcanzaste tu peso meta!' : 'alcanzó su peso meta')
+      : (own ? `vas al ${pct}% de tu peso meta` : `va al ${pct}% de su peso meta`),
+    water: (own: boolean): string => own ? '¡alcanzaste tu meta de agua de hoy!' : 'alcanzó su meta de agua de hoy',
+  },
+  social: {
+    userFallback: 'Usuario',
+    noComments: 'Aún no hay comentarios — ¡sé el primero!',
+    addComment: 'Agrega un comentario…',
+    deleteComment: 'Eliminar',
+    likeCommentAria: 'Me gusta el comentario',
+    unlikeCommentAria: 'Quitar me gusta del comentario',
+    founderTools: 'Herramientas de fundador',
+    postOptions: 'Opciones de la publicación',
+    removePostConfirm: (name: string) => `¿Quitar la publicación de ${name}? No se puede deshacer.`,
+    removePost: 'Quitar publicación',
+    cheer: 'Animar',
+    cheered: 'Animado',
+    cheerAria: (name: string) => `Animar a ${name}`,
+    viewProfileAria: (name: string) => `Ver el perfil de ${name}`,
+    likeAria: (n: number): string => `Me gusta${n > 0 ? `, ${n}` : ''}`,
+    commentsAria: (n: number): string => `Comentarios${n > 0 ? `, ${n}` : ''}`,
+  },
+
+  activityCard: {
+    completedWorkout: 'completó un entrenamiento',
+    steps: 'pasos',
+    kcalBurned: 'kcal quemadas',
+  },
   settings: {
     title: 'Configuración',
     account: 'Cuenta',

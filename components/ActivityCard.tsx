@@ -3,6 +3,7 @@
 import { useState, useRef } from 'react'
 import { Flame, PartyPopper, Heart, MessageCircle, Send, MoreHorizontal, Trash2 } from 'lucide-react'
 import { kmToMiles } from '@/lib/fitness'
+import { useI18n } from '@/components/I18nProvider'
 import MiniProfileModal from '@/components/MiniProfileModal'
 import type { FeedActivityEntry, Comment } from '@/types'
 
@@ -24,9 +25,9 @@ const ACTIVITY_EMOJI: Record<string, string> = {
   Rowing: '🚣', Dancing: '💃', Pilates: '🤸',
 }
 
-function metric(a: FeedActivityEntry): string {
+function metric(a: FeedActivityEntry, stepsLabel: string): string {
   if (a.distance_km != null) return `${kmToMiles(a.distance_km).toFixed(2)} mi`
-  if (a.steps != null) return `${a.steps.toLocaleString()} steps`
+  if (a.steps != null) return `${a.steps.toLocaleString()} ${stepsLabel}`
   if (a.duration_minutes != null) return `${a.duration_minutes} min`
   return ''
 }
@@ -46,6 +47,7 @@ interface Props {
 }
 
 export default function ActivityCard({ entry, currentUserId, onReact, onComment, onDeleteComment, onLikeComment, canModerate = false, moderationGroup = null, onDelete, onRemoveMember }: Props) {
+  const { t } = useI18n()
   const [showProfile, setShowProfile] = useState(false)
   const [cheer, setCheer] = useState<'idle' | 'sending' | 'sent'>('idle')
   const [showComments, setShowComments] = useState(false)
@@ -114,7 +116,7 @@ export default function ActivityCard({ entry, currentUserId, onReact, onComment,
         <button
           onClick={() => !isOwn && setShowProfile(true)}
           disabled={isOwn}
-          aria-label={isOwn ? undefined : `View ${entry.profile.display_name}'s profile`}
+          aria-label={isOwn ? undefined : t.social.viewProfileAria(entry.profile.display_name)}
           className={`flex items-center gap-3 flex-1 min-w-0 text-left ${isOwn ? '' : 'group'}`}
         >
           <div className="w-9 h-9 rounded-full bg-gradient-to-br from-orange-700 to-orange-900 flex items-center justify-center text-sm font-bold text-white shrink-0 overflow-hidden">
@@ -124,28 +126,28 @@ export default function ActivityCard({ entry, currentUserId, onReact, onComment,
           </div>
           <div className="flex-1 min-w-0">
             <p className={`text-white font-semibold text-sm truncate ${isOwn ? '' : 'group-hover:text-orange-300 transition-colors'}`}>{entry.profile.display_name}</p>
-            <p className="text-stone-400 text-xs">completed a workout · {shortAgo(entry.logged_at)}</p>
+            <p className="text-stone-400 text-xs">{t.activityCard.completedWorkout} · {shortAgo(entry.logged_at)}</p>
           </div>
         </button>
         {!isOwn && (
           <button
             onClick={sendCheer}
             disabled={cheer !== 'idle'}
-            aria-label={`Cheer ${entry.profile.display_name}`}
+            aria-label={t.social.cheerAria(entry.profile.display_name)}
             className={`shrink-0 flex items-center gap-1.5 min-h-[40px] px-3 rounded-xl text-sm font-semibold transition-colors ${
               cheer === 'sent'
                 ? 'bg-emerald-900/60 text-emerald-300 border border-emerald-700/50'
                 : 'bg-stone-800 hover:bg-stone-700 text-stone-200'
             }`}
           >
-            {cheer === 'sent' ? <><PartyPopper size={15} aria-hidden="true" /> Cheered</> : <>👏 Cheer</>}
+            {cheer === 'sent' ? <><PartyPopper size={15} aria-hidden="true" /> {t.social.cheered}</> : <>👏 {t.social.cheer}</>}
           </button>
         )}
         {isModeration && onDelete && (
           <div className="relative shrink-0">
             <button
               onClick={() => setMenuOpen(v => !v)}
-              aria-label="Post options"
+              aria-label={t.social.postOptions}
               aria-expanded={menuOpen}
               className="text-stone-400 hover:text-white transition-colors p-1.5 -mr-1.5"
             >
@@ -155,23 +157,23 @@ export default function ActivityCard({ entry, currentUserId, onReact, onComment,
               <>
                 <div className="fixed inset-0 z-10" onClick={() => { setMenuOpen(false); setConfirmDelete(false) }} />
                 <div className="absolute right-0 top-9 z-20 w-52 bg-stone-800 border border-stone-700 rounded-xl shadow-xl overflow-hidden">
-                  <p className="px-3.5 pt-2.5 pb-1 text-amber-400/90 text-[11px] font-medium uppercase tracking-wider">Founder tools</p>
+                  <p className="px-3.5 pt-2.5 pb-1 text-amber-400/90 text-[11px] font-medium uppercase tracking-wider">{t.social.founderTools}</p>
                   {confirmDelete ? (
                     <div className="p-2.5">
-                      <p className="text-stone-300 text-xs px-1 pb-2">Remove {entry.profile.display_name}&apos;s post? This can&apos;t be undone.</p>
+                      <p className="text-stone-300 text-xs px-1 pb-2">{t.social.removePostConfirm(entry.profile.display_name)}</p>
                       <div className="flex gap-1.5">
                         <button
                           onClick={handleDelete}
                           disabled={deleting}
                           className="flex-1 bg-red-900/70 hover:bg-red-900 text-red-100 text-xs font-semibold py-1.5 rounded-lg transition-colors disabled:opacity-50"
                         >
-                          {deleting ? '…' : 'Remove'}
+                          {deleting ? '…' : t.common.remove}
                         </button>
                         <button
                           onClick={() => { setConfirmDelete(false); setMenuOpen(false) }}
                           className="flex-1 text-stone-300 hover:text-white text-xs py-1.5 transition-colors"
                         >
-                          Cancel
+                          {t.common.cancel}
                         </button>
                       </div>
                     </div>
@@ -180,7 +182,7 @@ export default function ActivityCard({ entry, currentUserId, onReact, onComment,
                       onClick={() => setConfirmDelete(true)}
                       className="w-full flex items-center gap-2 px-3.5 py-3 text-red-300 hover:bg-stone-700 text-sm text-left transition-colors"
                     >
-                      <Trash2 size={15} aria-hidden="true" /> Remove post
+                      <Trash2 size={15} aria-hidden="true" /> {t.social.removePost}
                     </button>
                   )}
                 </div>
@@ -197,15 +199,15 @@ export default function ActivityCard({ entry, currentUserId, onReact, onComment,
             {emoji}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-white font-semibold truncate">{entry.activity_name}</p>
-            {metric(entry) && <p className="text-stone-400 text-xs">{metric(entry)}</p>}
+            <p className="text-white font-semibold truncate">{t.log.activityName(entry.activity_name)}</p>
+            {metric(entry, t.activityCard.steps) && <p className="text-stone-400 text-xs">{metric(entry, t.activityCard.steps)}</p>}
           </div>
           {entry.calories_burned > 0 && (
             <div className="text-right shrink-0">
               <p className="text-orange-400 font-bold tabular-nums flex items-center gap-1 justify-end">
                 <Flame size={14} aria-hidden="true" /> {entry.calories_burned}
               </p>
-              <p className="text-stone-500 text-xs">kcal burned</p>
+              <p className="text-stone-500 text-xs">{t.activityCard.kcalBurned}</p>
             </div>
           )}
         </div>
@@ -216,7 +218,7 @@ export default function ActivityCard({ entry, currentUserId, onReact, onComment,
         <button
           onClick={() => onReact(entry.id, HEART)}
           aria-pressed={liked}
-          aria-label={`Like${likeCount > 0 ? `, ${likeCount}` : ''}`}
+          aria-label={t.social.likeAria(likeCount)}
           className="flex items-center gap-1.5 min-h-[44px] px-2 rounded-lg transition-colors group/like"
         >
           <Heart size={23} className={`transition-all ${liked ? 'fill-rose-500 text-rose-500 scale-110' : 'text-stone-300 group-hover/like:text-rose-400'}`} aria-hidden="true" />
@@ -225,7 +227,7 @@ export default function ActivityCard({ entry, currentUserId, onReact, onComment,
         <button
           onClick={() => setShowComments(v => !v)}
           aria-expanded={showComments}
-          aria-label={`Comments${entry.comments.length > 0 ? `, ${entry.comments.length}` : ''}`}
+          aria-label={t.social.commentsAria(entry.comments.length)}
           className={`flex items-center gap-1.5 min-h-[44px] px-2 rounded-lg transition-colors ${showComments ? 'text-emerald-400' : 'text-stone-300 hover:text-white'}`}
         >
           <MessageCircle size={21} aria-hidden="true" />
@@ -237,7 +239,7 @@ export default function ActivityCard({ entry, currentUserId, onReact, onComment,
       {showComments && (
         <div className="border-t border-stone-800 px-4 py-3 space-y-3">
           {entry.comments.length === 0 && (
-            <p className="text-stone-400 text-xs text-center py-1">No comments yet — be first!</p>
+            <p className="text-stone-400 text-xs text-center py-1">{t.social.noComments}</p>
           )}
           {entry.comments.map(c => (
             <div key={c.id} className="flex gap-2.5 items-start">
@@ -253,7 +255,7 @@ export default function ActivityCard({ entry, currentUserId, onReact, onComment,
                   </div>
                 )}
                 <p className="text-sm leading-snug">
-                  <span className="text-white font-semibold mr-1.5">{c.profile?.display_name ?? 'User'}</span>
+                  <span className="text-white font-semibold mr-1.5">{c.profile?.display_name ?? t.social.userFallback}</span>
                   <span className="text-stone-200">{c.text}</span>
                 </p>
                 <div className="flex items-center gap-3 mt-0.5">
@@ -261,7 +263,7 @@ export default function ActivityCard({ entry, currentUserId, onReact, onComment,
                   {onLikeComment && (
                     <button
                       onClick={() => onLikeComment(c.id, !!c.liked_by_me)}
-                      aria-label={c.liked_by_me ? 'Unlike comment' : 'Like comment'}
+                      aria-label={c.liked_by_me ? t.social.unlikeCommentAria : t.social.likeCommentAria}
                       aria-pressed={!!c.liked_by_me}
                       className="flex items-center gap-1 text-xs font-medium text-stone-400 hover:text-rose-400 transition-colors"
                     >
@@ -270,7 +272,7 @@ export default function ActivityCard({ entry, currentUserId, onReact, onComment,
                     </button>
                   )}
                   {c.user_id === currentUserId && (
-                    <button onClick={() => onDeleteComment(entry.id, c.id)} className="text-stone-500 hover:text-red-300 text-xs">Delete</button>
+                    <button onClick={() => onDeleteComment(entry.id, c.id)} className="text-stone-500 hover:text-red-300 text-xs">{t.social.deleteComment}</button>
                   )}
                 </div>
               </div>
@@ -280,7 +282,7 @@ export default function ActivityCard({ entry, currentUserId, onReact, onComment,
             <input
               value={commentText}
               onChange={e => setCommentText(e.target.value.slice(0, 280))}
-              placeholder="Add a comment…"
+              placeholder={t.social.addComment}
               className="flex-1 bg-stone-800 border border-stone-700 rounded-full px-4 py-2.5 text-white text-base placeholder-stone-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
             />
             <button type="submit" disabled={!commentText.trim() || submitting} className="bg-emerald-700 hover:bg-emerald-600 disabled:opacity-40 text-white rounded-full px-3.5 transition-colors">
