@@ -11,6 +11,7 @@ import NotificationBell from '@/components/NotificationBell'
 import { createClient } from '@/lib/supabase/client'
 import { BottomNav } from '../dashboard/DashboardClient'
 import LogFab from '@/components/LogFab'
+import { useI18n } from '@/components/I18nProvider'
 import type { FeedEntry, FeedActivityEntry, FeedMilestoneEntry, Comment } from '@/types'
 
 interface Props {
@@ -37,18 +38,20 @@ function memberInitials(name: string): string {
 }
 
 // "Today" / "Yesterday" / "Mon, Jun 9" for the day separators.
-function dayLabel(iso: string): string {
+function dayLabel(iso: string, labels: { today: string; yesterday: string }, dateLocale: string): string {
   const d = new Date(iso)
   const today = new Date()
   const key = (x: Date) => x.toLocaleDateString('en-CA')
   const yest = new Date(today); yest.setDate(today.getDate() - 1)
-  if (key(d) === key(today)) return 'Today'
-  if (key(d) === key(yest)) return 'Yesterday'
-  return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+  if (key(d) === key(today)) return labels.today
+  if (key(d) === key(yest)) return labels.yesterday
+  return d.toLocaleDateString(dateLocale, { weekday: 'short', month: 'short', day: 'numeric' })
 }
 
 export default function FeedClient({ entries: initial, activities, milestones, currentUserId, nameMap, headerGroup, groupMembers, founderGroup, moderatableUserIds }: Props) {
   const router = useRouter()
+  const { t, locale } = useI18n()
+  const dateLocale = locale === 'es' ? 'es-419' : 'en-US'
   const [showMembers, setShowMembers] = useState(false)
   const [entries, setEntries] = useState<FeedEntry[]>(initial)
   const [activityList, setActivityList] = useState<FeedActivityEntry[]>(activities)
@@ -329,7 +332,7 @@ export default function FeedClient({ entries: initial, activities, milestones, c
           type="button"
           onClick={() => groupMembers.length > 0 && setShowMembers(true)}
           disabled={groupMembers.length === 0}
-          aria-label="View group members"
+          aria-label={t.feed.viewMembersAria}
           className="flex items-center gap-3 min-w-0 text-left rounded-2xl -m-1 p-1 enabled:hover:bg-stone-900/60 enabled:active:scale-[0.99] transition-colors"
         >
           <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-emerald-700 to-emerald-900 flex items-center justify-center overflow-hidden shrink-0">
@@ -338,20 +341,20 @@ export default function FeedClient({ entries: initial, activities, milestones, c
               : <Users size={20} className="text-emerald-300" aria-hidden="true" />}
           </div>
           <div className="min-w-0">
-            <h1 className="text-white text-xl font-bold truncate">{headerGroup?.name ?? 'Group feed'}</h1>
+            <h1 className="text-white text-xl font-bold truncate">{headerGroup?.name ?? t.feed.groupFeed}</h1>
             <p className="text-stone-400 text-xs">
               {headerGroup && headerGroup.count > 1
-                ? `${headerGroup.count} groups`
+                ? t.feed.groups(headerGroup.count)
                 : groupMembers.length > 0
-                  ? `${groupMembers.length} member${groupMembers.length === 1 ? '' : 's'}`
-                  : 'This week'}
+                  ? t.feed.members(groupMembers.length)
+                  : t.feed.thisWeek}
             </p>
           </div>
         </button>
         <div className="flex items-center gap-1 shrink-0">
           <Link
             href="/challenges"
-            aria-label="Challenges"
+            aria-label={t.feed.challengesAria}
             className="flex items-center justify-center w-11 h-11 bg-amber-900/40 hover:bg-amber-800/50 border border-amber-700/40 text-amber-300 rounded-xl transition-colors"
           >
             <Trophy size={18} aria-hidden="true" />
@@ -369,16 +372,16 @@ export default function FeedClient({ entries: initial, activities, milestones, c
           <div
             role="dialog"
             aria-modal="true"
-            aria-label={`${headerGroup?.name ?? 'Group'} members`}
+            aria-label={t.feed.membersSheetAria(headerGroup?.name ?? t.feed.group)}
             className="w-full sm:max-w-md bg-stone-900 border-t sm:border border-stone-800 rounded-t-3xl sm:rounded-3xl max-h-[80vh] flex flex-col"
             onClick={e => e.stopPropagation()}
           >
             <div className="flex items-center justify-between px-5 pt-5 pb-3 shrink-0">
               <div className="min-w-0">
-                <h2 className="text-white text-lg font-bold truncate">{headerGroup?.name ?? 'Group'}</h2>
-                <p className="text-stone-400 text-xs">{groupMembers.length} member{groupMembers.length === 1 ? '' : 's'}</p>
+                <h2 className="text-white text-lg font-bold truncate">{headerGroup?.name ?? t.feed.group}</h2>
+                <p className="text-stone-400 text-xs">{t.feed.members(groupMembers.length)}</p>
               </div>
-              <button onClick={() => setShowMembers(false)} aria-label="Close" className="shrink-0 text-stone-400 hover:text-white p-1">
+              <button onClick={() => setShowMembers(false)} aria-label={t.common.close} className="shrink-0 text-stone-400 hover:text-white p-1">
                 <X size={22} />
               </button>
             </div>
@@ -406,9 +409,9 @@ export default function FeedClient({ entries: initial, activities, milestones, c
                     <div className="min-w-0 flex-1">
                       <p className={`truncate ${m.is_coach ? 'text-white font-bold' : 'text-stone-200 font-medium'}`}>
                         {m.display_name}
-                        {m.user_id === currentUserId && <span className="text-stone-500 font-normal"> (you)</span>}
+                        {m.user_id === currentUserId && <span className="text-stone-500 font-normal">{t.feed.you}</span>}
                       </p>
-                      {m.is_coach && <p className="text-emerald-300 text-xs font-semibold">Coach</p>}
+                      {m.is_coach && <p className="text-emerald-300 text-xs font-semibold">{t.feed.coach}</p>}
                     </div>
                   </div>
                 </li>
@@ -425,7 +428,7 @@ export default function FeedClient({ entries: initial, activities, milestones, c
           className="fixed top-[4.25rem] left-1/2 -translate-x-1/2 z-40 flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold pl-3 pr-4 py-2 rounded-full shadow-lg shadow-emerald-900/40 transition-colors active:scale-95"
         >
           <ArrowUp size={15} aria-hidden="true" />
-          {newCount > 0 ? `${newCount} new ${newCount === 1 ? 'post' : 'posts'}` : 'New activity'}
+          {newCount > 0 ? t.feed.newPosts(newCount) : t.feed.newActivity}
         </button>
       )}
 
@@ -433,18 +436,18 @@ export default function FeedClient({ entries: initial, activities, milestones, c
         {isEmpty ? (
           <div className="text-center py-16 px-6 bg-stone-900/40 border border-dashed border-stone-800 rounded-3xl">
             <p className="text-4xl mb-3">🥗</p>
-            <p className="text-white font-semibold">Nothing logged this week</p>
-            <p className="text-stone-400 text-sm mt-1 mb-5">Share a meal or a workout to kick off your group.</p>
+            <p className="text-white font-semibold">{t.feed.emptyTitle}</p>
+            <p className="text-stone-400 text-sm mt-1 mb-5">{t.feed.emptyBody}</p>
             <Link
               href="/log"
               className="inline-block bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-6 py-3 rounded-2xl transition-colors"
             >
-              Log your first post
+              {t.feed.logFirst}
             </Link>
           </div>
         ) : (
           timeline.map(item => {
-            const label = dayLabel(item.logged_at)
+            const label = dayLabel(item.logged_at, { today: t.feed.today, yesterday: t.feed.yesterday }, dateLocale)
             const showSep = label !== lastDay
             lastDay = label
             return (
