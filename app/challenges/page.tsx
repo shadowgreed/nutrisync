@@ -2,10 +2,12 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import {
   memberSuccessDays, challengeStreak, challengeStatus, daysRemaining,
-  dayIndex, totalDays, isOnTrack, CHALLENGE_METRICS,
+  dayIndex, totalDays, isOnTrack,
   type ChallengeMetric, type LogLike,
 } from '@/lib/challenges'
 import { userDayKey, todayKey, resolveTimeZone } from '@/lib/day'
+import { getDict } from '@/lib/i18n'
+import { getLocale } from '@/lib/i18n/server'
 import ChallengesClient, { type ChallengeView, type LeaderRow, type FeedEvent } from './ChallengesClient'
 
 const STREAK_TIERS = [21, 14, 7, 3]
@@ -15,6 +17,9 @@ export default async function ChallengesPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
+
+  const t = getDict(await getLocale())
+  const tc = t.challenges
 
   // Find the user's group
   const { data: membership } = await supabase
@@ -159,29 +164,29 @@ export default async function ChallengesPage() {
     // highest team-progress tier crossed.
     const feed: FeedEvent[] = []
     for (const r of leaderboard) {
-      if (r.done) feed.push({ emoji: '🏆', text: `${r.name} completed the challenge` })
+      if (r.done) feed.push({ emoji: '🏆', text: tc.feed.completedChallenge(r.name) })
     }
     for (const r of leaderboard) {
       const tier = STREAK_TIERS.find(t => r.streak >= t)
-      if (tier) feed.push({ emoji: '🔥', text: `${r.name} is on a ${r.streak}-day streak` })
+      if (tier) feed.push({ emoji: '🔥', text: tc.feed.onStreak(r.name, r.streak) })
     }
     const teamTier = TEAM_TIERS.find(t => teamPct >= t)
-    if (teamTier) feed.push({ emoji: '🤝', text: `Crew reached ${teamTier}% — ${teamProgress}/${teamGoal} ${CHALLENGE_METRICS[metric].unit}` })
+    if (teamTier) feed.push({ emoji: '🤝', text: tc.feed.crewReached(teamTier, teamProgress, teamGoal, tc.metrics[metric].unit) })
 
     const todayCompleters = leaderboard
       .filter(r => r.todayDone)
       .map(r => ({ name: r.name, t: latestTodayTime(metric, r.userId) }))
       .sort((a, b) => (b.t ?? '').localeCompare(a.t ?? ''))
-    for (const r of todayCompleters) feed.push({ emoji: '👏', text: `${r.name} completed today's goal` })
+    for (const r of todayCompleters) feed.push({ emoji: '👏', text: tc.feed.completedToday(r.name) })
 
     // ── Milestone banner: the single most notable current moment ─────────────
     let banner: string | null = null
     const justDone = leaderboard.find(r => r.done)
     const topStreak = leaderboard.reduce<LeaderRow | null>((best, r) =>
       STREAK_TIERS.includes(r.streak) && (!best || r.streak > best.streak) ? r : best, null)
-    if (justDone) banner = `🎉 ${justDone.name} completed the challenge!`
-    else if (teamTier && teamTier >= 50) banner = `🔥 Crew reached ${teamTier}% — keep it up!`
-    else if (topStreak) banner = `🎉 ${topStreak.name} reached a ${topStreak.streak}-day streak!`
+    if (justDone) banner = tc.feed.bannerCompleted(justDone.name)
+    else if (teamTier && teamTier >= 50) banner = tc.feed.bannerCrew(teamTier)
+    else if (topStreak) banner = tc.feed.bannerStreak(topStreak.name, topStreak.streak)
 
     return {
       id: c.id,
@@ -210,7 +215,7 @@ export default async function ChallengesPage() {
 
   return (
     <ChallengesClient
-      group={{ id: groupId, name: groupName ?? 'Your group' }}
+      group={{ id: groupId, name: groupName ?? tc.yourGroup }}
       currentUserId={user.id}
       challenges={challenges}
       needsMigration={needsMigration}
