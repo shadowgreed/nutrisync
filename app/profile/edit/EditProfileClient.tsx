@@ -6,12 +6,13 @@ import { ArrowLeft, Save } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import AvatarUpload from '@/components/AvatarUpload'
 import {
-  GOAL_LABELS, GOAL_EMOJIS, ACTIVITY_LABELS,
+  GOAL_EMOJIS,
   calculateBMR, calculateTDEE, calculateCalorieTarget,
   lbsToKg, ftInToCm, kgToLbs, cmToFtIn,
 } from '@/lib/fitness'
 import { mlToOz, ozToMl, BOTTLE_OZ_PRESETS, TARGET_OZ_PRESETS } from '@/lib/water'
-import { DIETS, DIET_LABELS, DIET_EMOJIS } from '@/lib/diets'
+import { DIETS, DIET_EMOJIS } from '@/lib/diets'
+import { useI18n } from '@/components/I18nProvider'
 import type { Goal, ActivityLevel, Profile, Diet } from '@/types'
 
 const GOALS: Goal[] = ['lose_weight', 'maintain', 'build_muscle', 'improve_health']
@@ -24,6 +25,8 @@ interface Props { profile: Profile }
 export default function EditProfileClient({ profile }: Props) {
   const router = useRouter()
   const supabase = createClient()
+  const { t } = useI18n()
+  const ep = t.editProfile
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
@@ -132,8 +135,8 @@ export default function EditProfileClient({ profile }: Props) {
           <ArrowLeft size={20} />
         </button>
         <div>
-          <h1 className="text-white text-xl font-bold">Edit profile</h1>
-          <p className="text-stone-400 text-xs">Changes recalculate your calorie target</p>
+          <h1 className="text-white text-xl font-bold">{ep.title}</h1>
+          <p className="text-stone-400 text-xs">{ep.subtitle}</p>
         </div>
       </div>
 
@@ -142,24 +145,24 @@ export default function EditProfileClient({ profile }: Props) {
         {/* Profile picture */}
         <div className="flex flex-col items-center gap-2">
           <AvatarUpload initialUrl={profile.avatar_url} name={displayName} size="lg" />
-          <p className="text-stone-400 text-xs">Tap to change your photo</p>
+          <p className="text-stone-400 text-xs">{ep.tapPhoto}</p>
         </div>
 
         {/* Display name */}
         <div>
-          <p className={sectionHdr}>Display name</p>
+          <p className={sectionHdr}>{ep.displayName}</p>
           <input
             type="text"
             value={displayName}
             onChange={e => setDisplayName(e.target.value)}
-            placeholder="Your name"
+            placeholder={ep.namePlaceholder}
             className={inputCls}
           />
         </div>
 
         {/* Body stats */}
         <div>
-          <p className={sectionHdr}>Body stats</p>
+          <p className={sectionHdr}>{ep.bodyStats}</p>
           <div className="space-y-3">
             {/* Unit toggle */}
             <div className="flex bg-stone-800 rounded-xl p-1">
@@ -167,19 +170,19 @@ export default function EditProfileClient({ profile }: Props) {
                 onClick={() => setUseMetric(true)}
                 className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${useMetric ? 'bg-stone-600 text-white' : 'text-stone-400 hover:text-white'}`}
               >
-                Metric (kg, cm)
+                {ep.metricUnits}
               </button>
               <button
                 onClick={() => setUseMetric(false)}
                 className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${!useMetric ? 'bg-stone-600 text-white' : 'text-stone-400 hover:text-white'}`}
               >
-                Imperial (lbs, ft)
+                {ep.imperialUnits}
               </button>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-stone-400 text-xs mb-1.5 block">Weight ({useMetric ? 'kg' : 'lbs'})</label>
+                <label className="text-stone-400 text-xs mb-1.5 block">{ep.weightLabel(useMetric ? 'kg' : 'lbs')}</label>
                 {useMetric ? (
                   <input type="number" value={weightKg} onChange={e => setWeightKg(e.target.value)} placeholder="70" className={inputCls} />
                 ) : (
@@ -187,7 +190,7 @@ export default function EditProfileClient({ profile }: Props) {
                 )}
               </div>
               <div>
-                <label className="text-stone-400 text-xs mb-1.5 block">Height ({useMetric ? 'cm' : 'ft / in'})</label>
+                <label className="text-stone-400 text-xs mb-1.5 block">{ep.heightLabel(useMetric ? 'cm' : ep.ftInUnit)}</label>
                 {useMetric ? (
                   <input type="number" value={heightCm} onChange={e => setHeightCm(e.target.value)} placeholder="170" className={inputCls} />
                 ) : (
@@ -207,11 +210,11 @@ export default function EditProfileClient({ profile }: Props) {
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-stone-400 text-xs mb-1.5 block">Birth year</label>
+                <label className="text-stone-400 text-xs mb-1.5 block">{ep.birthYear}</label>
                 <input type="number" value={birthYear} onChange={e => setBirthYear(e.target.value)} placeholder="1990" className={inputCls} />
               </div>
               <div>
-                <label className="text-stone-400 text-xs mb-1.5 block">Biological sex</label>
+                <label className="text-stone-400 text-xs mb-1.5 block">{ep.biologicalSex}</label>
                 <div className="flex gap-1.5">
                   {(['male', 'female', 'prefer_not_to_say'] as const).map(s => (
                     <button
@@ -230,7 +233,7 @@ export default function EditProfileClient({ profile }: Props) {
 
         {/* Goal */}
         <div>
-          <p className={sectionHdr}>Goal</p>
+          <p className={sectionHdr}>{ep.goal}</p>
           <div className="grid grid-cols-2 gap-2">
             {GOALS.map(g => (
               <button
@@ -241,7 +244,7 @@ export default function EditProfileClient({ profile }: Props) {
                 }`}
               >
                 <span>{GOAL_EMOJIS[g]}</span>
-                <span className={`text-sm font-medium ${goal === g ? 'text-white' : 'text-stone-300'}`}>{GOAL_LABELS[g]}</span>
+                <span className={`text-sm font-medium ${goal === g ? 'text-white' : 'text-stone-300'}`}>{t.onboarding.goalLabels[g]}</span>
               </button>
             ))}
           </div>
@@ -249,8 +252,8 @@ export default function EditProfileClient({ profile }: Props) {
 
         {/* Diet */}
         <div>
-          <p className={sectionHdr}>Diet</p>
-          <p className="text-stone-500 text-[11px] -mt-1 mb-2">Tailors your nutrient insights — we won&apos;t flag what your diet naturally runs low on.</p>
+          <p className={sectionHdr}>{ep.diet}</p>
+          <p className="text-stone-500 text-[11px] -mt-1 mb-2">{ep.dietSub}</p>
           <div className="grid grid-cols-2 gap-2">
             <button
               onClick={() => setDiet(null)}
@@ -259,7 +262,7 @@ export default function EditProfileClient({ profile }: Props) {
               }`}
             >
               <span>🍽️</span>
-              <span className={`text-sm font-medium ${diet === null ? 'text-white' : 'text-stone-300'}`}>No specific diet</span>
+              <span className={`text-sm font-medium ${diet === null ? 'text-white' : 'text-stone-300'}`}>{ep.noDiet}</span>
             </button>
             {DIET_CHOICES.map(d => (
               <button
@@ -270,7 +273,7 @@ export default function EditProfileClient({ profile }: Props) {
                 }`}
               >
                 <span>{DIET_EMOJIS[d]}</span>
-                <span className={`text-sm font-medium ${diet === d ? 'text-white' : 'text-stone-300'}`}>{DIET_LABELS[d]}</span>
+                <span className={`text-sm font-medium ${diet === d ? 'text-white' : 'text-stone-300'}`}>{t.diets[d]}</span>
               </button>
             ))}
           </div>
@@ -278,24 +281,24 @@ export default function EditProfileClient({ profile }: Props) {
 
         {/* Goal weight */}
         <div>
-          <p className={sectionHdr}>Goal weight</p>
+          <p className={sectionHdr}>{ep.goalWeight}</p>
           <div className="relative">
             <input
               type="number"
               inputMode="decimal"
               value={targetWeightLbs}
               onChange={e => setTargetWeightLbs(e.target.value)}
-              placeholder="e.g. 165"
+              placeholder={ep.goalWeightPlaceholder}
               className={inputCls + ' pr-12'}
             />
             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm">lbs</span>
           </div>
-          <p className="text-stone-400 text-[11px] mt-1.5">Optional — we&apos;ll track your progress and celebrate milestones on Trends.</p>
+          <p className="text-stone-400 text-[11px] mt-1.5">{ep.goalWeightHint}</p>
         </div>
 
         {/* Activity level */}
         <div>
-          <p className={sectionHdr}>Activity level</p>
+          <p className={sectionHdr}>{ep.activityLevel}</p>
           <div className="space-y-2">
             {ACTIVITY_LEVELS.map(level => (
               <button
@@ -307,11 +310,11 @@ export default function EditProfileClient({ profile }: Props) {
               >
                 <div className="flex items-center justify-between">
                   <span className={`font-medium capitalize text-sm ${activityLevel === level ? 'text-white' : 'text-stone-300'}`}>
-                    {level.replace('_', ' ')}
+                    {t.onboarding.activityNames[level]}
                   </span>
                   {activityLevel === level && <span className="text-emerald-400 text-xs">✓</span>}
                 </div>
-                <p className="text-stone-400 text-xs mt-0.5">{ACTIVITY_LABELS[level]}</p>
+                <p className="text-stone-400 text-xs mt-0.5">{t.onboarding.activityDescs[level]}</p>
               </button>
             ))}
           </div>
@@ -319,7 +322,7 @@ export default function EditProfileClient({ profile }: Props) {
 
         {/* Daily calorie target */}
         <div>
-          <p className={sectionHdr}>Daily calorie target</p>
+          <p className={sectionHdr}>{ep.calorieTarget}</p>
           <div className="relative">
             <input
               type="number"
@@ -333,13 +336,13 @@ export default function EditProfileClient({ profile }: Props) {
           </div>
           {suggestedCalories != null && (
             <div className="flex items-center justify-between gap-2 mt-1.5">
-              <p className="text-stone-400 text-[11px]">Suggested for your stats &amp; goal: <span className="text-stone-200">{suggestedCalories} kcal</span></p>
+              <p className="text-stone-400 text-[11px]">{ep.suggestedLabel}<span className="text-stone-200">{ep.kcalValue(suggestedCalories)}</span></p>
               <button
                 type="button"
                 onClick={() => setCalorieTargetInput(String(suggestedCalories))}
                 className="shrink-0 text-emerald-400 hover:text-emerald-300 text-xs font-medium underline underline-offset-2"
               >
-                Use suggested
+                {ep.useSuggested}
               </button>
             </div>
           )}
@@ -347,10 +350,10 @@ export default function EditProfileClient({ profile }: Props) {
 
         {/* Water */}
         <div>
-          <p className={sectionHdr}>Hydration</p>
+          <p className={sectionHdr}>{ep.hydration}</p>
           <div className="space-y-3">
             <div>
-              <label className="text-stone-400 text-xs mb-2 block">Bottle / glass size</label>
+              <label className="text-stone-400 text-xs mb-2 block">{ep.bottleSize}</label>
               <div className="grid grid-cols-3 gap-2">
                 {BOTTLE_OZ_PRESETS.map(oz => (
                   <button
@@ -367,12 +370,12 @@ export default function EditProfileClient({ profile }: Props) {
                 inputMode="numeric"
                 value={bottleOzDraft}
                 onChange={e => setBottleOz(e.target.value)}
-                placeholder="Custom (oz)"
+                placeholder={ep.custom}
                 className={inputCls + ' mt-2'}
               />
             </div>
             <div>
-              <label className="text-stone-400 text-xs mb-2 block">Daily target</label>
+              <label className="text-stone-400 text-xs mb-2 block">{ep.dailyTarget}</label>
               <div className="grid grid-cols-2 gap-2">
                 {TARGET_OZ_PRESETS.map(oz => (
                   <button
@@ -389,13 +392,13 @@ export default function EditProfileClient({ profile }: Props) {
                 inputMode="numeric"
                 value={targetOzDraft}
                 onChange={e => setTargetOz(e.target.value)}
-                placeholder="Custom (oz)"
+                placeholder={ep.custom}
                 className={inputCls + ' mt-2'}
               />
             </div>
             <div className="bg-sky-950/50 border border-sky-800/40 rounded-xl px-4 py-2.5 flex items-center justify-between">
               <span className="text-sky-300 text-sm">
-                {Math.ceil(waterTargetMl / waterBottleMl)} bottles per day
+                {ep.bottlesPerDay(Math.ceil(waterTargetMl / waterBottleMl))}
               </span>
               <span className="text-sky-400 font-bold text-sm">{mlToOz(waterTargetMl)} oz</span>
             </div>
@@ -419,7 +422,7 @@ export default function EditProfileClient({ profile }: Props) {
           className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-semibold py-4 rounded-2xl transition-colors"
         >
           <Save size={16} />
-          {saved ? 'Saved!' : saving ? 'Saving…' : 'Save changes'}
+          {saved ? ep.saved : saving ? ep.saving : ep.saveChanges}
         </button>
       </div>
     </div>
