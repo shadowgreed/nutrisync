@@ -5,8 +5,11 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { track } from '@/lib/analytics-client'
+import { useI18n } from '@/components/I18nProvider'
 
 export default function CreateGroupPage() {
+  const { t } = useI18n()
+  const g = t.groups
   const [name, setName] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -30,7 +33,7 @@ export default function CreateGroupPage() {
       .single()
 
     if (groupError || !group) {
-      setError(groupError?.message ?? 'Failed to create group. Make sure you are logged in.')
+      setError(groupError?.message ?? g.createError)
       setLoading(false)
       return
     }
@@ -50,23 +53,23 @@ export default function CreateGroupPage() {
         <div className="w-full max-w-sm space-y-6">
           <div className="text-center">
             <div className="text-4xl mb-3">🎉</div>
-            <h2 className="text-white text-xl font-bold">Group created!</h2>
-            <p className="text-stone-400 text-sm mt-1">Share this link with up to 5 people</p>
+            <h2 className="text-white text-xl font-bold">{g.createdTitle}</h2>
+            <p className="text-stone-400 text-sm mt-1">{g.createdSub}</p>
           </div>
           <div className="bg-stone-900 border border-stone-700 rounded-2xl p-4 space-y-3">
-            <p className="text-stone-400 text-xs uppercase tracking-wider">Invite link</p>
+            <p className="text-stone-400 text-xs uppercase tracking-wider">{g.inviteLink}</p>
             <div className="flex items-center gap-2">
               <code className="flex-1 text-emerald-400 text-sm break-all">{inviteUrl}</code>
               <button
                 onClick={() => navigator.clipboard.writeText(inviteUrl)}
                 className="shrink-0 bg-stone-800 hover:bg-stone-700 text-white text-xs px-3 py-2 rounded-xl transition-colors"
               >
-                Copy
+                {g.copy}
               </button>
             </div>
           </div>
           <Link href="/dashboard" className="block text-center bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-3 rounded-xl transition-colors">
-            Go to dashboard →
+            {g.goDashboard}
           </Link>
         </div>
       </div>
@@ -77,15 +80,15 @@ export default function CreateGroupPage() {
     <div className="min-h-screen bg-stone-950 flex items-center justify-center p-4">
       <div className="w-full max-w-sm space-y-6">
         <div>
-          <Link href="/dashboard" className="text-stone-400 text-sm hover:text-stone-300">← Back</Link>
-          <h1 className="text-white text-2xl font-bold mt-4">Create a group</h1>
-          <p className="text-stone-400 text-sm mt-1">You&apos;ll get an invite link to share with your 5 users</p>
+          <Link href="/dashboard" className="text-stone-400 text-sm hover:text-stone-300">{g.back}</Link>
+          <h1 className="text-white text-2xl font-bold mt-4">{g.createTitle}</h1>
+          <p className="text-stone-400 text-sm mt-1">{g.createSub}</p>
         </div>
         <form onSubmit={handleCreate} className="space-y-4">
           <input
             value={name}
             onChange={e => setName(e.target.value)}
-            placeholder="Group name (e.g. NutriCrew)"
+            placeholder={g.namePlaceholder}
             required
             className="w-full bg-stone-900 border border-stone-700 rounded-xl px-4 py-3 text-white placeholder-stone-500 focus:outline-none focus:ring-2 focus:ring-emerald-500"
           />
@@ -99,12 +102,12 @@ export default function CreateGroupPage() {
             disabled={loading || !name.trim()}
             className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-semibold py-3 rounded-xl transition-colors"
           >
-            {loading ? 'Creating…' : 'Create group & get invite link'}
+            {loading ? g.creating : g.createCta}
           </button>
         </form>
         <p className="text-center text-stone-400 text-xs">
-          Already have a code?{' '}
-          <Link href="/group/join" className="text-emerald-500 hover:text-emerald-400">Join a group</Link>
+          {g.haveCode}{' '}
+          <Link href="/group/join" className="text-emerald-500 hover:text-emerald-400">{g.joinLink}</Link>
         </p>
       </div>
     </div>

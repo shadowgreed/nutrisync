@@ -3,10 +3,13 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import { useI18n } from '@/components/I18nProvider'
 
 type Status = 'loading' | 'requested' | 'already_member' | 'already_requested' | 'not_found' | 'error'
 
 export default function RequestClient({ groupId }: { groupId: string }) {
+  const { t } = useI18n()
+  const g = t.groups
   const [status, setStatus] = useState<Status>('loading')
   const [groupName, setGroupName] = useState<string>('')
 
@@ -26,12 +29,12 @@ export default function RequestClient({ groupId }: { groupId: string }) {
   }, [groupId])
 
   const body = {
-    loading: { emoji: '⏳', title: 'Sending your request…', sub: '' },
-    requested: { emoji: '🙋', title: 'Request sent!', sub: `The founder of ${groupName} will review your request to join. You'll get a notification when you're approved.` },
-    already_requested: { emoji: '⏳', title: 'Already requested', sub: `Your request to join ${groupName} is still waiting for the founder's approval.` },
-    already_member: { emoji: '✅', title: "You're already in!", sub: `You're already a member of ${groupName}.` },
-    not_found: { emoji: '🤔', title: 'Group not found', sub: 'This invite link looks invalid or the group no longer exists.' },
-    error: { emoji: '⚠️', title: 'Something went wrong', sub: 'Please try the link again.' },
+    loading: { emoji: '⏳', title: g.reqSending, sub: '' },
+    requested: { emoji: '🙋', title: g.reqSentTitle, sub: g.reqSentSub(groupName) },
+    already_requested: { emoji: '⏳', title: g.reqAlreadyTitle, sub: g.reqAlreadySub(groupName) },
+    already_member: { emoji: '✅', title: g.reqMemberTitle, sub: g.reqMemberSub(groupName) },
+    not_found: { emoji: '🤔', title: g.reqNotFoundTitle, sub: g.reqNotFoundSub },
+    error: { emoji: '⚠️', title: g.reqErrorTitle, sub: g.reqErrorSub },
   }[status]
 
   return (
@@ -44,7 +47,7 @@ export default function RequestClient({ groupId }: { groupId: string }) {
           href={status === 'already_member' ? '/feed' : '/dashboard'}
           className="inline-block bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-5 py-3 rounded-2xl transition-colors"
         >
-          {status === 'already_member' ? 'Go to feed' : 'Go to dashboard'}
+          {status === 'already_member' ? g.goFeed : g.goDashboardShort}
         </Link>
       </div>
     </div>
