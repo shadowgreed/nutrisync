@@ -6,6 +6,10 @@ import { X, Share2, Download, Target } from 'lucide-react'
 import { WEEKLY_SEEN_KEY, currentWeekKey } from '@/lib/weekly'
 import { logReviewEvent } from '@/lib/weekly-review-track'
 import type { WeeklyReview } from '@/lib/weekly-review'
+import { useI18n } from '@/components/I18nProvider'
+import type { Dict } from '@/lib/i18n/dictionaries'
+
+type WeeklyStrings = Dict['weekly']
 
 const SLIDE_MS = 6000
 const COUNT_MS = 800
@@ -70,13 +74,14 @@ function Bar({ pct, color }: { pct: number; color: string }) {
 
 interface SlideDef { key: string; theme: string; node: ReactNode }
 
-const MEAL_LABEL: Record<string, string> = { breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner', snack: 'Snacks' }
-
 export default function WeeklyReviewClient({ review, name }: { review: WeeklyReview; name: string }) {
   const router = useRouter()
+  const { t } = useI18n()
+  const w = t.weekly
+  const mealLabel = (type: string) => (t.mealTypes as Record<string, { label: string }>)[type]?.label ?? type
   const weekKey = useMemo(() => currentWeekKey(), [])
 
-  const slides = useMemo<SlideDef[]>(() => buildSlides(review, name), [review, name])
+  const slides = useMemo<SlideDef[]>(() => buildSlides(review, name, w, mealLabel), [review, name, w])
   const [i, setI] = useState(0)
   const [paused, setPaused] = useState(false)
   const [dragY, setDragY] = useState(0)
@@ -166,10 +171,10 @@ export default function WeeklyReviewClient({ review, name }: { review: WeeklyRev
       {/* Top bar with explicit slide indicator */}
       <div className="px-4 pt-2 pb-1 flex items-center justify-between">
         <div>
-          <p className="text-white font-bold text-sm">Your Week in Review</p>
-          <p className="text-white/60 text-xs">{review.weekLabel} · Slide {i + 1} of {slides.length}</p>
+          <p className="text-white font-bold text-sm">{w.header}</p>
+          <p className="text-white/60 text-xs">{review.weekLabel} · {w.slideOf(i + 1, slides.length)}</p>
         </div>
-        <button onClick={() => close('dismissed')} aria-label="Close" className="flex items-center justify-center w-11 h-11 text-white/80 hover:text-white">
+        <button onClick={() => close('dismissed')} aria-label={w.close} className="flex items-center justify-center w-11 h-11 text-white/80 hover:text-white">
           <X size={20} aria-hidden="true" />
         </button>
       </div>
@@ -185,7 +190,7 @@ export default function WeeklyReviewClient({ review, name }: { review: WeeklyRev
         </div>
       </div>
 
-      {!isLast && <p className="text-center text-white/45 text-[11px] pb-6">Tap to continue · hold to pause · swipe down to close</p>}
+      {!isLast && <p className="text-center text-white/45 text-[11px] pb-6">{w.footerHint}</p>}
 
       <style>{`@keyframes wr-in { from { opacity: 0; transform: translateY(10px) } to { opacity: 1; transform: none } }`}</style>
     </div>
@@ -193,7 +198,7 @@ export default function WeeklyReviewClient({ review, name }: { review: WeeklyRev
 }
 
 // ── Slide construction ────────────────────────────────────────────────────────
-function buildSlides(r: WeeklyReview, name: string): SlideDef[] {
+function buildSlides(r: WeeklyReview, name: string, w: WeeklyStrings, mealLabel: (t: string) => string): SlideDef[] {
   const slides: SlideDef[] = []
 
   // 1 — Cover
@@ -202,14 +207,14 @@ function buildSlides(r: WeeklyReview, name: string): SlideDef[] {
     node: (
       <>
         <p className="text-5xl mb-3" aria-hidden="true">📖</p>
-        <h2 className="text-white text-3xl font-extrabold leading-tight">Your Week<br />in Review</h2>
+        <h2 className="text-white text-3xl font-extrabold leading-tight">{w.coverTitle1}<br />{w.coverTitle2}</h2>
         <p className="text-white/60 text-sm mt-2">{r.weekLabel}</p>
         <div className="grid grid-cols-3 gap-3 mt-8 w-full">
-          <CoverStat value={r.cover.mealsLogged} label="meals" />
-          <CoverStat value={r.cover.workouts} label="workouts" />
-          <CoverStat value={r.cover.hydrationDays} label="hydration days" />
+          <CoverStat value={r.cover.mealsLogged} label={w.coverMeals} />
+          <CoverStat value={r.cover.workouts} label={w.coverWorkouts} />
+          <CoverStat value={r.cover.hydrationDays} label={w.coverHydration} />
         </div>
-        <p className="text-white/50 text-xs mt-8">Tap to begin →</p>
+        <p className="text-white/50 text-xs mt-8">{w.tapToBegin}</p>
       </>
     ),
   })
@@ -219,7 +224,7 @@ function buildSlides(r: WeeklyReview, name: string): SlideDef[] {
     key: 'consistency', theme: 'from-amber-600/40 via-stone-900 to-stone-950',
     node: (
       <>
-        <p className="text-white/80 text-sm font-medium mb-5">Consistency Score</p>
+        <p className="text-white/80 text-sm font-medium mb-5">{w.consistencyScore}</p>
         <Ring pct={r.consistency.score} label={<span className="text-white text-5xl font-extrabold"><Counter value={r.consistency.score} suffix="%" /></span>} />
         <div className="w-full mt-7 space-y-2.5">
           {r.consistency.breakdown.map(b => (
@@ -240,13 +245,13 @@ function buildSlides(r: WeeklyReview, name: string): SlideDef[] {
       key: 'best-day', theme: 'from-emerald-600/40 via-stone-900 to-stone-950',
       node: (
         <>
-          <p className="text-white/80 text-sm font-medium">Your Best Day</p>
+          <p className="text-white/80 text-sm font-medium">{w.bestDay}</p>
           <p className="text-white text-5xl font-extrabold mt-3">{bd.weekday}</p>
           <div className="mt-6 bg-white/10 border border-white/15 rounded-2xl px-5 py-4 w-full space-y-2">
-            <p className="text-emerald-300 text-2xl font-bold"><Counter value={bd.nutrientsHit} />/{bd.nutrientsTotal} <span className="text-base font-medium text-white/70">nutrients hit</span></p>
+            <p className="text-emerald-300 text-2xl font-bold"><Counter value={bd.nutrientsHit} />/{bd.nutrientsTotal} <span className="text-base font-medium text-white/70">{w.nutrientsHit}</span></p>
             <div className="flex justify-center gap-2 pt-1">
-              <span className={`text-xs px-2.5 py-1 rounded-full ${bd.active ? 'bg-orange-900/60 text-orange-200' : 'bg-white/10 text-white/40'}`}>🏃 {bd.active ? 'Active' : 'Rest day'}</span>
-              <span className={`text-xs px-2.5 py-1 rounded-full ${bd.hydrated ? 'bg-sky-900/60 text-sky-200' : 'bg-white/10 text-white/40'}`}>💧 {bd.hydrated ? 'Hydrated' : 'Low water'}</span>
+              <span className={`text-xs px-2.5 py-1 rounded-full ${bd.active ? 'bg-orange-900/60 text-orange-200' : 'bg-white/10 text-white/40'}`}>🏃 {bd.active ? w.active : w.restDay}</span>
+              <span className={`text-xs px-2.5 py-1 rounded-full ${bd.hydrated ? 'bg-sky-900/60 text-sky-200' : 'bg-white/10 text-white/40'}`}>💧 {bd.hydrated ? w.hydrated : w.lowWater}</span>
             </div>
           </div>
         </>
@@ -261,13 +266,13 @@ function buildSlides(r: WeeklyReview, name: string): SlideDef[] {
       key: 'nutrients', theme: 'from-emerald-600/40 via-stone-900 to-stone-950',
       node: (
         <>
-          <p className="text-white/80 text-sm font-medium">Nutrient Champion</p>
+          <p className="text-white/80 text-sm font-medium">{w.nutrientChampion}</p>
           <p className="text-6xl mt-4" aria-hidden="true">{champ.emoji}</p>
           <p className="text-white text-2xl font-extrabold mt-2">{champ.label}</p>
           <p className="text-emerald-300 text-4xl font-extrabold mt-1"><Counter value={champ.pct} suffix="%" /></p>
-          <p className="text-white/60 text-xs">of your daily target</p>
+          <p className="text-white/60 text-xs">{w.ofDailyTarget}</p>
           {r.nutrients.lowest && (
-            <p className="text-white/50 text-xs mt-6">Needs love next week: <span className="text-white/80">{r.nutrients.lowest.emoji} {r.nutrients.lowest.label}</span> at {r.nutrients.lowest.pct}%</p>
+            <p className="text-white/50 text-xs mt-6">{w.needsLove}<span className="text-white/80">{r.nutrients.lowest.emoji} {r.nutrients.lowest.label}</span> {w.atPct(r.nutrients.lowest.pct)}</p>
           )}
         </>
       ),
@@ -282,8 +287,8 @@ function buildSlides(r: WeeklyReview, name: string): SlideDef[] {
         <>
           <p className="text-7xl mb-2 animate-pulse" aria-hidden="true">🔥</p>
           <p className="text-white text-6xl font-extrabold"><Counter value={r.streak} /></p>
-          <p className="text-white/80 text-lg font-semibold mt-1">day logging streak</p>
-          <p className="text-white/60 text-sm mt-5 max-w-xs">Consistency is your superpower. Keep the flame alive into next week!</p>
+          <p className="text-white/80 text-lg font-semibold mt-1">{w.dayLoggingStreak}</p>
+          <p className="text-white/60 text-sm mt-5 max-w-xs">{w.streakBlurb}</p>
         </>
       ),
     })
@@ -294,15 +299,15 @@ function buildSlides(r: WeeklyReview, name: string): SlideDef[] {
     key: 'activity', theme: 'from-orange-600/40 via-stone-900 to-stone-950',
     node: (
       <>
-        <p className="text-white/80 text-sm font-medium">Activity Story</p>
+        <p className="text-white/80 text-sm font-medium">{w.activityStory}</p>
         <p className="text-white text-6xl font-extrabold mt-3"><Counter value={r.activity.activeDays} /><span className="text-2xl text-white/60">/{r.activity.goalDays}</span></p>
-        <p className="text-white/70 text-sm">active days</p>
-        <p className="text-orange-300 text-3xl font-bold mt-5"><Counter value={r.activity.caloriesBurned} /> <span className="text-base font-medium text-white/70">kcal burned</span></p>
+        <p className="text-white/70 text-sm">{w.activeDays}</p>
+        <p className="text-orange-300 text-3xl font-bold mt-5"><Counter value={r.activity.caloriesBurned} /> <span className="text-base font-medium text-white/70">{w.kcalBurned}</span></p>
         {r.activity.caloriesBurned > 0 && (
           <div className="mt-6 text-white/70 text-sm space-y-1">
-            <p className="text-white/50 text-xs uppercase tracking-wide">Equivalent to</p>
-            <p>🚶 ~{r.activity.milesWalked} miles walked</p>
-            <p>🍔 {r.activity.cheeseburgers} cheeseburgers burned</p>
+            <p className="text-white/50 text-xs uppercase tracking-wide">{w.equivalentTo}</p>
+            <p>{w.milesWalked(r.activity.milesWalked)}</p>
+            <p>{w.cheeseburgers(r.activity.cheeseburgers)}</p>
           </div>
         )}
       </>
@@ -316,11 +321,11 @@ function buildSlides(r: WeeklyReview, name: string): SlideDef[] {
       key: 'food-mvp', theme: 'from-teal-600/40 via-stone-900 to-stone-950',
       node: (
         <>
-          <p className="text-white/80 text-sm font-medium">Your Food MVP</p>
+          <p className="text-white/80 text-sm font-medium">{w.foodMvp}</p>
           <p className="text-7xl mt-4" aria-hidden="true">{mvp.emoji}</p>
           <p className="text-white text-3xl font-extrabold mt-2 capitalize">{mvp.name}</p>
-          <p className="text-teal-300 text-lg font-semibold mt-1">Logged <Counter value={mvp.count} /> times</p>
-          {mvp.favoriteMealType && <p className="text-white/55 text-xs mt-5">Favorite meal: {MEAL_LABEL[mvp.favoriteMealType] ?? mvp.favoriteMealType}</p>}
+          <p className="text-teal-300 text-lg font-semibold mt-1">{w.loggedTimes(mvp.count)}</p>
+          {mvp.favoriteMealType && <p className="text-white/55 text-xs mt-5">{w.favoriteMeal(mealLabel(mvp.favoriteMealType))}</p>}
         </>
       ),
     })
@@ -351,8 +356,8 @@ function buildSlides(r: WeeklyReview, name: string): SlideDef[] {
       key: 'group', theme: 'from-sky-600/40 via-stone-900 to-stone-950',
       node: (
         <>
-          <p className="text-white/80 text-sm font-medium">Group Rank</p>
-          <p className="text-white text-6xl font-extrabold mt-3">#{g.rank}<span className="text-2xl text-white/60"> of {g.total}</span></p>
+          <p className="text-white/80 text-sm font-medium">{w.groupRank}</p>
+          <p className="text-white text-6xl font-extrabold mt-3">#{g.rank}<span className="text-2xl text-white/60">{w.ofTotal(g.total)}</span></p>
           <div className="mt-6 w-full space-y-2">
             {g.highlights.map(h => (
               <div key={h.label} className="bg-white/10 border border-white/15 rounded-xl px-3.5 py-2.5 text-left">
@@ -392,37 +397,42 @@ function CoverStat({ value, label }: { value: number; label: string }) {
 
 function MissionSlide({ mission }: { mission: WeeklyReview['mission'] }) {
   const router = useRouter()
+  const { t } = useI18n()
+  const w = t.weekly
   const weekKey = useMemo(() => currentWeekKey(), [])
   function accept() { logReviewEvent('weekly_review_mission_accepted', { weekKey }); router.push('/dashboard') }
   return (
     <>
       <p className="text-5xl mb-2" aria-hidden="true">🎯</p>
-      <p className="text-white/80 text-sm font-medium">Next Week’s Mission</p>
+      <p className="text-white/80 text-sm font-medium">{w.missionTitle}</p>
       <p className="text-white text-3xl font-extrabold mt-2">{mission.title}</p>
       {mission.expectedImprovementPct != null && (
-        <p className="text-indigo-200 text-sm mt-1">Expected improvement: <span className="font-bold">+{mission.expectedImprovementPct}%</span></p>
+        <p className="text-indigo-200 text-sm mt-1">{w.expectedImprovementLabel}<span className="font-bold">+{mission.expectedImprovementPct}%</span></p>
       )}
       <div className="mt-6 w-full bg-white/10 border border-white/15 rounded-2xl px-4 py-3 text-left">
-        <p className="text-white/50 text-[11px] uppercase tracking-wide mb-1.5">Try these</p>
+        <p className="text-white/50 text-[11px] uppercase tracking-wide mb-1.5">{w.tryThese}</p>
         <ul className="space-y-1">
           {mission.foods.map((f, idx) => <li key={idx} className="text-white text-sm flex items-center gap-2"><span className="text-indigo-300">•</span>{f}</li>)}
         </ul>
       </div>
       <button onClick={accept} className="mt-6 w-full bg-white text-stone-900 font-bold py-3 rounded-xl text-sm hover:bg-white/90 transition-colors">
-        Accept mission
+        {w.acceptMission}
       </button>
     </>
   )
 }
 
 function ShareSlide({ review, name }: { review: WeeklyReview; name: string }) {
+  const { t } = useI18n()
+  const w = t.weekly
   const [busy, setBusy] = useState(false)
   const s = review.share
+  const firstName = name.split(/\s+/)[0]
   const lines = [
-    `🔥 ${s.streak} day streak`,
-    `🥦 ${s.nutrientsOnTrack} nutrients on track`,
-    `🏃 ${s.activeDays} active days`,
-    `💧 ${s.hydrationDays}/${s.hydrationGoalDays} hydration days`,
+    w.shareStreak(s.streak),
+    w.shareNutrients(s.nutrientsOnTrack),
+    w.shareActive(s.activeDays),
+    w.shareHydration(s.hydrationDays, s.hydrationGoalDays),
   ]
 
   async function makeImage(): Promise<Blob | null> {
@@ -436,15 +446,15 @@ function ShareSlide({ review, name }: { review: WeeklyReview; name: string }) {
     ctx.fillStyle = g; ctx.fillRect(0, 0, W, H)
     ctx.textAlign = 'center'
     ctx.fillStyle = 'rgba(255,255,255,0.7)'; ctx.font = '600 40px system-ui, sans-serif'
-    ctx.fillText('NUTRISYNC · WEEK IN REVIEW', W / 2, 150)
+    ctx.fillText(w.brand, W / 2, 150)
     ctx.fillStyle = '#ffffff'; ctx.font = '800 88px system-ui, sans-serif'
-    ctx.fillText(`${name.split(/\s+/)[0]}’s Week`, W / 2, 280)
+    ctx.fillText(w.possessiveWeek(firstName), W / 2, 280)
     ctx.fillStyle = 'rgba(255,255,255,0.6)'; ctx.font = '500 38px system-ui, sans-serif'
     ctx.fillText(review.weekLabel, W / 2, 345)
     ctx.font = '700 62px system-ui, sans-serif'; ctx.fillStyle = '#ffffff'
     lines.forEach((ln, idx) => ctx.fillText(ln, W / 2, 560 + idx * 130))
     ctx.fillStyle = 'rgba(255,255,255,0.45)'; ctx.font = '500 34px system-ui, sans-serif'
-    ctx.fillText('Eat well, together.', W / 2, H - 90)
+    ctx.fillText(w.shareCaption, W / 2, H - 90)
     return new Promise(resolve => canvas.toBlob(b => resolve(b), 'image/png'))
   }
 
@@ -453,7 +463,7 @@ function ShareSlide({ review, name }: { review: WeeklyReview; name: string }) {
     try {
       const blob = await makeImage()
       const file = blob ? new File([blob], 'nutrisync-week.png', { type: 'image/png' }) : null
-      const text = `My NutriSync week:\n${lines.join('\n')}`
+      const text = `${w.shareIntro}\n${lines.join('\n')}`
       const nav = navigator as Navigator & { canShare?: (d?: unknown) => boolean }
       if (file && nav.canShare?.({ files: [file] }) && navigator.share) {
         await navigator.share({ files: [file], text })
@@ -480,11 +490,11 @@ function ShareSlide({ review, name }: { review: WeeklyReview; name: string }) {
 
   return (
     <>
-      <p className="text-white/80 text-sm font-medium mb-3">That’s a wrap!</p>
+      <p className="text-white/80 text-sm font-medium mb-3">{w.wrap}</p>
       {/* Branded preview card */}
       <div className="w-full rounded-3xl p-5 bg-gradient-to-br from-emerald-700/60 via-indigo-900/60 to-stone-950 border border-white/15 shadow-xl">
-        <p className="text-white/60 text-[10px] tracking-widest font-semibold">NUTRISYNC · WEEK IN REVIEW</p>
-        <p className="text-white text-2xl font-extrabold mt-1">{name.split(/\s+/)[0]}’s Week</p>
+        <p className="text-white/60 text-[10px] tracking-widest font-semibold">{w.brand}</p>
+        <p className="text-white text-2xl font-extrabold mt-1">{w.possessiveWeek(firstName)}</p>
         <p className="text-white/50 text-xs">{review.weekLabel}</p>
         <div className="mt-4 space-y-1.5 text-left">
           {lines.map((ln, idx) => <p key={idx} className="text-white text-lg font-semibold">{ln}</p>)}
@@ -492,10 +502,10 @@ function ShareSlide({ review, name }: { review: WeeklyReview; name: string }) {
       </div>
       <div className="flex gap-2 mt-5 w-full">
         <button onClick={share} disabled={busy} className="flex-1 flex items-center justify-center gap-1.5 bg-white text-stone-900 font-bold py-3 rounded-xl text-sm hover:bg-white/90 transition-colors disabled:opacity-60">
-          <Share2 size={15} aria-hidden="true" /> Share
+          <Share2 size={15} aria-hidden="true" /> {w.shareBtn}
         </button>
         <button onClick={save} disabled={busy} className="flex items-center justify-center gap-1.5 bg-white/15 text-white font-semibold py-3 px-4 rounded-xl text-sm hover:bg-white/25 transition-colors disabled:opacity-60">
-          <Download size={15} aria-hidden="true" /> Save
+          <Download size={15} aria-hidden="true" /> {w.saveBtn}
         </button>
       </div>
     </>
