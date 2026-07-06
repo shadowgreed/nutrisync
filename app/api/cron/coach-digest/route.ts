@@ -2,11 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import type webpush from 'web-push'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendPushToSubscriptions } from '@/lib/push'
-import { assessClient } from '@/lib/copilot'
+import { assessClient, type CopilotStrings } from '@/lib/copilot'
 import { chooseKind, draftCheckin } from '@/lib/copilot-ai'
 import { effectiveDiet, isDiet } from '@/lib/diets'
 import { getDict, resolveLocale } from '@/lib/i18n'
-import type { Diet, NutrientTotals } from '@/types'
+import type { Diet, NutrientTotals, NutrientKey } from '@/types'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -81,6 +81,14 @@ export async function GET(req: NextRequest) {
 
     const coachId = coach.id as string
     const groupIds = groupsByCoach.get(coachId) ?? []
+    // Signals phrased in the coach's own language, same reasoning as the
+    // interactive draft route — this is the coach's digest, in the coach's UI.
+    const digestDict = getDict(resolveLocale(coach.language))
+    const copilotStrings: CopilotStrings = {
+      ...digestDict.coach.signals,
+      nutrientLabel: (key: NutrientKey) => digestDict.nutrients[key],
+      dietLabel: (d) => d ? digestDict.diets[d] : digestDict.editProfile.noDiet,
+    }
     const { data: memberRows } = await admin
       .from('group_members')
       .select('user_id, group_id, profiles(id, display_name, calorie_target, privacy_mode, coach_visible, diet)')
@@ -129,6 +137,7 @@ export async function GET(req: NextRequest) {
         const diet = effectiveDiet(isDiet(p.diet) ? p.diet : null, overrideByMember.get(p.id) ?? null)
         const { attention, signals, report } = assessClient({
           foods: weekFoods, activities: weekActs, calorieTarget: p.calorie_target ?? 2000, lastLoggedAt, diet,
+          strings: copilotStrings,
         })
         if (attention !== 'needs_attention') continue
         needsCount++

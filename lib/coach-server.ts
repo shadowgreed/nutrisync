@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { assessClient, type ClientStatus } from './copilot'
+import { assessClient, type ClientStatus, type CopilotStrings } from './copilot'
 import { buildWeeklyReport, type WeeklyReport } from './weekly'
 import { computeStreak } from './streak'
 import { isDiet } from './diets'
@@ -72,6 +72,7 @@ export interface MemberAssessment extends ClientStatus {
  */
 export async function assessMember(
   supabase: SupabaseClient, memberId: string, calorieTarget: number, diet?: Diet | null, timeZone?: string,
+  strings?: CopilotStrings,
 ): Promise<MemberAssessment> {
   const since = new Date(Date.now() - 30 * DAY_MS).toISOString()
   const sevenDaysAgo = Date.now() - 7 * DAY_MS
@@ -100,7 +101,7 @@ export async function assessMember(
     .filter(a => new Date(a.logged_at).getTime() >= sevenDaysAgo)
     .map(a => ({ logged_at: a.logged_at, calories_burned: a.calories_burned ?? 0 }))
 
-  const status = assessClient({ foods: weekFoods, activities: weekActs, calorieTarget, lastLoggedAt, diet, timeZone })
+  const status = assessClient({ foods: weekFoods, activities: weekActs, calorieTarget, lastLoggedAt, diet, timeZone, strings })
 
   // Prior week (days 8–14 ago) for week-over-week trend arrows. Reuses the same
   // 30-day pull, so no extra query. buildWeeklyReport's window is `now − 6d … now`,

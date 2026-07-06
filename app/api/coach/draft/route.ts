@@ -7,6 +7,10 @@ import { isDraftTone } from '@/lib/copilot-tones'
 import { inferVoice } from '@/lib/coach-voice'
 import { effectiveDiet, isDiet } from '@/lib/diets'
 import { parseJson, badRequest } from '@/lib/validate'
+import { getDict } from '@/lib/i18n'
+import { getLocale } from '@/lib/i18n/server'
+import type { CopilotStrings } from '@/lib/copilot'
+import type { NutrientKey } from '@/types'
 
 // Generate (or regenerate) a Copilot check-in draft for one member. The draft is
 // stored as 'pending' — it does NOT reach the member until the coach sends it.
@@ -45,7 +49,17 @@ export async function POST(req: NextRequest) {
   const override = await getDietOverride(supabase, user.id, memberId)
   const diet = effectiveDiet(isDiet(member.diet) ? member.diet : null, override)
 
-  const { signals, report } = await assessMember(supabase, memberId, member.calorie_target ?? 2000, diet)
+  // Signals are phrased in the coach's own language — both for the dashboard
+  // chip display and as the "flags" fed into the Copilot draft prompt below, so
+  // a Spanish-locale coach gets a Spanish-aware (and typically Spanish-drafted)
+  // check-in instead of English flags mismatched against their own UI.
+  const t = getDict(await getLocale())
+  const copilotStrings: CopilotStrings = {
+    ...t.coach.signals,
+    nutrientLabel: (key: NutrientKey) => t.nutrients[key],
+    dietLabel: (d) => d ? t.diets[d] : t.editProfile.noDiet,
+  }
+  const { signals, report } = await assessMember(supabase, memberId, member.calorie_target ?? 2000, diet, undefined, copilotStrings)
   const kind = chooseKind(signals)
 
   const [{ data: coach }, { data: sentRows }] = await Promise.all([
