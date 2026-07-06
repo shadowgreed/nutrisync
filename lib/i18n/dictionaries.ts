@@ -355,6 +355,10 @@ const en = {
     coachDigestBody: (n: number): string => `${n} client${n === 1 ? '' : 's'} need a check-in. Drafts are ready in your queue.`,
   },
 
+  manifest: {
+    description: 'Track every nutrient. See what your crew eats.',
+  },
+
   bell: {
     notifications: 'Notifications',
     unreadAria: (n: number) => `Notifications, ${n} unread`,
@@ -1656,6 +1660,10 @@ const es: Dict = {
     weeklyReportBody: 'Mira cómo te fue esta semana en nutrición y actividad.',
     coachDigestTitle: '🧑‍🏫 Tus seguimientos de coaching',
     coachDigestBody: (n: number): string => `${n} cliente${n === 1 ? '' : 's'} necesita${n === 1 ? '' : 'n'} seguimiento. Los borradores ya están listos en tu cola.`,
+  },
+
+  manifest: {
+    description: 'Registra cada nutriente. Mira qué come tu equipo.',
   },
 
   bell: {
