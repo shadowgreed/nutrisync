@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import type webpush from 'web-push'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendPushToSubscriptions } from '@/lib/push'
+import { getDict, resolveLocale } from '@/lib/i18n'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -42,7 +43,7 @@ export async function GET(req: NextRequest) {
 
   const { data: profiles, error } = await supabase
     .from('profiles')
-    .select('id, reminder_timezone, water_reminders_enabled, meal_reminders_enabled, last_water_reminder_at, last_meal_reminder_at')
+    .select('id, reminder_timezone, water_reminders_enabled, meal_reminders_enabled, last_water_reminder_at, last_meal_reminder_at, language')
     .or('water_reminders_enabled.eq.true,meal_reminders_enabled.eq.true')
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -51,6 +52,8 @@ export async function GET(req: NextRequest) {
   let candidates = 0
 
   for (const p of profiles ?? []) {
+    const dict = getDict(resolveLocale(p.language))
+    const t = dict.pushNotify
     const tz = p.reminder_timezone || 'America/New_York'
     const { date, hour } = localParts(tz, now)
     if (hour < 8 || hour >= 22) continue // quiet hours
@@ -78,7 +81,7 @@ export async function GET(req: NextRequest) {
           .eq('user_id', p.id).gte('logged_at', since)
         if ((count ?? 0) === 0) {
           sent += await sendPushToSubscriptions(subscriptions, {
-            title: '💧 Hydration check', body: 'Time for some water!', url: '/dashboard', tag: 'water-reminder',
+            title: t.hydrationTitle, body: t.hydrationBody, url: '/dashboard', tag: 'water-reminder',
           })
         }
         await supabase.from('profiles').update({ last_water_reminder_at: now.toISOString() }).eq('id', p.id)
@@ -97,8 +100,9 @@ export async function GET(req: NextRequest) {
           .from('food_logs').select('id', { count: 'exact', head: true })
           .eq('user_id', p.id).eq('meal_type', meal.type).gte('logged_at', since)
         if ((count ?? 0) === 0) {
+          const mealLabel = (dict.mealTypes as Record<string, { label: string }>)[meal.type]?.label.toLowerCase() ?? meal.label
           sent += await sendPushToSubscriptions(subscriptions, {
-            title: '🍽️ Meal time', body: `Don't forget to log your ${meal.label}.`, url: '/log', tag: 'meal-reminder',
+            title: t.mealTitle, body: t.mealBody(mealLabel), url: '/log', tag: 'meal-reminder',
           })
         }
         await supabase.from('profiles').update({ last_meal_reminder_at: now.toISOString() }).eq('id', p.id)

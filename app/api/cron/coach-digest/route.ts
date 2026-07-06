@@ -5,6 +5,7 @@ import { sendPushToSubscriptions } from '@/lib/push'
 import { assessClient } from '@/lib/copilot'
 import { chooseKind, draftCheckin } from '@/lib/copilot-ai'
 import { effectiveDiet, isDiet } from '@/lib/diets'
+import { getDict, resolveLocale } from '@/lib/i18n'
 import type { Diet, NutrientTotals } from '@/types'
 
 export const dynamic = 'force-dynamic'
@@ -65,7 +66,7 @@ export async function GET(req: NextRequest) {
 
   const { data: coachProfiles } = await admin
     .from('profiles')
-    .select('id, display_name, coach_style, reminder_timezone, last_coach_digest_at')
+    .select('id, display_name, coach_style, reminder_timezone, last_coach_digest_at, language')
     .in('id', [...groupsByCoach.keys()])
 
   let pushed = 0
@@ -147,7 +148,8 @@ export async function GET(req: NextRequest) {
       }
 
       if (needsCount > 0) {
-        const body = `${needsCount} client${needsCount === 1 ? '' : 's'} need a check-in. Drafts are ready in your queue.`
+        const t = getDict(resolveLocale(coach.language as string | null)).pushNotify
+        const body = t.coachDigestBody(needsCount)
         await admin.from('notifications').insert({ user_id: coachId, type: 'coach_nudge', data: { count: needsCount } })
         const { data: subRows } = await admin
           .from('push_subscriptions').select('subscription').eq('user_id', coachId)
@@ -157,7 +159,7 @@ export async function GET(req: NextRequest) {
             .from('notifications').select('id', { count: 'exact', head: true })
             .eq('user_id', coachId).eq('read', false)
           pushed += await sendPushToSubscriptions(subs, {
-            title: '🧑‍🏫 Your coaching check-ins',
+            title: t.coachDigestTitle,
             body,
             url: '/coach/queue',
             tag: 'coach-digest',

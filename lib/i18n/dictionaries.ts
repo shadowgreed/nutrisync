@@ -340,6 +340,25 @@ const en = {
     enable: 'Enable',
   },
 
+  pushNotify: {
+    someone: 'Someone',
+    replyBody: (who: string) => `${who} replied to your comment`,
+    commentBody: (who: string) => `${who} commented on your meal`,
+    reactionBody: (who: string) => `${who} reacted to your meal`,
+    hydrationTitle: '💧 Hydration check',
+    hydrationBody: 'Time for some water!',
+    mealTitle: '🍽️ Meal time',
+    mealBody: (mealLabel: string) => `Don't forget to log your ${mealLabel}.`,
+    weeklyReportTitle: '📊 Your weekly report',
+    weeklyReportBody: 'See how your nutrition & activity went this week.',
+    coachDigestTitle: '🧑‍🏫 Your coaching check-ins',
+    coachDigestBody: (n: number): string => `${n} client${n === 1 ? '' : 's'} need a check-in. Drafts are ready in your queue.`,
+  },
+
+  manifest: {
+    description: 'Track every nutrient. See what your crew eats.',
+  },
+
   bell: {
     notifications: 'Notifications',
     unreadAria: (n: number) => `Notifications, ${n} unread`,
@@ -1626,6 +1645,25 @@ const es: Dict = {
     off: 'Apagar',
     enabling: 'Activando…',
     enable: 'Activar',
+  },
+
+  pushNotify: {
+    someone: 'Alguien',
+    replyBody: (who: string) => `${who} respondió a tu comentario`,
+    commentBody: (who: string) => `${who} comentó tu comida`,
+    reactionBody: (who: string) => `${who} reaccionó a tu comida`,
+    hydrationTitle: '💧 Hora de hidratarte',
+    hydrationBody: '¡Es momento de tomar agua!',
+    mealTitle: '🍽️ Hora de comer',
+    mealBody: (mealLabel: string) => `No olvides registrar tu ${mealLabel}.`,
+    weeklyReportTitle: '📊 Tu resumen semanal',
+    weeklyReportBody: 'Mira cómo te fue esta semana en nutrición y actividad.',
+    coachDigestTitle: '🧑‍🏫 Tus seguimientos de coaching',
+    coachDigestBody: (n: number): string => `${n} cliente${n === 1 ? '' : 's'} necesita${n === 1 ? '' : 'n'} seguimiento. Los borradores ya están listos en tu cola.`,
+  },
+
+  manifest: {
+    description: 'Registra cada nutriente. Mira qué come tu equipo.',
   },
 
   bell: {

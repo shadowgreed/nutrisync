@@ -1,10 +1,17 @@
 import type { MetadataRoute } from 'next'
+import { getDict } from '@/lib/i18n'
+import { getLocale } from '@/lib/i18n/server'
 
-export default function manifest(): MetadataRoute.Manifest {
+// Reads the locale cookie (a Next.js request-time API), so this manifest route
+// opts into dynamic rendering instead of being cached as a single static file —
+// the installed-app name stays "NutriSync" (brand, never translated) but the
+// description follows the visitor's language.
+export default async function manifest(): Promise<MetadataRoute.Manifest> {
+  const t = getDict(await getLocale())
   return {
     name: 'NutriSync',
     short_name: 'NutriSync',
-    description: 'Track every nutrient. See what your crew eats.',
+    description: t.manifest.description,
     start_url: '/dashboard',
     display: 'standalone',
     orientation: 'portrait',
