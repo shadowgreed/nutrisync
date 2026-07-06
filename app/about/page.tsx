@@ -1,8 +1,12 @@
+import type { Metadata } from 'next'
 import LegalPage from '@/components/LegalPage'
 import { getDict } from '@/lib/i18n'
 import { getLocale } from '@/lib/i18n/server'
 
-export const metadata = { title: 'About NutriSync' }
+export async function generateMetadata(): Promise<Metadata> {
+  const t = getDict(await getLocale())
+  return { title: t.legal.aboutTitle }
+}
 
 export default async function AboutPage() {
   const locale = await getLocale()

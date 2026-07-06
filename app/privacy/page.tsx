@@ -1,8 +1,12 @@
+import type { Metadata } from 'next'
 import LegalPage from '@/components/LegalPage'
 import { getDict } from '@/lib/i18n'
 import { getLocale } from '@/lib/i18n/server'
 
-export const metadata = { title: 'Privacy Policy · NutriSync' }
+export async function generateMetadata(): Promise<Metadata> {
+  const t = getDict(await getLocale())
+  return { title: `${t.legal.privacyTitle} · NutriSync` }
+}
 
 export default async function PrivacyPage() {
   const locale = await getLocale()

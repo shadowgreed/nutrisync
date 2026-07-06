@@ -14,8 +14,9 @@ export function generateStaticParams() {
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params
-  const article = getArticle(slug)
-  if (!article) return { title: 'Help · NutriSync' }
+  const locale = await getLocale()
+  const article = getArticle(slug, locale)
+  if (!article) return { title: getDict(locale).help.notFoundTitle }
   return { title: `${article.title} · NutriSync Help`, description: article.summary }
 }
 

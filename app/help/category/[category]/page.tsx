@@ -15,8 +15,9 @@ const VALID = new Set(CATEGORIES.map(c => c.id))
 
 export async function generateMetadata({ params }: { params: Promise<{ category: string }> }): Promise<Metadata> {
   const { category } = await params
-  if (!VALID.has(category as CategoryId)) return { title: 'Help · NutriSync' }
-  const c = getCategory(category as CategoryId)
+  const locale = await getLocale()
+  if (!VALID.has(category as CategoryId)) return { title: getDict(locale).help.notFoundTitle }
+  const c = getCategory(category as CategoryId, locale)
   return { title: `${c.title} · NutriSync Help`, description: c.description }
 }
 

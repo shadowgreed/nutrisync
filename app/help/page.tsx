@@ -1,11 +1,15 @@
 import type { Metadata } from 'next'
 import { localizedCategories, articlesByCategory, localizedArticles } from '@/lib/help'
+import { getDict } from '@/lib/i18n'
 import { getLocale } from '@/lib/i18n/server'
 import HelpClient, { type CategorySummary, type ArticleLink } from './HelpClient'
 
-export const metadata: Metadata = {
-  title: 'Help Center · NutriSync',
-  description: 'Answers and guides for logging food, tracking activity, groups, challenges, and your account.',
+export async function generateMetadata(): Promise<Metadata> {
+  const t = getDict(await getLocale())
+  return {
+    title: `${t.help.title} · NutriSync`,
+    description: t.help.metaDescription,
+  }
 }
 
 // Public Help Center home. Content is bundled, so search runs entirely client-side.

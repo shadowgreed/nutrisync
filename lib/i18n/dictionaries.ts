@@ -1333,6 +1333,8 @@ const en = {
     thanksForFeedback: 'Thanks for your feedback! 🙌',
     yesHelpfulAria: 'Yes, this was helpful',
     noHelpfulAria: 'No, this was not helpful',
+    metaDescription: 'Answers and guides for logging food, tracking activity, groups, challenges, and your account.',
+    notFoundTitle: 'Help · NutriSync',
   },
   legal: {
     lastUpdated: 'Last updated',
@@ -2647,6 +2649,8 @@ const es: Dict = {
     thanksForFeedback: '¡Gracias por tu opinión! 🙌',
     yesHelpfulAria: 'Sí, esto fue útil',
     noHelpfulAria: 'No, esto no fue útil',
+    metaDescription: 'Respuestas y guías para registrar comidas, actividad, grupos, desafíos y tu cuenta.',
+    notFoundTitle: 'Ayuda · NutriSync',
   },
   legal: {
     lastUpdated: 'Última actualización',
