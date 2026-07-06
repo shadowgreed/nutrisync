@@ -183,7 +183,7 @@ export default function BarcodeScanner({ onAdd, onClose }: Props) {
               disabled={manualCode.replace(/\D/g, '').length < 6 || status === 'looking-up'}
               className="shrink-0 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white font-semibold px-4 rounded-xl text-sm transition-colors"
             >
-              Look up
+              {t.barcode.lookUp}
             </button>
           </div>
         </form>

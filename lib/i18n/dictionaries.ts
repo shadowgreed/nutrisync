@@ -38,6 +38,7 @@ const en = {
     tryAgain: 'Try again',
     genericError: 'Something went wrong. Please try again.',
     networkError: 'Something went wrong. Check your connection and try again.',
+    whatDoesMean: (label: string) => `What does ${label} mean?`,
   },
 
   nav: {
@@ -418,6 +419,7 @@ const en = {
     uploadFailed: (msg: string) => `Photo upload failed: ${msg}`,
     saveFailed: 'Failed to save',
     logMeal: (label: string, n: number) => `Log ${label}${n > 0 ? ` (${n} item${n > 1 ? 's' : ''})` : ''}`,
+    searchFoodsPlaceholder: 'Search foods (e.g. salmon, spinach)',
   },
 
   barcode: {
@@ -867,6 +869,9 @@ const en = {
     miles: (v: string) => `${v} mi`,
     steps: (v: string) => `${v} steps`,
     minutes: (v: number) => `${v} min`,
+    changePhotoAria: 'Change profile picture',
+    yourProfileAlt: 'Your profile',
+    uploadFailedGeneric: 'Upload failed',
   },
   diets: {
     omnivore: 'Omnivore',
@@ -1326,6 +1331,7 @@ const es: Dict = {
     tryAgain: 'Intentar de nuevo',
     genericError: 'Algo salió mal. Inténtalo de nuevo.',
     networkError: 'Algo salió mal. Revisa tu conexión e inténtalo de nuevo.',
+    whatDoesMean: (label: string) => `¿Qué significa ${label}?`,
   },
 
   nav: {
@@ -1700,6 +1706,7 @@ const es: Dict = {
     uploadFailed: (msg: string) => `Error al subir la foto: ${msg}`,
     saveFailed: 'No se pudo guardar',
     logMeal: (label: string, n: number) => `Registrar ${label}${n > 0 ? ` (${n} alimento${n > 1 ? 's' : ''})` : ''}`,
+    searchFoodsPlaceholder: 'Busca alimentos (ej. salmón, espinaca)',
   },
 
   barcode: {
@@ -2149,6 +2156,9 @@ const es: Dict = {
     miles: (v: string) => `${v} mi`,
     steps: (v: string) => `${v} pasos`,
     minutes: (v: number) => `${v} min`,
+    changePhotoAria: 'Cambiar foto de perfil',
+    yourProfileAlt: 'Tu perfil',
+    uploadFailedGeneric: 'No se pudo subir la foto',
   },
   diets: {
     omnivore: 'Omnívoro',
