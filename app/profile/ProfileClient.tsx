@@ -8,11 +8,21 @@ import { BottomNav } from '../dashboard/DashboardClient'
 import LogFab from '@/components/LogFab'
 import { mlToOz } from '@/lib/water'
 import {
-  calculateBMR, calculateTDEE, calculateBMI, bmiCategory,
-  GOAL_LABELS, GOAL_EMOJIS,
+  calculateBMR, calculateTDEE, calculateBMI,
+  GOAL_EMOJIS,
   formatWeight, formatHeight, kmToMiles,
 } from '@/lib/fitness'
+import { useI18n } from '@/components/I18nProvider'
+import type { Dict } from '@/lib/i18n/dictionaries'
 import type { Profile } from '@/types'
+
+// BMI band → dictionary key (mirrors bmiCategory's thresholds in lib/fitness).
+function bmiKey(bmi: number): 'under' | 'healthy' | 'over' | 'obese' {
+  if (bmi < 18.5) return 'under'
+  if (bmi < 25) return 'healthy'
+  if (bmi < 30) return 'over'
+  return 'obese'
+}
 
 interface ActivityRow { logged_at: string; calories_burned: number; activity_name: string; duration_minutes: number | null; distance_km?: number | null; steps?: number | null }
 interface FoodRow { logged_at: string; total_calories: number | null; macro_totals: { protein_g?: number } | null }
@@ -41,10 +51,10 @@ const localDayKey = (ts: string | number | Date) => new Date(ts).toLocaleDateStr
 
 // Human label for an activity's "amount": distance / steps for distance activities,
 // otherwise duration.
-function activityMetric(a: ActivityRow): string {
-  if (a.distance_km != null) return `${kmToMiles(a.distance_km).toFixed(2)} mi`
-  if (a.steps != null) return `${a.steps.toLocaleString()} steps`
-  if (a.duration_minutes != null) return `${a.duration_minutes} min`
+function activityMetric(a: ActivityRow, p: Dict['profile']): string {
+  if (a.distance_km != null) return p.miles(kmToMiles(a.distance_km).toFixed(2))
+  if (a.steps != null) return p.steps(a.steps.toLocaleString())
+  if (a.duration_minutes != null) return p.minutes(a.duration_minutes)
   return ''
 }
 
@@ -52,6 +62,9 @@ export default function ProfileClient({
   profile, email, activities, group, foodLogs, waterLogs, calorieTarget, proteinTarget, waterTargetMl,
   streak, reactionsReceived, commentsReceived,
 }: Props) {
+  const { t, locale } = useI18n()
+  const p = t.profile
+  const dateLocale = locale === 'es' ? 'es-419' : 'en-US'
   const [tab, setTab] = useState<'stats' | 'history'>('stats')
   const [useMetric, setUseMetric] = useState(true)
 
@@ -89,12 +102,12 @@ export default function ProfileClient({
     : null
 
   const metrics: { label: string; value: string }[] = []
-  if (bmi) metrics.push({ label: 'BMI', value: `${bmi} · ${bmiCategory(bmi)}` })
-  if (profile.weight_kg) metrics.push({ label: 'Weight', value: formatWeight(profile.weight_kg, useMetric) })
-  if (profile.height_cm) metrics.push({ label: 'Height', value: formatHeight(profile.height_cm, useMetric) })
-  if (tdee) metrics.push({ label: 'Daily burn (TDEE)', value: `${tdee} kcal` })
-  if (profile.calorie_target) metrics.push({ label: 'Goal calories', value: `${profile.calorie_target} kcal` })
-  if (profile.activity_level) metrics.push({ label: 'Activity level', value: profile.activity_level.replace('_', ' ') })
+  if (bmi) metrics.push({ label: p.bmi, value: `${bmi} · ${t.bmi[bmiKey(bmi)]}` })
+  if (profile.weight_kg) metrics.push({ label: p.weight, value: formatWeight(profile.weight_kg, useMetric) })
+  if (profile.height_cm) metrics.push({ label: p.height, value: formatHeight(profile.height_cm, useMetric) })
+  if (tdee) metrics.push({ label: p.tdee, value: p.kcal(tdee) })
+  if (profile.calorie_target) metrics.push({ label: p.goalCalories, value: p.kcal(profile.calorie_target) })
+  if (profile.activity_level) metrics.push({ label: p.activityLevel, value: t.onboarding.activityNames[profile.activity_level as keyof typeof t.onboarding.activityNames] })
 
   return (
     <div className="min-h-screen bg-stone-950 pb-[calc(6rem+env(safe-area-inset-bottom))]">
@@ -107,35 +120,35 @@ export default function ProfileClient({
             <p className="text-stone-400 text-sm">{email}</p>
             {profile.goal && (
               <span className="inline-flex items-center gap-1 mt-1 text-xs bg-emerald-900/50 text-emerald-400 px-2 py-0.5 rounded-full border border-emerald-800/50">
-                {GOAL_EMOJIS[profile.goal]} {GOAL_LABELS[profile.goal]}
+                {GOAL_EMOJIS[profile.goal]} {t.onboarding.goalLabels[profile.goal]}
               </span>
             )}
           </div>
         </div>
-        <Link href="/settings" aria-label="Settings" className="text-stone-400 hover:text-white transition-colors">
+        <Link href="/settings" aria-label={p.settings} className="text-stone-400 hover:text-white transition-colors">
           <Settings size={20} />
         </Link>
       </div>
 
       {/* Goal & Progress — today at a glance (FR-003) */}
       <div className="px-4 mb-4">
-        <p className="text-stone-400 text-xs uppercase tracking-wider mb-3">Today</p>
+        <p className="text-stone-400 text-xs uppercase tracking-wider mb-3">{p.today}</p>
         <div className="bg-stone-900 border border-stone-800 rounded-2xl p-4">
           <div className="grid grid-cols-3 gap-2">
             <RingStat
-              label="Calories" color="rgb(16 185 129)"
+              label={p.calories} color="rgb(16 185 129)"
               current={caloriesIn} target={calTarget}
               valueText={`${caloriesIn.toLocaleString()} / ${calTarget.toLocaleString()}`}
             />
             <RingStat
-              label="Protein" color="rgb(244 63 94)"
+              label={p.protein} color="rgb(244 63 94)"
               current={proteinIn} target={proteinTarget}
               valueText={`${proteinIn}g / ${proteinTarget}g`}
             />
             <RingStat
-              label="Water" color="rgb(56 189 248)"
+              label={p.water} color="rgb(56 189 248)"
               current={waterMl} target={waterTargetMl}
-              valueText={`${mlToOz(waterMl)} / ${mlToOz(waterTargetMl)} oz`}
+              valueText={p.waterValue(mlToOz(waterMl), mlToOz(waterTargetMl))}
             />
           </div>
         </div>
@@ -143,17 +156,17 @@ export default function ProfileClient({
 
       {/* Community activity — reinforce accountability */}
       <div className="px-4 mb-4">
-        <p className="text-stone-400 text-xs uppercase tracking-wider mb-3">Community</p>
+        <p className="text-stone-400 text-xs uppercase tracking-wider mb-3">{p.community}</p>
         <div className="grid grid-cols-3 gap-2">
-          <CommunityStat emoji="🔥" value={streak} label={`day streak`} />
-          <CommunityStat emoji="👍" value={reactionsReceived} label="reactions" />
-          <CommunityStat emoji="💬" value={commentsReceived} label="comments" />
+          <CommunityStat emoji="🔥" value={streak} label={p.dayStreak} />
+          <CommunityStat emoji="👍" value={reactionsReceived} label={p.reactions} />
+          <CommunityStat emoji="💬" value={commentsReceived} label={p.comments} />
         </div>
       </div>
 
       {/* Group summary — read-only; management lives at /group/manage */}
       <div className="px-4 mb-4">
-        <p className="text-stone-400 text-xs uppercase tracking-wider mb-3">Group</p>
+        <p className="text-stone-400 text-xs uppercase tracking-wider mb-3">{p.group}</p>
         {group ? (
           <Link
             href="/group/manage"
@@ -167,29 +180,29 @@ export default function ProfileClient({
             <div className="flex-1 min-w-0">
               <p className="text-white font-semibold truncate">{group.name}</p>
               <p className="text-stone-400 text-xs truncate">
-                {group.memberCount} member{group.memberCount === 1 ? '' : 's'}
-                {group.coachName ? ` · Coach ${group.coachName}` : ''}
+                {p.members(group.memberCount)}
+                {group.coachName ? p.coachSuffix(group.coachName) : ''}
               </p>
             </div>
             <span className="shrink-0 flex items-center gap-1 text-emerald-400 text-xs font-semibold">
-              View group <ChevronRight size={14} />
+              {p.viewGroup} <ChevronRight size={14} />
             </span>
           </Link>
         ) : (
           <div className="bg-stone-900 border border-stone-800 rounded-2xl p-4">
-            <p className="text-stone-400 text-sm mb-3">You&apos;re not in a group yet. Create one or join with an invite code.</p>
+            <p className="text-stone-400 text-sm mb-3">{p.noGroup}</p>
             <div className="flex gap-2">
               <Link
                 href="/group/create"
                 className="flex-1 text-center bg-emerald-700 hover:bg-emerald-600 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors"
               >
-                Create group
+                {p.createGroup}
               </Link>
               <Link
                 href="/group/join"
                 className="flex-1 text-center bg-stone-800 hover:bg-stone-700 text-stone-300 text-sm font-semibold py-2.5 rounded-xl transition-colors"
               >
-                Join with code
+                {p.joinWithCode}
               </Link>
             </div>
           </div>
@@ -198,15 +211,15 @@ export default function ProfileClient({
 
       {/* Tabs */}
       <div className="px-4 flex gap-2 mb-4">
-        {(['stats', 'history'] as const).map(t => (
+        {(['stats', 'history'] as const).map(tKey => (
           <button
-            key={t}
-            onClick={() => selectTab(t)}
+            key={tKey}
+            onClick={() => selectTab(tKey)}
             className={`flex-1 py-2.5 rounded-xl text-sm font-medium capitalize transition-colors ${
-              tab === t ? 'bg-emerald-700 text-white' : 'bg-stone-800 text-stone-400'
+              tab === tKey ? 'bg-emerald-700 text-white' : 'bg-stone-800 text-stone-400'
             }`}
           >
-            {t}
+            {tKey === 'stats' ? p.stats : p.history}
           </button>
         ))}
       </div>
@@ -222,7 +235,7 @@ export default function ProfileClient({
                 useMetric ? 'bg-stone-700 text-white' : 'text-stone-400 hover:text-stone-300'
               }`}
             >
-              Metric
+              {p.metric}
             </button>
             <button
               onClick={() => setUseMetric(false)}
@@ -230,7 +243,7 @@ export default function ProfileClient({
                 !useMetric ? 'bg-stone-700 text-white' : 'text-stone-400 hover:text-stone-300'
               }`}
             >
-              Imperial
+              {p.imperial}
             </button>
           </div>
 
@@ -244,7 +257,7 @@ export default function ProfileClient({
               ))}
             </div>
           ) : (
-            <p className="text-center text-stone-400 py-8 text-sm">Add your stats in profile settings to see metrics here.</p>
+            <p className="text-center text-stone-400 py-8 text-sm">{p.noMetrics}</p>
           )}
         </div>
       )}
@@ -255,14 +268,14 @@ export default function ProfileClient({
           {activities.slice(0, 20).map(a => (
             <div key={a.logged_at + a.activity_name} className="bg-stone-900 border border-stone-800 rounded-xl px-4 py-3 flex items-center justify-between">
               <div>
-                <p className="text-white text-sm font-medium">{a.activity_name}</p>
-                <p className="text-stone-400 text-xs">{activityMetric(a)} · {new Date(a.logged_at).toLocaleDateString()}</p>
+                <p className="text-white text-sm font-medium">{t.log.activityName(a.activity_name)}</p>
+                <p className="text-stone-400 text-xs">{activityMetric(a, p)} · {new Date(a.logged_at).toLocaleDateString(dateLocale)}</p>
               </div>
-              <span className="text-orange-400 font-bold text-sm">-{a.calories_burned} kcal</span>
+              <span className="text-orange-400 font-bold text-sm">{p.burned(a.calories_burned)}</span>
             </div>
           ))}
           {activities.length === 0 && (
-            <p className="text-center text-stone-400 py-8">No activity logged yet</p>
+            <p className="text-center text-stone-400 py-8">{p.noActivity}</p>
           )}
         </div>
       )}

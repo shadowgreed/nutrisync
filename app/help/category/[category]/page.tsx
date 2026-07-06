@@ -3,6 +3,8 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { ArrowLeft, ChevronRight } from 'lucide-react'
 import { CATEGORIES, getCategory, articlesByCategory } from '@/lib/help'
+import { getDict } from '@/lib/i18n'
+import { getLocale } from '@/lib/i18n/server'
 import type { CategoryId } from '@/lib/help/types'
 
 export function generateStaticParams() {
@@ -13,21 +15,24 @@ const VALID = new Set(CATEGORIES.map(c => c.id))
 
 export async function generateMetadata({ params }: { params: Promise<{ category: string }> }): Promise<Metadata> {
   const { category } = await params
-  if (!VALID.has(category as CategoryId)) return { title: 'Help · NutriSync' }
-  const c = getCategory(category as CategoryId)
+  const locale = await getLocale()
+  if (!VALID.has(category as CategoryId)) return { title: getDict(locale).help.notFoundTitle }
+  const c = getCategory(category as CategoryId, locale)
   return { title: `${c.title} · NutriSync Help`, description: c.description }
 }
 
 export default async function HelpCategoryPage({ params }: { params: Promise<{ category: string }> }) {
   const { category } = await params
   if (!VALID.has(category as CategoryId)) notFound()
-  const c = getCategory(category as CategoryId)
-  const articles = articlesByCategory(category as CategoryId)
+  const locale = await getLocale()
+  const t = getDict(locale)
+  const c = getCategory(category as CategoryId, locale)
+  const articles = articlesByCategory(category as CategoryId, locale)
 
   return (
     <div className="min-h-screen bg-stone-950 text-white pb-16">
       <header className="px-4 pt-safe pb-3 flex items-center gap-3">
-        <Link href="/help" aria-label="Back to Help Center" className="flex items-center justify-center w-11 h-11 -ml-2 text-stone-300 hover:text-white">
+        <Link href="/help" aria-label={t.help.backToHelpCenterAria} className="flex items-center justify-center w-11 h-11 -ml-2 text-stone-300 hover:text-white">
           <ArrowLeft size={20} aria-hidden="true" />
         </Link>
         <div className="flex items-center gap-2 min-w-0">

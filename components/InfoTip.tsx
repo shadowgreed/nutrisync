@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { Info } from 'lucide-react'
+import { useI18n } from '@/components/I18nProvider'
 
 /**
  * Tap-to-reveal definition bubble. Uses a real button (44px hit area) so it works
@@ -9,6 +10,7 @@ import { Info } from 'lucide-react'
  * dismissable, and the bubble is announced.
  */
 export default function InfoTip({ label, text }: { label: string; text: string }) {
+  const { t } = useI18n()
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLSpanElement>(null)
 
@@ -26,7 +28,7 @@ export default function InfoTip({ label, text }: { label: string; text: string }
       <button
         type="button"
         onClick={() => setOpen(v => !v)}
-        aria-label={`What does ${label} mean?`}
+        aria-label={t.common.whatDoesMean(label)}
         aria-expanded={open}
         className="inline-flex items-center justify-center w-11 h-11 -m-3 text-stone-400 hover:text-stone-200 transition-colors"
       >

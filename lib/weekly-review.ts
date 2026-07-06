@@ -33,6 +33,75 @@ export interface GroupStanding {
   streak: number
 }
 
+// Localized, data-derived strings the generator bakes into the review. Supplied
+// by the caller (from the i18n dictionary); defaults to English so the pure
+// function stays testable without wiring i18n.
+export interface WeeklyReviewStrings {
+  dateLocale: string
+  goalFallback: string
+  goalLabel: (g: Goal) => string
+  goalAtWeight: string
+  goalLbsToGo: (n: number) => string
+  goalPctWay: (pct: number) => string
+  goalHoldSteady: string
+  goalLbsFromSet: (n: number) => string
+  goalMaintenance: string
+  goalBuildingHabits: string
+  goalEveryDay: string
+  breakdownLogging: string
+  breakdownActivity: string
+  breakdownHydration: string
+  breakdownCalories: string
+  nutrientLabel: (key: NutrientKey) => string
+  groupMostConsistent: string
+  groupLongestStreak: string
+  groupMostActive: string
+  groupConsistentValue: (name: string, days: number) => string
+  groupStreakValue: (name: string, streak: number) => string
+  groupActiveValue: (name: string, days: number) => string
+  missionHydrationTitle: string
+  missionHydrationFoods: string[]
+  missionImprove: (label: string) => string
+  missionActivityTitle: (n: number) => string
+  missionActivityFoods: string[]
+  missionConsistencyTitle: string
+  missionConsistencyFoods: string[]
+  foodFixName: (name: string) => string
+}
+
+export const EN_WEEKLY_STRINGS: WeeklyReviewStrings = {
+  dateLocale: 'en-US',
+  goalFallback: 'Your goal',
+  goalLabel: (g) => GOAL_LABELS[g],
+  goalAtWeight: 'At your goal weight 🎉',
+  goalLbsToGo: (n) => `${n} lbs to go`,
+  goalPctWay: (pct) => `${pct}% of the way there`,
+  goalHoldSteady: 'Holding steady ⚖️',
+  goalLbsFromSet: (n) => `${n} lbs from your set point`,
+  goalMaintenance: 'Maintenance mode',
+  goalBuildingHabits: 'Building healthy habits',
+  goalEveryDay: 'Every logged day compounds',
+  breakdownLogging: 'Logging',
+  breakdownActivity: 'Activity',
+  breakdownHydration: 'Hydration',
+  breakdownCalories: 'Calories',
+  nutrientLabel: (key) => NUTRIENT_META[key].label,
+  groupMostConsistent: 'Most consistent',
+  groupLongestStreak: 'Longest streak',
+  groupMostActive: 'Most active',
+  groupConsistentValue: (name, days) => `${name} · ${days}/7 days`,
+  groupStreakValue: (name, streak) => `${name} · ${streak}🔥`,
+  groupActiveValue: (name, days) => `${name} · ${days} days`,
+  missionHydrationTitle: 'Hit your water goal 5 days',
+  missionHydrationFoods: ['Start the day with a glass', 'Carry a bottle', 'A glass with each meal'],
+  missionImprove: (label) => `Improve ${label}`,
+  missionActivityTitle: (n) => `Reach ${n} active days`,
+  missionActivityFoods: ['A brisk 20-min walk', 'One strength session', 'Take the stairs'],
+  missionConsistencyTitle: 'Keep your streak alive',
+  missionConsistencyFoods: ['Log every meal', 'Hydrate daily', 'Move most days'],
+  foodFixName: (name) => name,
+}
+
 export interface WeeklyReviewInput {
   now?: Date
   foods: ReviewFood[]
@@ -48,6 +117,7 @@ export interface WeeklyReviewInput {
   myUserId: string
   group: GroupStanding[] | null
   timeZone?: string   // IANA zone to bucket days in (the viewer's). Defaults to runtime.
+  strings?: WeeklyReviewStrings   // localized output strings; defaults to English.
 }
 
 export interface NutrientRef { key: NutrientKey; label: string; emoji: string; pct: number }
@@ -68,7 +138,7 @@ export interface WeeklyReview {
   share: { streak: number; nutrientsOnTrack: number; activeDays: number; hydrationDays: number; hydrationGoalDays: number }
 }
 
-const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+const fmt = (d: Date, locale: string) => d.toLocaleDateString(locale, { month: 'short', day: 'numeric' })
 
 // Map a few common foods to an emoji for the Food MVP spotlight; default 🍽️.
 const FOOD_EMOJI: { match: RegExp; emoji: string }[] = [
@@ -85,13 +155,14 @@ function foodEmoji(name: string): string {
 
 export function buildWeeklyReview(input: WeeklyReviewInput): WeeklyReview {
   const now = input.now ?? new Date()
+  const S = input.strings ?? EN_WEEKLY_STRINGS
   const calorieTarget = input.calorieTarget || 2000
   const waterTarget = input.waterTargetMl || 2500
   const tz = resolveTimeZone(input.timeZone)
   const dk = (ts: string) => userDayKey(ts, tz)
 
   const weekStart = new Date(now); weekStart.setDate(now.getDate() - 6)
-  const weekLabel = `${fmt(weekStart)} – ${fmt(now)}`
+  const weekLabel = `${fmt(weekStart, S.dateLocale)} – ${fmt(now, S.dateLocale)}`
 
   // ── Per-day aggregation ────────────────────────────────────────────────────
   const foodDays = new Map<string, { cals: number; nutrients: NutrientTotals }>()
@@ -120,7 +191,7 @@ export function buildWeeklyReview(input: WeeklyReviewInput): WeeklyReview {
   const nutrientRefs: NutrientRef[] = NUTRIENT_KEYS.map(key => {
     const avg = daysLogged ? (totalNutrients[key] ?? 0) / daysLogged : 0
     const pct = Math.round((avg / NUTRIENT_META[key].target) * 100)
-    return { key, label: NUTRIENT_META[key].label, emoji: NUTRIENT_META[key].emoji, pct }
+    return { key, label: S.nutrientLabel(key), emoji: NUTRIENT_META[key].emoji, pct }
   })
   const sortedNutrients = [...nutrientRefs].sort((a, b) => b.pct - a.pct)
   const champion = daysLogged ? sortedNutrients[0] : null
@@ -138,7 +209,7 @@ export function buildWeeklyReview(input: WeeklyReviewInput): WeeklyReview {
       || (hits === bestDay.nutrientsHit && (Number(active) + Number(hydrated)) > (Number(bestDay.active) + Number(bestDay.hydrated)))
     if (better) {
       bestDay = {
-        weekday: new Date(k + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' }),
+        weekday: new Date(k + 'T12:00:00Z').toLocaleDateString(S.dateLocale, { weekday: 'long', timeZone: 'UTC' }),
         nutrientsHit: hits, nutrientsTotal: NUTRIENT_KEYS.length, active, hydrated,
       }
     }
@@ -154,10 +225,10 @@ export function buildWeeklyReview(input: WeeklyReviewInput): WeeklyReview {
   const consistency = {
     score,
     breakdown: [
-      { label: 'Logging', pct: logScore },
-      { label: 'Activity', pct: actScore },
-      { label: 'Hydration', pct: hydScore },
-      { label: 'Calories', pct: adherence },
+      { label: S.breakdownLogging, pct: logScore },
+      { label: S.breakdownActivity, pct: actScore },
+      { label: S.breakdownHydration, pct: hydScore },
+      { label: S.breakdownCalories, pct: adherence },
     ],
   }
 
@@ -182,7 +253,7 @@ export function buildWeeklyReview(input: WeeklyReviewInput): WeeklyReview {
     : null
 
   // ── Goal progress ──────────────────────────────────────────────────────────
-  const goal = buildGoalProgress(input)
+  const goal = buildGoalProgress(input, S)
 
   // ── Group performance ──────────────────────────────────────────────────────
   let group: WeeklyReview['group'] = null
@@ -196,15 +267,15 @@ export function buildWeeklyReview(input: WeeklyReviewInput): WeeklyReview {
       rank: rank || ranked.length,
       total: input.group.length,
       highlights: [
-        { label: 'Most consistent', value: `${mostConsistent.name} · ${mostConsistent.daysLogged}/7 days` },
-        { label: 'Longest streak', value: `${longestStreak.name} · ${longestStreak.streak}🔥` },
-        { label: 'Most active', value: `${mostActive.name} · ${mostActive.activeDays} days` },
+        { label: S.groupMostConsistent, value: S.groupConsistentValue(mostConsistent.name, mostConsistent.daysLogged) },
+        { label: S.groupLongestStreak, value: S.groupStreakValue(longestStreak.name, longestStreak.streak) },
+        { label: S.groupMostActive, value: S.groupActiveValue(mostActive.name, mostActive.activeDays) },
       ],
     }
   }
 
   // ── Next week mission (target the weakest, most actionable dimension) ───────
-  const mission = buildMission({ lowest, hydrationDays, activeDays, daysLogged })
+  const mission = buildMission({ lowest, hydrationDays, activeDays, daysLogged }, S)
 
   return {
     weekLabel,
@@ -233,8 +304,8 @@ export function buildWeeklyReview(input: WeeklyReviewInput): WeeklyReview {
   }
 }
 
-function buildGoalProgress(input: WeeklyReviewInput): WeeklyReview['goal'] {
-  const label = input.goal ? GOAL_LABELS[input.goal] : 'Your goal'
+function buildGoalProgress(input: WeeklyReviewInput, S: WeeklyReviewStrings): WeeklyReview['goal'] {
+  const label = input.goal ? S.goalLabel(input.goal) : S.goalFallback
   const cur = input.currentWeightKg
   const tgt = input.targetWeightKg
   // Earliest weigh-in we have is the baseline for percent-complete.
@@ -245,34 +316,34 @@ function buildGoalProgress(input: WeeklyReviewInput): WeeklyReview['goal'] {
     const pct = Math.max(0, Math.min(100, Math.round(((start - cur) / (start - tgt)) * 100)))
     return {
       label,
-      headline: remaining === 0 ? 'At your goal weight 🎉' : `${remaining} lbs to go`,
-      sub: `${pct}% of the way there`,
+      headline: remaining === 0 ? S.goalAtWeight : S.goalLbsToGo(remaining),
+      sub: S.goalPctWay(pct),
       pct,
     }
   }
   if (input.goal === 'maintain' && cur != null && tgt != null) {
     const off = Math.abs(Math.round(kgToLbs(cur) - kgToLbs(tgt)))
-    return { label, headline: off <= 2 ? 'Holding steady ⚖️' : `${off} lbs from your set point`, sub: 'Maintenance mode', pct: null }
+    return { label, headline: off <= 2 ? S.goalHoldSteady : S.goalLbsFromSet(off), sub: S.goalMaintenance, pct: null }
   }
   // Improve health / no weight goal → celebrate consistency framing.
-  return { label, headline: 'Building healthy habits', sub: 'Every logged day compounds', pct: null }
+  return { label, headline: S.goalBuildingHabits, sub: S.goalEveryDay, pct: null }
 }
 
-function buildMission(opts: { lowest: NutrientRef | null; hydrationDays: number; activeDays: number; daysLogged: number }): WeeklyReview['mission'] {
+function buildMission(opts: { lowest: NutrientRef | null; hydrationDays: number; activeDays: number; daysLogged: number }, S: WeeklyReviewStrings): WeeklyReview['mission'] {
   const { lowest, hydrationDays, activeDays } = opts
   // Hydration is the weakest and clearly fixable → hydration mission.
   if (hydrationDays <= 2 && (lowest?.pct ?? 100) >= 40) {
-    return { focus: 'Hydration', title: 'Hit your water goal 5 days', foods: ['Start the day with a glass', 'Carry a bottle', 'A glass with each meal'], expectedImprovementPct: null }
+    return { focus: 'Hydration', title: S.missionHydrationTitle, foods: S.missionHydrationFoods, expectedImprovementPct: null }
   }
   // Otherwise target the lowest nutrient with whole-food suggestions.
   if (lowest && lowest.pct < 80) {
-    const foods = foodFixesFor(lowest.key).map(f => f.name).slice(0, 3)
+    const foods = foodFixesFor(lowest.key).map(f => S.foodFixName(f.name)).slice(0, 3)
     const expected = Math.min(40, Math.max(10, 100 - lowest.pct) >> 1) // ~half the gap, capped
-    return { focus: lowest.label, title: `Improve ${lowest.label}`, foods, expectedImprovementPct: expected }
+    return { focus: lowest.label, title: S.missionImprove(lowest.label), foods, expectedImprovementPct: expected }
   }
   // Everything's solid → keep momentum on activity.
   if (activeDays < ACTIVE_DAYS_GOAL) {
-    return { focus: 'Activity', title: `Reach ${ACTIVE_DAYS_GOAL} active days`, foods: ['A brisk 20-min walk', 'One strength session', 'Take the stairs'], expectedImprovementPct: null }
+    return { focus: 'Activity', title: S.missionActivityTitle(ACTIVE_DAYS_GOAL), foods: S.missionActivityFoods, expectedImprovementPct: null }
   }
-  return { focus: 'Consistency', title: 'Keep your streak alive', foods: ['Log every meal', 'Hydrate daily', 'Move most days'], expectedImprovementPct: null }
+  return { focus: 'Consistency', title: S.missionConsistencyTitle, foods: S.missionConsistencyFoods, expectedImprovementPct: null }
 }

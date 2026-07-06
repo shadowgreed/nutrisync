@@ -292,7 +292,7 @@ export default function DashboardClient({
       <div className="mx-4 mb-4 bg-stone-900 border border-stone-800 rounded-2xl p-4">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-white font-semibold text-sm">{t.dashboard.macrosToday}</h2>
-          <span className="text-stone-400 text-xs">tap for details</span>
+          <span className="text-stone-400 text-xs">{t.dashboard.tapForDetails}</span>
         </div>
         <div className="grid grid-cols-4 gap-3">
           {MACRO_KEYS.map(key => {
@@ -386,13 +386,13 @@ export default function DashboardClient({
               aria-label={t.dashboard.undoAria}
               className="px-4 bg-stone-800 hover:bg-stone-700 text-stone-300 hover:text-red-300 text-xs py-3 rounded-xl transition-colors"
             >
-              Undo
+              {t.dashboard.undo}
             </button>
           )}
         </div>
 
         {waterSurpassed ? (
-          <p className="text-center text-cyan-300 text-xs mt-2 font-medium">Goal surpassed! 🌊 +{waterLabel(totalWater - waterTargetMl)} over</p>
+          <p className="text-center text-cyan-300 text-xs mt-2 font-medium">{t.dashboard.waterOver(waterLabel(totalWater - waterTargetMl))}</p>
         ) : waterPct >= 100 ? (
           <p className="text-center text-sky-400 text-xs mt-2 font-medium">{t.dashboard.waterReached}</p>
         ) : null}
@@ -457,7 +457,7 @@ export default function DashboardClient({
             {logs.map(log => (
               <div key={log.id} className="bg-stone-900 border border-stone-800 rounded-2xl px-4 py-3">
                 <div className="flex justify-between items-center mb-1">
-                  <span className="text-white text-sm font-medium capitalize">{log.meal_type}</span>
+                  <span className="text-white text-sm font-medium capitalize">{t.mealTypes[log.meal_type as keyof typeof t.mealTypes]?.label ?? log.meal_type}</span>
                   <div className="flex items-center gap-2">
                     {log.total_calories > 0 && (
                       <span className="text-stone-400 text-xs">{log.total_calories} kcal</span>
@@ -472,13 +472,13 @@ export default function DashboardClient({
                           disabled={deletingId === log.id}
                           className="text-red-300 hover:text-red-200 text-xs font-semibold px-3 py-2 rounded-lg bg-red-950/60 transition-colors disabled:opacity-50"
                         >
-                          {deletingId === log.id ? '…' : 'Delete'}
+                          {deletingId === log.id ? '…' : t.common.delete}
                         </button>
                         <button
                           onClick={() => setConfirmDeleteId(null)}
                           className="text-stone-300 hover:text-white text-xs px-3 py-2 transition-colors"
                         >
-                          Cancel
+                          {t.common.cancel}
                         </button>
                       </div>
                     ) : (

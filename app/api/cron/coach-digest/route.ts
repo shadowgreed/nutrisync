@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import type webpush from 'web-push'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendPushToSubscriptions } from '@/lib/push'
-import { assessClient } from '@/lib/copilot'
+import { assessClient, type CopilotStrings } from '@/lib/copilot'
 import { chooseKind, draftCheckin } from '@/lib/copilot-ai'
 import { effectiveDiet, isDiet } from '@/lib/diets'
-import type { Diet, NutrientTotals } from '@/types'
+import { getDict, resolveLocale } from '@/lib/i18n'
+import type { Diet, NutrientTotals, NutrientKey } from '@/types'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -65,7 +66,7 @@ export async function GET(req: NextRequest) {
 
   const { data: coachProfiles } = await admin
     .from('profiles')
-    .select('id, display_name, coach_style, reminder_timezone, last_coach_digest_at')
+    .select('id, display_name, coach_style, reminder_timezone, last_coach_digest_at, language')
     .in('id', [...groupsByCoach.keys()])
 
   let pushed = 0
@@ -80,6 +81,14 @@ export async function GET(req: NextRequest) {
 
     const coachId = coach.id as string
     const groupIds = groupsByCoach.get(coachId) ?? []
+    // Signals phrased in the coach's own language, same reasoning as the
+    // interactive draft route — this is the coach's digest, in the coach's UI.
+    const digestDict = getDict(resolveLocale(coach.language))
+    const copilotStrings: CopilotStrings = {
+      ...digestDict.coach.signals,
+      nutrientLabel: (key: NutrientKey) => digestDict.nutrients[key],
+      dietLabel: (d) => d ? digestDict.diets[d] : digestDict.editProfile.noDiet,
+    }
     const { data: memberRows } = await admin
       .from('group_members')
       .select('user_id, group_id, profiles(id, display_name, calorie_target, privacy_mode, coach_visible, diet)')
@@ -128,6 +137,7 @@ export async function GET(req: NextRequest) {
         const diet = effectiveDiet(isDiet(p.diet) ? p.diet : null, overrideByMember.get(p.id) ?? null)
         const { attention, signals, report } = assessClient({
           foods: weekFoods, activities: weekActs, calorieTarget: p.calorie_target ?? 2000, lastLoggedAt, diet,
+          strings: copilotStrings,
         })
         if (attention !== 'needs_attention') continue
         needsCount++
@@ -147,7 +157,8 @@ export async function GET(req: NextRequest) {
       }
 
       if (needsCount > 0) {
-        const body = `${needsCount} client${needsCount === 1 ? '' : 's'} need a check-in. Drafts are ready in your queue.`
+        const t = getDict(resolveLocale(coach.language as string | null)).pushNotify
+        const body = t.coachDigestBody(needsCount)
         await admin.from('notifications').insert({ user_id: coachId, type: 'coach_nudge', data: { count: needsCount } })
         const { data: subRows } = await admin
           .from('push_subscriptions').select('subscription').eq('user_id', coachId)
@@ -157,7 +168,7 @@ export async function GET(req: NextRequest) {
             .from('notifications').select('id', { count: 'exact', head: true })
             .eq('user_id', coachId).eq('read', false)
           pushed += await sendPushToSubscriptions(subs, {
-            title: '🧑‍🏫 Your coaching check-ins',
+            title: t.coachDigestTitle,
             body,
             url: '/coach/queue',
             tag: 'coach-digest',

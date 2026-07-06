@@ -19,7 +19,7 @@ export default function SettingsClient({ email, plan }: { email: string; plan: s
   }
 
   return (
-    <SettingsShell title={t.settings.title} back="/profile">
+    <SettingsShell title={t.settings.title} back="/profile" backAria={t.settings.backAria}>
       <Section title={t.settings.account}>
         <LinkRow icon={<User size={16} />} label={t.settings.profileDetails} href="/profile/edit" />
         <LinkRow icon={<Mail size={16} />} label={t.settings.email} value={email} />

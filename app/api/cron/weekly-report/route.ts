@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import type webpush from 'web-push'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendPushToSubscriptions } from '@/lib/push'
+import { getDict, resolveLocale } from '@/lib/i18n'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -36,7 +37,7 @@ export async function GET(req: NextRequest) {
   const now = new Date()
   const { data: profiles, error } = await supabase
     .from('profiles')
-    .select('id, reminder_timezone, last_weekly_report_at')
+    .select('id, reminder_timezone, last_weekly_report_at, language')
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
@@ -64,9 +65,10 @@ export async function GET(req: NextRequest) {
       const { count: unread } = await supabase
         .from('notifications').select('id', { count: 'exact', head: true })
         .eq('user_id', p.id).eq('read', false)
+      const t = getDict(resolveLocale(p.language)).pushNotify
       sent += await sendPushToSubscriptions(subs, {
-        title: '📊 Your weekly report',
-        body: 'See how your nutrition & activity went this week.',
+        title: t.weeklyReportTitle,
+        body: t.weeklyReportBody,
         url: '/weekly',
         tag: 'weekly-report',
         count: unread ?? undefined,

@@ -3,7 +3,8 @@
 import { useState } from 'react'
 import { Salad, Check, Loader2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import { DIETS, DIET_LABELS, dietLabel } from '@/lib/diets'
+import { DIETS } from '@/lib/diets'
+import { useI18n } from '@/components/I18nProvider'
 import type { Diet } from '@/types'
 
 // Coach view of a client's diet. The member's own choice shows by default; the
@@ -15,6 +16,9 @@ export default function CoachDietSetting({
   groupId: string; coachId: string; memberId: string
   memberDiet: Diet | null; initialOverride: Diet | null
 }) {
+  const { t } = useI18n()
+  const c = t.coach
+  const dietText = (d: Diet | null) => d ? t.diets[d] : t.editProfile.noDiet
   const [override, setOverride] = useState<Diet | null>(initialOverride)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -37,24 +41,24 @@ export default function CoachDietSetting({
     <section className="px-4 mb-5">
       <div className="flex items-center gap-1.5 mb-2">
         <Salad size={13} className="text-emerald-400" />
-        <p className="text-stone-400 text-xs uppercase tracking-wider">Diet</p>
+        <p className="text-stone-400 text-xs uppercase tracking-wider">{c.diet}</p>
         {saving && <Loader2 size={12} className="text-stone-500 animate-spin" />}
         {saved && <Check size={12} className="text-emerald-400" />}
       </div>
 
       <div className="bg-stone-900 border border-stone-800 rounded-2xl p-3">
         <p className="text-stone-300 text-sm mb-2">
-          Copilot adjusts to <span className="text-white font-semibold">{dietLabel(effective)}</span> — it won&apos;t flag nutrients that naturally run low on it.
+          {c.copilotAdjusts(dietText(effective))}
         </p>
         <select
           value={override ?? ''}
           onChange={e => change(e.target.value ? (e.target.value as Diet) : null)}
           className="w-full bg-stone-950 border border-stone-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
         >
-          <option value="">Use member&apos;s choice{memberDiet ? ` (${DIET_LABELS[memberDiet]})` : ''}</option>
-          {DIETS.map(d => <option key={d} value={d}>{DIET_LABELS[d]}</option>)}
+          <option value="">{c.useMembersChoice(memberDiet ? ` (${dietText(memberDiet)})` : '')}</option>
+          {DIETS.map(d => <option key={d} value={d}>{dietText(d)}</option>)}
         </select>
-        {override && <p className="text-stone-500 text-[11px] mt-1.5">Overriding the member&apos;s own setting.</p>}
+        {override && <p className="text-stone-500 text-[11px] mt-1.5">{c.overridingNote}</p>}
       </div>
     </section>
   )

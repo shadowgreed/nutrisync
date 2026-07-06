@@ -4,6 +4,35 @@ import { NUTRIENT_KEYS, NUTRIENT_META } from './nutrients'
 import { dietExpectedLow, dietLabel } from './diets'
 import type { Diet, NutrientKey } from '@/types'
 
+// Localized strings for the signal labels this module generates — both the
+// coach-dashboard display AND the text fed into the Copilot draft prompt (so a
+// Spanish-locale coach sees Spanish signal chips and gets Spanish-aware drafts).
+// Defaults to English so assessClient/assessMember stay usable without wiring
+// i18n. Never changes the underlying facts/numbers — only how they're phrased.
+export interface CopilotStrings {
+  notLoggedYet: string
+  daysSinceLog: (n: number) => string
+  overTarget: (kcal: string) => string
+  underTarget: (kcal: string) => string
+  nutrientLow: (emoji: string, label: string, pct: number) => string
+  dietNote: (dietLbl: string, names: string) => string
+  strongWeek: string
+  nutrientLabel: (key: NutrientKey) => string
+  dietLabel: (diet: Diet | null | undefined) => string
+}
+
+export const EN_COPILOT_STRINGS: CopilotStrings = {
+  notLoggedYet: 'Has not logged yet',
+  daysSinceLog: (n) => `${n} days since last log`,
+  overTarget: (kcal) => `${kcal} kcal/day over target`,
+  underTarget: (kcal) => `${kcal} kcal/day under target`,
+  nutrientLow: (emoji, label, pct) => `${emoji} ${label} low (${pct}%)`,
+  dietNote: (dietLbl, names) => `${dietLbl}: ${names} naturally run lower`,
+  strongWeek: 'Strong week — on calories & nutrients',
+  nutrientLabel: (key) => NUTRIENT_META[key].label,
+  dietLabel: (diet) => dietLabel(diet),
+}
+
 // ── Coach Copilot: deterministic client assessment ───────────────────────────
 // This layer contains NO AI. It turns a member's recent logs into a structured
 // attention level + signals. The LLM (M2) only phrases these already-computed
@@ -42,7 +71,9 @@ export function assessClient(opts: {
   diet?: Diet | null
   now?: Date
   timeZone?: string
+  strings?: CopilotStrings
 }): ClientStatus {
+  const S = opts.strings ?? EN_COPILOT_STRINGS
   const now = opts.now ?? new Date()
   const report = buildWeeklyReport({
     foods: opts.foods,
@@ -58,18 +89,18 @@ export function assessClient(opts: {
     ? Math.floor((now.getTime() - new Date(opts.lastLoggedAt).getTime()) / DAY_MS)
     : null
   if (daysSince === null) {
-    signals.push({ code: 'logging_gap', severity: 'warn', label: 'Has not logged yet', data: { days: null } })
+    signals.push({ code: 'logging_gap', severity: 'warn', label: S.notLoggedYet, data: { days: null } })
   } else if (daysSince >= 2) {
-    signals.push({ code: 'logging_gap', severity: 'warn', label: `${daysSince} days since last log`, data: { days: daysSince } })
+    signals.push({ code: 'logging_gap', severity: 'warn', label: S.daysSinceLog(daysSince), data: { days: daysSince } })
   }
 
   // ── Calorie drift > 20% of target ──────────────────────────────────────────
   if (report.daysLogged > 0 && report.calories.target > 0) {
     const pct = Math.abs(report.calories.deltaPerDay) / report.calories.target
     if (pct > DRIFT_PCT && report.calories.status === 'over') {
-      signals.push({ code: 'calorie_drift_over', severity: 'warn', label: `${Math.abs(report.calories.deltaPerDay).toLocaleString()} kcal/day over target`, data: { delta: report.calories.deltaPerDay } })
+      signals.push({ code: 'calorie_drift_over', severity: 'warn', label: S.overTarget(Math.abs(report.calories.deltaPerDay).toLocaleString()), data: { delta: report.calories.deltaPerDay } })
     } else if (pct > DRIFT_PCT && report.calories.status === 'under') {
-      signals.push({ code: 'calorie_drift_under', severity: 'warn', label: `${Math.abs(report.calories.deltaPerDay).toLocaleString()} kcal/day under target`, data: { delta: report.calories.deltaPerDay } })
+      signals.push({ code: 'calorie_drift_under', severity: 'warn', label: S.underTarget(Math.abs(report.calories.deltaPerDay).toLocaleString()), data: { delta: report.calories.deltaPerDay } })
     }
   }
 
@@ -84,7 +115,7 @@ export function assessClient(opts: {
       const total = opts.foods.reduce((s, f) => s + (f.nutrient_totals?.[k] ?? 0), 0)
       const avg = total / report.daysLogged
       const pct = meta.target > 0 ? Math.round((avg / meta.target) * 100) : 0
-      return { key: k, label: meta.label, emoji: meta.emoji, pct }
+      return { key: k, label: S.nutrientLabel(k), emoji: meta.emoji, pct }
     })
 
     // Genuine gap: the worst nutrient that the diet does NOT explain.
@@ -94,7 +125,7 @@ export function assessClient(opts: {
     if (worstUnexpected && worstUnexpected.pct < LOW_PCT) {
       signals.push({
         code: 'nutrient_gap', severity: 'info',
-        label: `${worstUnexpected.emoji} ${worstUnexpected.label} low (${worstUnexpected.pct}%)`,
+        label: S.nutrientLow(worstUnexpected.emoji, worstUnexpected.label, worstUnexpected.pct),
         data: { nutrient: worstUnexpected.label, key: worstUnexpected.key, pct: worstUnexpected.pct },
       })
     }
@@ -105,7 +136,7 @@ export function assessClient(opts: {
       const names = expectedLowNow.map(n => n.label).slice(0, 3).join(', ')
       signals.push({
         code: 'diet_note', severity: 'info',
-        label: `${dietLabel(opts.diet)}: ${names} naturally run lower`,
+        label: S.dietNote(S.dietLabel(opts.diet), names),
         data: { diet: opts.diet, nutrients: expectedLowNow.map(n => n.key) },
       })
     }
@@ -113,7 +144,7 @@ export function assessClient(opts: {
 
   // ── Strong week → seeds a praise draft, not just fixes ─────────────────────
   if (report.daysLogged >= 4 && report.nutrients.accomplished && report.calories.accomplished) {
-    signals.push({ code: 'strong_week', severity: 'info', label: 'Strong week — on calories & nutrients', data: {} })
+    signals.push({ code: 'strong_week', severity: 'info', label: S.strongWeek, data: {} })
   }
 
   // ── Roll up to an attention level ──────────────────────────────────────────

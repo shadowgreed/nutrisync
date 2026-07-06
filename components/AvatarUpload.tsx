@@ -4,6 +4,7 @@ import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Camera, Loader2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { useI18n } from '@/components/I18nProvider'
 
 // Tappable avatar that uploads a new profile picture. Uses a UNIQUE filename each
 // time (not a fixed name + upsert) so it never trips the storage UPDATE policy or
@@ -12,6 +13,7 @@ export default function AvatarUpload({
   initialUrl, name, size = 'lg',
 }: { initialUrl: string | null; name: string; size?: 'lg' | 'md' }) {
   const router = useRouter()
+  const { t } = useI18n()
   const [url, setUrl] = useState<string | null>(initialUrl)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
@@ -27,7 +29,7 @@ export default function AvatarUpload({
     try {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('Not signed in')
+      if (!user) throw new Error(t.groups.notSignedIn)
       const ext = (file.name.split('.').pop() || 'jpg').toLowerCase()
       const path = `${user.id}/${Date.now()}.${ext}`
       const { error: upErr } = await supabase.storage
@@ -40,7 +42,7 @@ export default function AvatarUpload({
       setUrl(publicUrl)
       router.refresh()
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Upload failed')
+      setErr(e instanceof Error ? e.message : t.profile.uploadFailedGeneric)
     } finally {
       setBusy(false)
       if (ref.current) ref.current.value = ''
@@ -54,12 +56,12 @@ export default function AvatarUpload({
         type="button"
         onClick={() => ref.current?.click()}
         disabled={busy}
-        aria-label="Change profile picture"
+        aria-label={t.profile.changePhotoAria}
         className="relative block"
       >
         <div className={`${dim} bg-gradient-to-br from-emerald-600 to-emerald-800 flex items-center justify-center font-bold text-white overflow-hidden`}>
           {url
-            ? <img src={url} alt="Your profile" className="w-full h-full object-cover" />
+            ? <img src={url} alt={t.profile.yourProfileAlt} className="w-full h-full object-cover" />
             : (name?.[0]?.toUpperCase() ?? '?')}
         </div>
         <div className="absolute -bottom-1 -right-1 bg-stone-800 border border-stone-600 rounded-full p-1.5 text-stone-100">

@@ -1,5 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { getDict } from '@/lib/i18n'
+import { getLocale } from '@/lib/i18n/server'
 import ManageClient from './ManageClient'
 
 // Dedicated Group Management screen (PRD Screen 2). Houses the controls that
@@ -9,6 +11,8 @@ export default async function GroupManagePage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
+
+  const t = getDict(await getLocale())
 
   const { data: membership } = await supabase
     .from('group_members')
@@ -49,7 +53,7 @@ export default async function GroupManagePage() {
   if (isOwner) {
     const { data: reqs } = await supabase.rpc('get_group_pending_requests', { p_group_id: group.id })
     pendingRequests = ((reqs ?? []) as { id: string; user_id: string; display_name: string | null; avatar_url: string | null }[])
-      .map(r => ({ id: r.id, user_id: r.user_id, display_name: r.display_name ?? 'Someone', avatar_url: r.avatar_url }))
+      .map(r => ({ id: r.id, user_id: r.user_id, display_name: r.display_name ?? t.notifications.someone, avatar_url: r.avatar_url }))
   }
 
   return (

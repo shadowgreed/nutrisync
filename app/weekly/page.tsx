@@ -2,9 +2,11 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { computeStreak } from '@/lib/streak'
 import { resolveTimeZone, isSunday } from '@/lib/day'
-import { buildWeeklyReview, type GroupStanding, type ReviewFood } from '@/lib/weekly-review'
+import { buildWeeklyReview, type GroupStanding, type ReviewFood, type WeeklyReviewStrings } from '@/lib/weekly-review'
 import WeeklyReviewClient from '@/components/WeeklyReviewClient'
-import type { Goal } from '@/types'
+import { getDict } from '@/lib/i18n'
+import { getLocale } from '@/lib/i18n/server'
+import type { Goal, NutrientKey } from '@/types'
 
 const localDay = (ts: string) => new Date(ts).toLocaleDateString('en-CA')
 
@@ -12,6 +14,17 @@ export default async function WeeklyPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
+
+  const locale = await getLocale()
+  const t = getDict(locale)
+  const dateLocale = locale === 'es' ? 'es-419' : 'en-US'
+  const weeklyStrings: WeeklyReviewStrings = {
+    ...t.weekly.gen,
+    dateLocale,
+    goalLabel: (g: Goal) => t.onboarding.goalLabels[g],
+    nutrientLabel: (k: NutrientKey) => t.nutrients[k],
+    foodFixName: (fname: string) => t.foodFixes[fname]?.name ?? fname,
+  }
 
   // The weekly review is a Sunday-only ritual (it recaps the week that just
   // ended). Gate direct visits to Sunday in the user's timezone — the Trends CTA
@@ -52,7 +65,7 @@ export default async function WeeklyPage() {
         supabase.from('food_logs').select('user_id, logged_at').in('user_id', peerIds).gte('logged_at', sixtyISO),
         supabase.from('activity_logs').select('user_id, logged_at').in('user_id', peerIds).gte('logged_at', weekISO),
       ])
-      const nameById = new Map((profs ?? []).map((p: { id: string; display_name: string | null }) => [p.id, p.display_name ?? 'Member']))
+      const nameById = new Map((profs ?? []).map((p: { id: string; display_name: string | null }) => [p.id, p.display_name ?? t.weekly.memberFallback]))
       const foodByUser = new Map<string, string[]>()
       for (const f of (peerFood ?? []) as { user_id: string; logged_at: string }[]) {
         const arr = foodByUser.get(f.user_id) ?? []; arr.push(f.logged_at); foodByUser.set(f.user_id, arr)
@@ -66,7 +79,7 @@ export default async function WeeklyPage() {
         const weekDays = new Set(logs.filter(ts => new Date(ts).getTime() >= weekAgoMs).map(localDay))
         return {
           userId: id,
-          name: nameById.get(id) ?? 'Member',
+          name: nameById.get(id) ?? t.weekly.memberFallback,
           daysLogged: weekDays.size,
           activeDays: (actDaysByUser.get(id) ?? new Set()).size,
           streak: computeStreak(logs),
@@ -92,6 +105,7 @@ export default async function WeeklyPage() {
     myUserId: user.id,
     group,
     timeZone: tz,
+    strings: weeklyStrings,
   })
 
   // Seed a "weekly report" bell notification so the recap stays revisitable all
@@ -111,5 +125,5 @@ export default async function WeeklyPage() {
     } catch { /* a bell notification is best-effort — never block the recap */ }
   }
 
-  return <WeeklyReviewClient review={review} name={profile?.display_name ?? 'You'} />
+  return <WeeklyReviewClient review={review} name={profile?.display_name ?? t.weekly.youName} />
 }
