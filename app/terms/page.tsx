@@ -1,10 +1,60 @@
 import LegalPage from '@/components/LegalPage'
+import { getDict } from '@/lib/i18n'
+import { getLocale } from '@/lib/i18n/server'
 
 export const metadata = { title: 'Terms of Service · NutriSync' }
 
-export default function TermsPage() {
+export default async function TermsPage() {
+  const locale = await getLocale()
+  const t = getDict(locale)
+
+  if (locale === 'es') {
+    return (
+      <LegalPage title={t.legal.termsTitle} updated="14 de junio de 2026">
+        <p>Estos términos rigen tu uso de NutriSync. Al crear una cuenta o usar la app, los aceptas. Si no estás de acuerdo, por favor no uses NutriSync.</p>
+
+        <h2>Elegibilidad</h2>
+        <p>Debes tener al menos 16 años y poder celebrar un acuerdo vinculante para usar NutriSync.</p>
+
+        <h2>El servicio</h2>
+        <p>NutriSync te permite registrar comidas, agua, actividad y peso, ver estimaciones y tendencias de nutrición, y compartir tu progreso con un grupo privado. Las funciones pueden cambiar o descontinuarse con el tiempo.</p>
+
+        <h2>No es asesoría médica ni nutricional</h2>
+        <p>NutriSync es una herramienta de bienestar. Los valores nutricionales — especialmente los estimados por IA a partir de fotos o nombres — son aproximados y pueden ser inexactos. Las metas de calorías son estimaciones generales. Nada en la app constituye asesoría médica, nutricional o profesional. Consulta a un profesional calificado antes de tomar decisiones de salud, y nunca ignores el consejo de un profesional por algo que veas en la app.</p>
+
+        <h2>Tu contenido</h2>
+        <p>Tú eres el dueño de las comidas, fotos, descripciones y comentarios que creas. Al publicar en un grupo, nos otorgas una licencia limitada para almacenar y mostrar ese contenido a ti y a los miembros de tu grupo para que la app pueda funcionar. No publiques contenido ilegal, dañino, que infrinja derechos de terceros, o que no seas libre de compartir.</p>
+
+        <h2>Uso aceptable</h2>
+        <ul>
+          <li>Sé respetuoso con los demás miembros; no se permite el acoso, el odio ni el abuso.</li>
+          <li>No intentes dañar, sobrecargar, extraer datos (scraping) ni realizar ingeniería inversa del servicio.</li>
+          <li>No uses la app para violar ninguna ley o los derechos de otra persona.</li>
+        </ul>
+
+        <h2>Tu cuenta</h2>
+        <p>Mantén tus credenciales de acceso seguras; eres responsable de la actividad realizada bajo tu cuenta. Puedes eliminar tu cuenta en cualquier momento desde <strong>Configuración → Privacidad → Eliminar cuenta</strong>, y descargar tus datos desde <strong>Configuración → Privacidad → Exportar mis datos</strong>.</p>
+
+        <h2>Datos de terceros</h2>
+        <p>Los datos de alimentos y códigos de barras provienen de fuentes de terceros (por ejemplo, USDA FoodData Central, Open Food Facts) y de estimaciones de IA. No garantizamos su exactitud ni integridad.</p>
+
+        <h2>Terminación</h2>
+        <p>Puedes dejar de usar NutriSync en cualquier momento. Podemos suspender o cancelar tu acceso si incumples estos términos, o para proteger el servicio o a sus usuarios.</p>
+
+        <h2>Renuncias y limitación de responsabilidad</h2>
+        <p>NutriSync se ofrece &ldquo;tal cual&rdquo; y &ldquo;según disponibilidad&rdquo;, sin garantías de ningún tipo. En la mayor medida permitida por la ley, no somos responsables por daños indirectos, incidentales o consecuentes, ni por decisiones que tomes basándote en las estimaciones de la app.</p>
+
+        <h2>Cambios</h2>
+        <p>Podemos actualizar estos términos; en ese caso actualizaremos la fecha indicada arriba. Si continúas usando la app, aceptas los términos actualizados.</p>
+
+        <h2>Contacto</h2>
+        <p>¿Preguntas sobre estos términos? Escríbenos a <a href="mailto:hello@nutrisync.app">hello@nutrisync.app</a>.</p>
+      </LegalPage>
+    )
+  }
+
   return (
-    <LegalPage title="Terms of Service" updated="June 14, 2026">
+    <LegalPage title={t.legal.termsTitle} updated="June 14, 2026">
       <p>These terms govern your use of NutriSync. By creating an account or using the app, you agree to them. If you don&rsquo;t agree, please don&rsquo;t use NutriSync.</p>
 
       <h2>Eligibility</h2>

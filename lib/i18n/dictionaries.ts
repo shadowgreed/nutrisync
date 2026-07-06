@@ -1301,6 +1301,12 @@ const en = {
     yesHelpfulAria: 'Yes, this was helpful',
     noHelpfulAria: 'No, this was not helpful',
   },
+  legal: {
+    lastUpdated: 'Last updated',
+    privacyTitle: 'Privacy Policy',
+    termsTitle: 'Terms of Service',
+    aboutTitle: 'About NutriSync',
+  },
 }
 
 export type Dict = typeof en
@@ -2575,6 +2581,12 @@ const es: Dict = {
     thanksForFeedback: '¡Gracias por tu opinión! 🙌',
     yesHelpfulAria: 'Sí, esto fue útil',
     noHelpfulAria: 'No, esto no fue útil',
+  },
+  legal: {
+    lastUpdated: 'Última actualización',
+    privacyTitle: 'Política de privacidad',
+    termsTitle: 'Términos de servicio',
+    aboutTitle: 'Acerca de NutriSync',
   },
 }
 

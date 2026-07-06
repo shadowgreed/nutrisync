@@ -1,10 +1,84 @@
 import LegalPage from '@/components/LegalPage'
+import { getDict } from '@/lib/i18n'
+import { getLocale } from '@/lib/i18n/server'
 
 export const metadata = { title: 'Privacy Policy · NutriSync' }
 
-export default function PrivacyPage() {
+export default async function PrivacyPage() {
+  const locale = await getLocale()
+  const t = getDict(locale)
+
+  if (locale === 'es') {
+    return (
+      <LegalPage title={t.legal.privacyTitle} updated="14 de junio de 2026">
+        <p>NutriSync (&ldquo;nosotros&rdquo;) te ayuda a registrar tu nutrición y a mantenerte motivado junto a un grupo pequeño. Esta política explica qué información recopilamos, por qué, y cuáles son tus opciones. Al usar NutriSync, aceptas esta política.</p>
+
+        <h2>Información que recopilamos</h2>
+        <ul>
+          <li><strong>Cuenta:</strong> tu correo electrónico y una contraseña cifrada (gestionada por nuestro proveedor de autenticación).</li>
+          <li><strong>Perfil:</strong> nombre visible, foto de perfil opcional, y los datos que decidas agregar — año de nacimiento, sexo biológico, estatura, peso, peso objetivo, nivel de actividad y metas.</li>
+          <li><strong>Registros:</strong> comidas (incluyendo cualquier foto o descripción que agregues), agua, actividad y registros de peso.</li>
+          <li><strong>Social:</strong> el o los grupos a los que te unes, y las reacciones, comentarios y ánimos que envías o recibes.</li>
+          <li><strong>Notificaciones:</strong> un token de suscripción push si activas las notificaciones.</li>
+          <li><strong>Técnica:</strong> registros estándar y datos de uso/dispositivo necesarios para operar y proteger la app.</li>
+        </ul>
+
+        <h2>Cómo usamos tu información</h2>
+        <ul>
+          <li>Para ofrecer las funciones principales: registro, objetivos de calorías y nutrientes, tendencias, recordatorios y el feed del grupo.</li>
+          <li>Para estimar la información nutricional de las comidas que registras (ver &ldquo;Procesamiento con IA&rdquo; abajo).</li>
+          <li>Para mostrarle a tu grupo las publicaciones y la actividad que decidas compartir.</li>
+          <li>Para enviarte las notificaciones que has activado (recordatorios, reacciones, respuestas, resúmenes semanales).</li>
+          <li>Para mantener el servicio seguro y resolver problemas.</li>
+        </ul>
+
+        <h2>Procesamiento con IA</h2>
+        <p>Cuando registras una comida por foto o por nombre, ese texto o imagen se envía a nuestro proveedor de IA (Anthropic) para estimar calorías, macronutrientes y micronutrientes. Estas estimaciones son aproximadas y no las usamos para entrenar modelos de IA.</p>
+
+        <h2>Proveedores de servicio</h2>
+        <p>Compartimos información únicamente cuando es necesario con proveedores que operan la app en nuestro nombre:</p>
+        <ul>
+          <li><strong>Supabase</strong> — base de datos, almacenamiento de archivos, autenticación.</li>
+          <li><strong>Anthropic</strong> — análisis de alimentos y fotos con IA.</li>
+          <li><strong>Vercel</strong> — alojamiento de la aplicación.</li>
+          <li><strong>USDA FoodData Central</strong> y <strong>Open Food Facts</strong> — datos de referencia de alimentos y códigos de barras.</li>
+        </ul>
+        <p>No vendemos tu información personal.</p>
+
+        <h2>Qué pueden ver los demás</h2>
+        <p>Los miembros de tu grupo pueden ver las comidas y actividades que decidas compartir en el feed, tu nombre visible y foto, y un breve resumen de tu perfil (metas y progreso). Las fotos de comidas y de perfil se almacenan con enlaces públicos para poder mostrarse en el feed — trata todo lo que subas como potencialmente visible para cualquiera que tenga el enlace.</p>
+
+        <h2>Tus opciones y derechos</h2>
+        <ul>
+          <li>Edita o elimina tus registros, datos de perfil y fotos en cualquier momento.</li>
+          <li>Activa o desactiva las notificaciones desde la app.</li>
+          <li><strong>Exporta tus datos:</strong> descarga una copia de todo lo que has registrado como archivo JSON desde <strong>Configuración → Privacidad → Exportar mis datos</strong>.</li>
+          <li><strong>Elimina tu cuenta</strong> desde <strong>Configuración → Privacidad → Eliminar cuenta</strong>. Esto elimina permanentemente tu perfil, registros, fotos y membresías de grupo.</li>
+        </ul>
+
+        <h2>Retención de datos</h2>
+        <p>Conservamos tus datos mientras tu cuenta esté activa. Cuando eliminas tu cuenta, tus datos se eliminan de inmediato; las copias de seguridad de rutina se depuran de forma continua.</p>
+
+        <h2>Menores de edad</h2>
+        <p>NutriSync no está dirigida a personas menores de 16 años. No recopilamos datos de menores a sabiendas.</p>
+
+        <h2>Seguridad</h2>
+        <p>Protegemos los datos con controles de acceso a nivel de fila y cifrado gestionado por nuestros proveedores. Ningún método de almacenamiento o transmisión es 100% seguro, por lo que no podemos garantizar una seguridad absoluta.</p>
+
+        <h2>No es asesoría médica</h2>
+        <p>NutriSync ofrece estimaciones e información general de bienestar, no asesoría médica ni nutricional profesional. Consulta siempre a un profesional calificado sobre tu salud.</p>
+
+        <h2>Cambios</h2>
+        <p>Podemos actualizar esta política; cuando lo hagamos, actualizaremos la fecha indicada arriba. Si continúas usando la app, aceptas los cambios.</p>
+
+        <h2>Contacto</h2>
+        <p>¿Tienes preguntas? Escríbenos a <a href="mailto:hello@nutrisync.app">hello@nutrisync.app</a>.</p>
+      </LegalPage>
+    )
+  }
+
   return (
-    <LegalPage title="Privacy Policy" updated="June 14, 2026">
+    <LegalPage title={t.legal.privacyTitle} updated="June 14, 2026">
       <p>NutriSync (&ldquo;we,&rdquo; &ldquo;us&rdquo;) helps you track nutrition and stay accountable with a small group. This policy explains what we collect, why, and your choices. By using NutriSync you agree to this policy.</p>
 
       <h2>Information we collect</h2>
