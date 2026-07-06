@@ -6,7 +6,7 @@ import { ArrowLeft, Trash2, Lock, AlertCircle, Sparkles, Send, RotateCcw, X, Che
 import type { AttentionLevel, ClientSignal } from '@/lib/copilot'
 import type { WeeklyReport } from '@/lib/weekly'
 import { mlToOz, type WaterWeek } from '@/lib/water'
-import { GOAL_LABELS, GOAL_EMOJIS } from '@/lib/fitness'
+import { GOAL_EMOJIS } from '@/lib/fitness'
 import { DRAFT_TONES, type DraftTone } from '@/lib/copilot-tones'
 import { foodFixesFor } from '@/lib/nutrients'
 import { SEVERITY_STYLE, type MemberIntel, type TrendData } from '@/lib/coach-intel'
@@ -14,6 +14,8 @@ import type { VoiceProfile } from '@/lib/coach-voice'
 import { ShieldCheck, AlertTriangle, Target as TargetIcon, Minus } from 'lucide-react'
 import type { Diet, Goal, NutrientKey } from '@/types'
 import CoachDietSetting from './CoachDietSetting'
+import { useI18n } from '@/components/I18nProvider'
+import type { Dict } from '@/lib/i18n/dictionaries'
 
 export interface CoachNote { id: string; body: string; created_at: string }
 export interface PendingDraft { id: string; kind: 'nudge' | 'praise' | 'weekly_checkin'; draft_text: string; status: string; created_at: string }
@@ -24,27 +26,39 @@ const MEAL_EMOJI: Record<string, string> = {
 }
 
 /** Compact relative time for the mini feed, e.g. "3h ago", "2d ago". */
-function relTime(iso: string, now = Date.now()): string {
+function relTime(iso: string, c: Dict['coach'], now = Date.now()): string {
   const mins = Math.max(0, Math.round((now - new Date(iso).getTime()) / 60000))
-  if (mins < 1) return 'just now'
-  if (mins < 60) return `${mins}m ago`
+  if (mins < 1) return c.justNow
+  if (mins < 60) return c.minutesAgo(mins)
   const hrs = Math.round(mins / 60)
-  if (hrs < 24) return `${hrs}h ago`
+  if (hrs < 24) return c.hoursAgo(hrs)
   const days = Math.round(hrs / 24)
-  if (days < 7) return `${days}d ago`
-  return `${Math.round(days / 7)}w ago`
+  if (days < 7) return c.daysAgo(days)
+  return c.weeksAgo(Math.round(days / 7))
 }
 
-const KIND_LABEL: Record<PendingDraft['kind'], string> = {
-  nudge: 'Nudge', praise: 'Praise', weekly_checkin: 'Weekly check-in',
+function kindLabel(kind: PendingDraft['kind'], c: Dict['coach']): string {
+  return kind === 'nudge' ? c.kindNudge : kind === 'praise' ? c.kindPraise : c.kindWeekly
+}
+
+function toneChipLabel(tone: DraftTone, c: Dict['coach']): string {
+  switch (tone) {
+    case 'auto': return c.toneAuto
+    case 'encouraging': return c.toneEncouraging
+    case 'direct': return c.toneDirect
+    case 'casual': return c.toneCasual
+    case 'tough_love': return c.toneToughLove
+  }
 }
 
 interface Member { id: string; display_name: string; avatar_url: string | null }
 
-const ATTENTION_LABEL: Record<AttentionLevel, { label: string; chip: string }> = {
-  needs_attention: { label: 'Needs attention', chip: 'bg-red-900/50 text-red-200 border-red-800/60' },
-  watch:           { label: 'Worth a look',     chip: 'bg-amber-900/40 text-amber-200 border-amber-800/60' },
-  on_track:        { label: 'On track',         chip: 'bg-emerald-900/40 text-emerald-200 border-emerald-800/60' },
+function attentionMeta(a: AttentionLevel, c: Dict['coach']): { label: string; chip: string } {
+  return {
+    needs_attention: { label: c.needsAttention, chip: 'bg-red-900/50 text-red-200 border-red-800/60' },
+    watch:           { label: c.worthLook,      chip: 'bg-amber-900/40 text-amber-200 border-amber-800/60' },
+    on_track:        { label: c.onTrackChip,    chip: 'bg-emerald-900/40 text-emerald-200 border-emerald-800/60' },
+  }[a]
 }
 
 function initials(name: string): string {
@@ -95,6 +109,8 @@ function Stat({ label, value, sub, delta }: { label: string; value: string; sub?
 // "Suggest foods" reveal — the same whole-food fixes used by "Close my gaps" —
 // so the coach has concrete suggestions to weave into a message.
 function SignalItem({ signal }: { signal: ClientSignal }) {
+  const { t } = useI18n()
+  const c = t.coach
   const [showFoods, setShowFoods] = useState(false)
   const gapKey = signal.code === 'nutrient_gap' && typeof signal.data.key === 'string'
     ? (signal.data.key as NutrientKey)
@@ -115,7 +131,7 @@ function SignalItem({ signal }: { signal: ClientSignal }) {
             onClick={() => setShowFoods(v => !v)}
             className="shrink-0 inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-300 hover:text-emerald-200"
           >
-            <Utensils size={12} /> {showFoods ? 'Hide' : 'Suggest foods'}
+            <Utensils size={12} /> {showFoods ? c.hide : c.suggestFoods}
           </button>
         )}
       </div>
@@ -123,7 +139,7 @@ function SignalItem({ signal }: { signal: ClientSignal }) {
         <ul className="mt-2 ml-6 space-y-1">
           {foods.map((f, i) => (
             <li key={i} className="text-[12px] text-stone-300">
-              <span className="font-medium text-stone-100">{f.name}</span>
+              <span className="font-medium text-stone-100">{t.foodFixes[f.name]?.name ?? f.name}</span>
               <span className="text-stone-500"> · {f.serving}</span>
             </li>
           ))}
@@ -136,6 +152,8 @@ function SignalItem({ signal }: { signal: ClientSignal }) {
 // ── AI summary card — the most important component: what's happening, why,
 // the risk and the recommended action, all computed deterministically.
 function AiSummaryCard({ intel, memberName }: { intel: MemberIntel; memberName: string }) {
+  const { t } = useI18n()
+  const c = t.coach
   const { summary, confidence } = intel
   return (
     <section className="px-4 mb-4">
@@ -143,34 +161,34 @@ function AiSummaryCard({ intel, memberName }: { intel: MemberIntel; memberName: 
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-1.5">
             <Sparkles size={14} className="text-emerald-400" />
-            <p className="text-emerald-300 text-xs uppercase tracking-wider font-semibold">AI summary</p>
+            <p className="text-emerald-300 text-xs uppercase tracking-wider font-semibold">{c.aiSummary}</p>
           </div>
           <span className="flex items-center gap-1 text-[11px] text-stone-400" title={confidence.reasons.join(' · ')}>
-            <ShieldCheck size={12} /> {confidence.pct}% confidence
+            <ShieldCheck size={12} /> {c.confidencePct(confidence.pct)}
           </span>
         </div>
         <p className="text-white text-sm font-medium leading-snug">{summary.headline}</p>
         {summary.causes.length > 0 && (
           <ul className="mt-2 space-y-0.5">
-            {summary.causes.map((c, i) => (
+            {summary.causes.map((cause, i) => (
               <li key={i} className="text-stone-300 text-[13px] flex items-start gap-1.5">
-                <span className="text-stone-500 mt-1.5 w-1 h-1 rounded-full bg-stone-500 shrink-0" /> {c}
+                <span className="text-stone-500 mt-1.5 w-1 h-1 rounded-full bg-stone-500 shrink-0" /> {cause}
               </li>
             ))}
           </ul>
         )}
         {summary.risk && (
           <p className="mt-2 flex items-start gap-1.5 text-amber-200 text-[13px]">
-            <AlertTriangle size={13} className="shrink-0 mt-0.5" /> <span><span className="font-semibold">Risk:</span> {summary.risk}</span>
+            <AlertTriangle size={13} className="shrink-0 mt-0.5" /> <span><span className="font-semibold">{c.riskLabel}</span> {summary.risk}</span>
           </p>
         )}
         {summary.recommendation && (
           <p className="mt-2 flex items-start gap-1.5 text-emerald-200 text-[13px]">
-            <TargetIcon size={13} className="shrink-0 mt-0.5" /> <span><span className="font-semibold">Do next:</span> {summary.recommendation}</span>
+            <TargetIcon size={13} className="shrink-0 mt-0.5" /> <span><span className="font-semibold">{c.doNext}</span> {summary.recommendation}</span>
           </p>
         )}
         {summary.causes.length === 0 && !summary.risk && (
-          <p className="mt-1 text-stone-400 text-xs">{memberName.split(/\s+/)[0]} is on track this week — keep the encouragement coming.</p>
+          <p className="mt-1 text-stone-400 text-xs">{c.onTrackFallback(memberName.split(/\s+/)[0])}</p>
         )}
       </div>
     </section>
@@ -190,9 +208,10 @@ function TrendArrow({ trend, deltaPts }: { trend: 'up' | 'down' | 'flat' | null;
 
 // ── Compliance dashboard — adherence % per area, with trend + severity ───────
 function ComplianceDashboard({ intel }: { intel: MemberIntel }) {
+  const { t } = useI18n()
   return (
     <section className="px-4 mb-5">
-      <p className="text-stone-400 text-xs uppercase tracking-wider mb-2">Compliance</p>
+      <p className="text-stone-400 text-xs uppercase tracking-wider mb-2">{t.coach.compliance}</p>
       <div className="bg-stone-900 border border-stone-800 rounded-2xl p-4 space-y-3">
         {intel.compliance.map(m => {
           const s = SEVERITY_STYLE[m.severity]
@@ -221,9 +240,10 @@ function ComplianceDashboard({ intel }: { intel: MemberIntel }) {
 
 // ── Behaviour patterns — per-meal logging consistency ────────────────────────
 function BehaviorPatterns({ intel }: { intel: MemberIntel }) {
+  const { t } = useI18n()
   return (
     <section className="px-4 mb-5">
-      <p className="text-stone-400 text-xs uppercase tracking-wider mb-2">Behaviour patterns</p>
+      <p className="text-stone-400 text-xs uppercase tracking-wider mb-2">{t.coach.behaviorPatterns}</p>
       <div className="bg-stone-900 border border-stone-800 rounded-2xl divide-y divide-stone-800">
         {intel.behavior.map(b => {
           const s = SEVERITY_STYLE[b.severity]
@@ -231,7 +251,7 @@ function BehaviorPatterns({ intel }: { intel: MemberIntel }) {
             <div key={b.label} className="flex items-center justify-between px-4 py-2.5">
               <span className="text-sm text-stone-200">{b.label}</span>
               <span className="flex items-center gap-2">
-                <span className="text-stone-400 text-xs tabular-nums">{b.logged}/{b.of} days</span>
+                <span className="text-stone-400 text-xs tabular-nums">{t.coach.daysOf(b.logged, b.of)}</span>
                 <span className={`text-[11px] font-semibold ${s.text}`}>{b.note}</span>
               </span>
             </div>
@@ -266,8 +286,9 @@ function MiniBars({ values, labels, target, colorFor }: {
 }
 
 function WeightLine({ points }: { points: { date: string; kg: number }[] }) {
+  const { t } = useI18n()
   if (points.length < 2) {
-    return <p className="text-stone-500 text-xs py-6 text-center">Not enough weight logs in range.</p>
+    return <p className="text-stone-500 text-xs py-6 text-center">{t.coach.notEnoughWeightLogs}</p>
   }
   const W = 320, H = 72, pad = 8
   const vals = points.map(p => p.kg)
@@ -285,6 +306,9 @@ function WeightLine({ points }: { points: { date: string; kg: number }[] }) {
 }
 
 function TrendAnalysis({ trends }: { trends: TrendData }) {
+  const { t, locale } = useI18n()
+  const c = t.coach
+  const dateLocale = locale === 'es' ? 'es-419' : 'en-US'
   const [range, setRange] = useState<14 | 30>(14)
   const days = trends.days.slice(-range)
   const labels = days.map(d => d.label)
@@ -304,27 +328,27 @@ function TrendAnalysis({ trends }: { trends: TrendData }) {
   return (
     <section className="px-4 mb-5">
       <div className="flex items-center justify-between mb-2">
-        <p className="text-stone-400 text-xs uppercase tracking-wider">Trend analysis</p>
+        <p className="text-stone-400 text-xs uppercase tracking-wider">{c.trendAnalysis}</p>
         <div className="flex bg-stone-800 rounded-lg p-0.5">
           {([14, 30] as const).map(r => (
             <button key={r} onClick={() => setRange(r)}
               className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors ${range === r ? 'bg-stone-600 text-white' : 'text-stone-400'}`}>
-              {r}d
+              {c.rangeDays(r)}
             </button>
           ))}
         </div>
       </div>
       <div className="space-y-3">
-        <TrendCard title="Calories" sub={`avg ${avg(loggedCals).toLocaleString()} · target ${trends.calorieTarget.toLocaleString()}`}>
+        <TrendCard title={c.statCalories} sub={c.avgTargetKcal(avg(loggedCals).toLocaleString(dateLocale), trends.calorieTarget.toLocaleString(dateLocale))}>
           <MiniBars values={cal} labels={labels} target={trends.calorieTarget} colorFor={calColor} />
         </TrendCard>
-        <TrendCard title="Protein" sub={`avg ${avg(prot.filter(v => v > 0))}g · target ${trends.proteinTarget}g`}>
+        <TrendCard title={t.macros.protein_g} sub={c.avgTargetG(avg(prot.filter(v => v > 0)), trends.proteinTarget)}>
           <MiniBars values={prot} labels={labels} target={trends.proteinTarget} colorFor={goalColor(trends.proteinTarget)} />
         </TrendCard>
-        <TrendCard title="Hydration" sub={`avg ${avg(wat.filter(v => v > 0))} oz · target ${trends.waterTargetOz} oz`}>
+        <TrendCard title={c.hydration} sub={c.avgTargetOz(avg(wat.filter(v => v > 0)), trends.waterTargetOz)}>
           <MiniBars values={wat} labels={labels} target={trends.waterTargetOz} colorFor={goalColor(trends.waterTargetOz)} />
         </TrendCard>
-        <TrendCard title="Weight" sub={weights.length >= 2 ? `${weights[0].kg.toFixed(1)} → ${weights[weights.length - 1].kg.toFixed(1)} kg` : ''}>
+        <TrendCard title={t.trends.weight} sub={weights.length >= 2 ? c.weightRange(weights[0].kg.toFixed(1), weights[weights.length - 1].kg.toFixed(1)) : ''}>
           <WeightLine points={weights} />
         </TrendCard>
       </div>
@@ -346,15 +370,13 @@ function TrendCard({ title, sub, children }: { title: string; sub: string; child
 
 export interface InterventionEntry { kind: 'nudge' | 'praise' | 'weekly_checkin'; created_at: string }
 
-const KIND_TOPIC: Record<InterventionEntry['kind'], string> = {
-  nudge: 'Nudge', praise: 'Praise', weekly_checkin: 'Weekly check-in',
-}
-
 // One-tap coaching plays with impact, estimated outcome and a ready message the
 // coach can send to the member directly (or copy elsewhere).
 function RecommendedActions({ actions, memberId, memberName }: {
   actions: MemberIntel['recommendedActions']; memberId: string; memberName: string
 }) {
+  const { t } = useI18n()
+  const c = t.coach
   const [copied, setCopied] = useState<number | null>(null)
   const [sendState, setSendState] = useState<Record<number, 'sending' | 'sent' | 'error'>>({})
   if (actions.length === 0) return null
@@ -363,6 +385,7 @@ function RecommendedActions({ actions, memberId, memberName }: {
     Medium: 'bg-amber-900/40 text-amber-200 border-amber-800/50',
     Low: 'bg-stone-800 text-stone-300 border-stone-700',
   }
+  const impactLabel: Record<string, string> = { High: c.impactHigh, Medium: c.impactMedium, Low: c.impactLow }
   function copy(i: number, text: string) {
     navigator.clipboard.writeText(text); setCopied(i); setTimeout(() => setCopied(null), 1800)
   }
@@ -382,7 +405,7 @@ function RecommendedActions({ actions, memberId, memberName }: {
   }
   return (
     <section className="px-4 mb-5">
-      <p className="text-stone-400 text-xs uppercase tracking-wider mb-2">Recommended actions</p>
+      <p className="text-stone-400 text-xs uppercase tracking-wider mb-2">{c.recommendedActions}</p>
       <ul className="space-y-2">
         {actions.map((a, i) => {
           const st = sendState[i]
@@ -390,7 +413,7 @@ function RecommendedActions({ actions, memberId, memberName }: {
             <li key={i} className="bg-stone-900 border border-stone-800 rounded-2xl p-3.5">
               <div className="flex items-center justify-between gap-2 mb-1">
                 <p className="text-white text-sm font-semibold">{a.title}</p>
-                <span className={`shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${impactStyle[a.impact]}`}>{a.impact} impact</span>
+                <span className={`shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${impactStyle[a.impact]}`}>{impactLabel[a.impact]}</span>
               </div>
               <p className="text-stone-400 text-xs mb-2">{a.outcome}</p>
               <div className="bg-stone-950 border border-stone-800 rounded-xl px-3 py-2">
@@ -405,18 +428,18 @@ function RecommendedActions({ actions, memberId, memberName }: {
                       ? 'bg-emerald-900/50 text-emerald-300 border border-emerald-700/40'
                       : 'bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-60'
                   }`}
-                  aria-label={st === 'sent' ? `Sent to ${memberName}` : `Send to ${memberName}`}
+                  aria-label={st === 'sent' ? c.sentTo(memberName) : c.sendTo(memberName)}
                 >
-                  {st === 'sent' ? <><Check size={13} /> Sent</> : st === 'sending' ? 'Sending…' : <><Send size={13} /> Send to {memberName.split(/\s+/)[0]}</>}
+                  {st === 'sent' ? <><Check size={13} /> {c.sentWord}</> : st === 'sending' ? c.sendingEllip : <><Send size={13} /> {c.sendTo(memberName.split(/\s+/)[0])}</>}
                 </button>
                 <button
                   onClick={() => copy(i, a.message)}
                   className="inline-flex items-center gap-1.5 text-stone-300 hover:text-white text-xs font-semibold px-2 py-1.5"
                 >
-                  {copied === i ? <Check size={13} /> : <Copy size={13} />} {copied === i ? 'Copied' : 'Copy'}
+                  {copied === i ? <Check size={13} /> : <Copy size={13} />} {copied === i ? c.copied : c.copy}
                 </button>
               </div>
-              {st === 'error' && <p className="text-red-400 text-xs mt-1.5">Couldn&apos;t send — try again.</p>}
+              {st === 'error' && <p className="text-red-400 text-xs mt-1.5">{c.couldNotSendRetry}</p>}
             </li>
           )
         })}
@@ -427,18 +450,21 @@ function RecommendedActions({ actions, memberId, memberName }: {
 
 // Past check-ins the coach has sent — prevents repetitive coaching.
 function InterventionHistory({ history }: { history: InterventionEntry[] }) {
+  const { t, locale } = useI18n()
+  const c = t.coach
+  const dateLocale = locale === 'es' ? 'es-419' : 'en-US'
   if (history.length === 0) return null
   return (
     <section className="px-4 mb-5">
-      <p className="text-stone-400 text-xs uppercase tracking-wider mb-2">Intervention history</p>
+      <p className="text-stone-400 text-xs uppercase tracking-wider mb-2">{c.interventionHistory}</p>
       <ul className="bg-stone-900 border border-stone-800 rounded-2xl divide-y divide-stone-800">
         {history.map((h, i) => (
           <li key={i} className="flex items-center justify-between px-4 py-2.5">
             <div>
-              <p className="text-stone-200 text-sm">{KIND_TOPIC[h.kind]}</p>
-              <p className="text-stone-500 text-[11px]">{new Date(h.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
+              <p className="text-stone-200 text-sm">{kindLabel(h.kind, c)}</p>
+              <p className="text-stone-500 text-[11px]">{new Date(h.created_at).toLocaleDateString(dateLocale, { month: 'short', day: 'numeric' })}</p>
             </div>
-            <span className="text-emerald-400/80 text-xs">Check-in sent</span>
+            <span className="text-emerald-400/80 text-xs">{c.checkinSentLabel}</span>
           </li>
         ))}
       </ul>
@@ -476,11 +502,13 @@ export default function CoachMemberClient({
   posts: MiniPost[]
   initialNotes: CoachNote[]; initialDraft: PendingDraft | null
 }) {
+  const { t } = useI18n()
+  const c = t.coach
   const [notes, setNotes] = useState<CoachNote[]>(initialNotes)
   const [draft, setDraft] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  const meta = ATTENTION_LABEL[attention]
+  const meta = attentionMeta(attention, c)
 
   // ── Week-over-week trend arrows on the summary cards ───────────────────────
   // Prior-week values are null when there's no comparable data, which yields no
@@ -495,12 +523,12 @@ export default function CoachMemberClient({
   const waterDelta = water.daysLogged ? makeDelta(water.daysHit, priorWater ? priorWater.daysHit : null, true) : null
 
   // ── Header context line — goal + streak, adapted to available data ─────────
-  const goalLabel = goal && goal in GOAL_LABELS
-    ? `${GOAL_EMOJIS[goal as Goal]} ${GOAL_LABELS[goal as Goal]}`
+  const goalLabel = goal && goal in t.onboarding.goalLabels
+    ? `${GOAL_EMOJIS[goal as Goal]} ${t.onboarding.goalLabels[goal as Goal]}`
     : null
   const contextBits = [
     goalLabel,
-    streak > 0 ? `${streak} day streak` : null,
+    streak > 0 ? c.goalDayStreak(streak) : null,
   ].filter(Boolean) as string[]
   // The single most important reason this member surfaced (most severe signal first).
   const topReason = [...signals].sort((a, b) =>
@@ -508,10 +536,10 @@ export default function CoachMemberClient({
 
   // One-line summary of exactly what a draft would be based on this week.
   const copilotContext = report.daysLogged
-    ? [`${report.daysLogged}/7 days logged`,
-       `${report.calories.avgPerDay.toLocaleString()} kcal/day`,
+    ? [c.daysLoggedShort(report.daysLogged),
+       c.kcalDay(report.calories.avgPerDay.toLocaleString()),
        topReason ? topReason.label : null].filter(Boolean).join(' · ')
-    : 'No meals logged this week yet'
+    : c.noMealsLoggedWeek
 
   // ── Copilot draft state ────────────────────────────────────────────────────
   const [pending, setPending] = useState<PendingDraft | null>(initialDraft)
@@ -531,11 +559,11 @@ export default function CoachMemberClient({
         body: JSON.stringify({ memberId: member.id, tone }),
       })
       const json = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(json.error ?? 'Could not draft a message')
+      if (!res.ok) throw new Error(json.error ?? c.couldNotDraft)
       setPending(json.draft as PendingDraft)
       setDraftText((json.draft as PendingDraft).draft_text)
     } catch (e) {
-      setCopilotError(e instanceof Error ? e.message : 'Could not draft a message')
+      setCopilotError(e instanceof Error ? e.message : c.couldNotDraft)
     } finally {
       setGenerating(false)
     }
@@ -550,11 +578,11 @@ export default function CoachMemberClient({
         body: JSON.stringify({ draftId: pending.id, action, text: action === 'send' ? draftText : undefined }),
       })
       const json = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(json.error ?? 'Could not complete that')
+      if (!res.ok) throw new Error(json.error ?? c.couldNotComplete)
       setPending(null); setDraftText('')
       if (action === 'send') setSentOk(true)
     } catch (e) {
-      setCopilotError(e instanceof Error ? e.message : 'Could not complete that')
+      setCopilotError(e instanceof Error ? e.message : c.couldNotComplete)
     } finally {
       setSending(false)
     }
@@ -571,11 +599,11 @@ export default function CoachMemberClient({
         body: JSON.stringify({ groupId, memberId: member.id, body }),
       })
       const json = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(json.error ?? 'Could not save note')
+      if (!res.ok) throw new Error(json.error ?? c.couldNotSaveNote)
       setNotes(prev => [json.note as CoachNote, ...prev])
       setDraft('')
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not save note')
+      setError(e instanceof Error ? e.message : c.couldNotSaveNote)
     } finally {
       setSaving(false)
     }
@@ -625,12 +653,12 @@ export default function CoachMemberClient({
   return (
     <div className="min-h-screen bg-stone-950 text-white pb-28">
       <header className="px-4 pt-safe pb-3 flex items-center gap-3">
-        <Link href="/coach" aria-label="Back to roster" className="text-stone-300 hover:text-white">
+        <Link href="/coach" aria-label={c.backToRoster} className="text-stone-300 hover:text-white">
           <ArrowLeft size={22} />
         </Link>
         <div className="flex items-center gap-3 min-w-0">
           {member.avatar_url
-            ? <img src={member.avatar_url} alt={member.display_name ?? 'Member'} className="w-10 h-10 rounded-full object-cover" />
+            ? <img src={member.avatar_url} alt={member.display_name ?? c.memberFallback} className="w-10 h-10 rounded-full object-cover" />
             : <div className="w-10 h-10 rounded-full bg-emerald-900/50 border border-emerald-800/50 flex items-center justify-center text-emerald-300 text-sm font-semibold">{initials(member.display_name)}</div>}
           <div className="min-w-0">
             <h1 className="text-lg font-bold truncate">{member.display_name}</h1>
@@ -675,21 +703,21 @@ export default function CoachMemberClient({
 
       {/* This week, at a glance */}
       <section className="px-4 mb-5">
-        <p className="text-stone-400 text-xs uppercase tracking-wider mb-2">This week · {report.weekLabel}</p>
+        <p className="text-stone-400 text-xs uppercase tracking-wider mb-2">{c.weekOf(report.weekLabel)}</p>
         <div className="grid grid-cols-2 gap-2">
           <Stat
-            label="Calories"
+            label={c.statCalories}
             value={report.daysLogged ? report.calories.avgPerDay.toLocaleString() : '—'}
             delta={calDelta}
-            sub={report.daysLogged ? `of ${report.calories.target.toLocaleString()}/day` : 'no logs'}
+            sub={report.daysLogged ? c.ofPerDay(report.calories.target.toLocaleString()) : c.noLogs}
           />
-          <Stat label="Nutrients" value={`${report.nutrients.onTrack}/${report.nutrients.total}`} delta={nutDelta} sub="on track" />
-          <Stat label="Active" value={`${report.activities.activeDays}/${report.activities.goalDays}`} delta={actDelta} sub="active days" />
+          <Stat label={c.statNutrients} value={`${report.nutrients.onTrack}/${report.nutrients.total}`} delta={nutDelta} sub={c.onTrackSub} />
+          <Stat label={c.statActive} value={`${report.activities.activeDays}/${report.activities.goalDays}`} delta={actDelta} sub={c.activeDaysSub} />
           <Stat
-            label="Water"
+            label={c.statWater}
             value={`${water.daysHit}/${water.goalDays}`}
             delta={waterDelta}
-            sub={water.daysLogged ? `${mlToOz(water.avgMl)} oz/day · ${mlToOz(water.targetMl)} oz goal` : 'no logs'}
+            sub={water.daysLogged ? c.waterStatSub(mlToOz(water.avgMl), mlToOz(water.targetMl)) : c.noLogs}
           />
         </div>
       </section>
@@ -707,21 +735,21 @@ export default function CoachMemberClient({
       {posts.length > 0 && (
         <section className="px-4 mb-5">
           <div className="flex items-center justify-between mb-2">
-            <p className="text-stone-400 text-xs uppercase tracking-wider">Recent posts</p>
-            <Link href="/feed" className="text-emerald-400 hover:text-emerald-300 text-[11px] font-semibold">View feed</Link>
+            <p className="text-stone-400 text-xs uppercase tracking-wider">{c.recentPosts}</p>
+            <Link href="/feed" className="text-emerald-400 hover:text-emerald-300 text-[11px] font-semibold">{c.viewFeed}</Link>
           </div>
           <ul className="space-y-2">
             {posts.map(p => (
               <li key={p.id} className="flex items-center gap-3 bg-stone-900 border border-stone-800 rounded-2xl p-2.5">
                 {p.photo_url
-                  ? <img src={p.photo_url} alt="Meal photo" className="w-12 h-12 rounded-xl object-cover shrink-0" />
+                  ? <img src={p.photo_url} alt={c.mealPhotoAlt} className="w-12 h-12 rounded-xl object-cover shrink-0" />
                   : <div className="w-12 h-12 rounded-xl bg-stone-800 flex items-center justify-center text-xl shrink-0">{MEAL_EMOJI[p.meal_type] ?? '🍽️'}</div>}
                 <div className="min-w-0 flex-1">
                   <p className="text-stone-200 text-sm truncate">
-                    {p.caption?.trim() || <span className="capitalize">{p.meal_type}</span>}
+                    {p.caption?.trim() || <span className="capitalize">{(t.mealTypes as Record<string, { label: string }>)[p.meal_type]?.label ?? p.meal_type}</span>}
                   </p>
                   <p className="text-stone-500 text-[11px]">
-                    {relTime(p.logged_at)}
+                    {relTime(p.logged_at, c)}
                     {p.total_calories ? ` · ${p.total_calories.toLocaleString()} kcal` : ''}
                   </p>
                 </div>
@@ -740,21 +768,21 @@ export default function CoachMemberClient({
       <section id="copilot" className="px-4 mb-5 scroll-mt-16">
         <div className="flex items-center gap-1.5 mb-2">
           <Sparkles size={13} className="text-emerald-400" />
-          <p className="text-stone-400 text-xs uppercase tracking-wider">Copilot</p>
+          <p className="text-stone-400 text-xs uppercase tracking-wider">{c.copilotTitle}</p>
         </div>
 
         {!pending ? (
           <div className="bg-stone-900 border border-stone-800 rounded-2xl p-4">
             {sentOk && (
               <p className="flex items-center gap-1.5 text-emerald-300 text-sm mb-3">
-                <Check size={15} /> Sent to {member.display_name}.
+                <Check size={15} /> {c.sentToMember(member.display_name)}
               </p>
             )}
             {/* What this draft will be based on */}
             <p className="text-stone-300 text-sm">
-              Draft a personalized check-in from {member.display_name}&apos;s week. You review and edit it before anything sends.
+              {c.draftIntro(member.display_name)}
             </p>
-            <p className="text-stone-500 text-[11px] mt-1.5 mb-3">Based on: {copilotContext}</p>
+            <p className="text-stone-500 text-[11px] mt-1.5 mb-3">{c.basedOn(copilotContext)}</p>
 
             {/* Adaptive voice — learned from your sent check-ins */}
             {voice.sampleSize > 0 && (
@@ -762,25 +790,25 @@ export default function CoachMemberClient({
                 <span className="inline-flex items-center gap-1 bg-stone-800 border border-stone-700 rounded-full px-2 py-0.5 text-stone-200 font-medium">
                   🎙 {voice.profile}{voice.traits.length ? ` · ${voice.traits.join(' · ')}` : ''}
                 </span>
-                <span className="text-stone-500">{voice.confidence}% · {voice.sampleSize} check-in{voice.sampleSize === 1 ? '' : 's'}</span>
+                <span className="text-stone-500">{c.voiceConfidence(voice.confidence, voice.sampleSize)}</span>
               </div>
             )}
 
             {/* Tone chips */}
-            <p className="text-stone-400 text-[11px] uppercase tracking-wider mb-1.5">Tone <span className="text-stone-400 normal-case">(overrides your voice)</span></p>
+            <p className="text-stone-400 text-[11px] uppercase tracking-wider mb-1.5">{c.toneLabel} <span className="text-stone-400 normal-case">{c.toneOverride}</span></p>
             <div className="flex flex-wrap gap-1.5 mb-3">
-              {DRAFT_TONES.map(t => (
+              {DRAFT_TONES.map(dt => (
                 <button
-                  key={t.value}
-                  onClick={() => setTone(t.value)}
+                  key={dt.value}
+                  onClick={() => setTone(dt.value)}
                   disabled={generating}
                   className={`text-[12px] font-medium px-2.5 py-1 rounded-full border transition-colors disabled:opacity-50 ${
-                    tone === t.value
+                    tone === dt.value
                       ? 'bg-emerald-600 border-emerald-500 text-white'
                       : 'bg-stone-950 border-stone-700 text-stone-300 hover:border-stone-500'
                   }`}
                 >
-                  {t.label}
+                  {toneChipLabel(dt.value, c)}
                 </button>
               ))}
             </div>
@@ -790,16 +818,16 @@ export default function CoachMemberClient({
               disabled={generating}
               className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors"
             >
-              <Sparkles size={15} /> {generating ? 'Drafting…' : sentOk ? 'Draft another' : 'Draft check-in (this week’s data)'}
+              <Sparkles size={15} /> {generating ? c.draftingEllip : sentOk ? c.draftAnother : c.draftCheckinCta}
             </button>
           </div>
         ) : (
           <div className="bg-stone-900 border border-emerald-900/50 rounded-2xl p-4">
             <div className="flex items-center justify-between mb-2">
               <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full border border-emerald-800/60 bg-emerald-900/40 text-emerald-200">
-                {KIND_LABEL[pending.kind]}
+                {kindLabel(pending.kind, c)}
               </span>
-              <span className="text-stone-500 text-[11px]">Draft — review before sending</span>
+              <span className="text-stone-500 text-[11px]">{c.draftReviewNote}</span>
             </div>
             <textarea
               value={draftText}
@@ -813,29 +841,29 @@ export default function CoachMemberClient({
                 disabled={sending || !draftText.trim()}
                 className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors"
               >
-                <Send size={14} /> {sending ? 'Sending…' : 'Send'}
+                <Send size={14} /> {sending ? c.sendingEllip : c.send}
               </button>
               <button
                 onClick={generateDraft}
                 disabled={generating || sending}
-                aria-label="Regenerate draft"
+                aria-label={c.regenerateDraftAria}
                 className="flex items-center gap-1.5 bg-stone-800 hover:bg-stone-700 disabled:opacity-50 text-stone-200 text-sm font-semibold px-3 py-2 rounded-xl transition-colors"
               >
-                <RotateCcw size={14} /> {generating ? '…' : 'Redo'}
+                <RotateCcw size={14} /> {generating ? '…' : c.redo}
               </button>
               <button
                 onClick={() => resolveDraft('dismiss')}
                 disabled={sending}
-                aria-label="Dismiss draft"
+                aria-label={c.dismissDraftAria}
                 className="ml-auto flex items-center gap-1.5 text-stone-400 hover:text-red-300 text-sm px-2 py-2 transition-colors"
               >
-                <X size={15} /> Dismiss
+                <X size={15} /> {c.dismiss}
               </button>
             </div>
           </div>
         )}
         {copilotError && <p className="text-red-400 text-xs mt-2">{copilotError}</p>}
-        <p className="text-stone-400 text-[11px] mt-2">Copilot drafts; you send it in your own voice. Nothing reaches {member.display_name} until you hit Send.</p>
+        <p className="text-stone-400 text-[11px] mt-2">{c.copilotFooter(member.display_name)}</p>
       </section>
 
       {/* Intervention history — what's already been sent */}
@@ -845,16 +873,16 @@ export default function CoachMemberClient({
       <section id="coach-notes" className="px-4 scroll-mt-16">
         <div className="flex items-center gap-1.5 mb-2">
           <Lock size={13} className="text-stone-500" />
-          <p className="text-stone-400 text-xs uppercase tracking-wider">Private notes</p>
+          <p className="text-stone-400 text-xs uppercase tracking-wider">{c.privateNotes}</p>
         </div>
-        <p className="text-stone-500 text-[11px] mb-2">Only you can see these — {member.display_name} can&apos;t.</p>
+        <p className="text-stone-500 text-[11px] mb-2">{c.onlyYouCanSee(member.display_name)}</p>
 
         <div className="flex gap-2 mb-3">
           <textarea
             id="coach-note-input"
             value={draft}
             onChange={e => setDraft(e.target.value.slice(0, 2000))}
-            placeholder={`Note about ${member.display_name}…`}
+            placeholder={c.noteAbout(member.display_name)}
             rows={2}
             className="flex-1 bg-stone-900 border border-stone-800 rounded-xl px-3 py-2 text-sm text-white placeholder-stone-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 resize-none"
           />
@@ -863,7 +891,7 @@ export default function CoachMemberClient({
             disabled={!draft.trim() || saving}
             className="shrink-0 self-end bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors"
           >
-            {saving ? 'Saving…' : 'Add'}
+            {saving ? c.saving : c.add}
           </button>
         </div>
         {error && <p className="text-red-400 text-xs mb-2">{error}</p>}
@@ -872,25 +900,25 @@ export default function CoachMemberClient({
           {notes.map(n => (
             <li key={n.id} className="bg-stone-900 border border-stone-800 rounded-xl p-3 flex items-start gap-2">
               <p className="flex-1 text-stone-200 text-sm whitespace-pre-wrap break-words">{n.body}</p>
-              <button onClick={() => removeNote(n.id)} aria-label="Delete note" className="shrink-0 text-stone-500 hover:text-red-400">
+              <button onClick={() => removeNote(n.id)} aria-label={c.deleteNoteAria} className="shrink-0 text-stone-500 hover:text-red-400">
                 <Trash2 size={15} />
               </button>
             </li>
           ))}
-          {notes.length === 0 && <li className="text-stone-500 text-sm">No notes yet.</li>}
+          {notes.length === 0 && <li className="text-stone-500 text-sm">{c.noNotesYet}</li>}
         </ul>
       </section>
 
       {/* Sticky quick-actions bar — message / draft / suggest foods / note / reviewed */}
       <div className="fixed bottom-0 left-0 right-0 z-40 bg-stone-950/95 backdrop-blur border-t border-stone-800 px-2 py-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))]">
         <div className="flex items-stretch gap-1 max-w-xl mx-auto">
-          <QuickAction icon={<Send size={16} />} label="Message" onClick={draftFromBar} />
-          <QuickAction icon={<Sparkles size={16} />} label="Draft" onClick={draftFromBar} />
-          <QuickAction icon={<Utensils size={16} />} label="Foods" onClick={() => scrollTo(signals.length ? 'key-issues' : 'copilot')} />
-          <QuickAction icon={<Lock size={16} />} label="Note" onClick={focusNote} />
+          <QuickAction icon={<Send size={16} />} label={c.quickMessage} onClick={draftFromBar} />
+          <QuickAction icon={<Sparkles size={16} />} label={c.quickDraft} onClick={draftFromBar} />
+          <QuickAction icon={<Utensils size={16} />} label={c.quickFoods} onClick={() => scrollTo(signals.length ? 'key-issues' : 'copilot')} />
+          <QuickAction icon={<Lock size={16} />} label={c.quickNote} onClick={focusNote} />
           <QuickAction
             icon={reviewedToday ? <Check size={16} /> : <ShieldCheck size={16} />}
-            label={reviewedToday ? 'Reviewed' : reviewing ? '…' : 'Review'}
+            label={reviewedToday ? c.quickReviewed : reviewing ? '…' : c.quickReview}
             onClick={markReviewed}
             active={reviewedToday}
           />

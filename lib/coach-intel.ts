@@ -54,6 +54,158 @@ export interface MemberIntel {
   recommendedActions: RecommendedAction[]
 }
 
+// Localized strings for this module's generated text (labels, detail lines,
+// the templated summary, recommended actions, group insights). Supplied by the
+// caller from the i18n dictionary; defaults to English so buildIntel/etc. stay
+// usable without wiring i18n.
+export interface CoachIntelStrings {
+  dateLocale: string
+  mealLabel: (mealType: string) => string
+  complianceLabels: Record<ComplianceMetric['key'], string>
+  calorieDetail: (avg: number, target: number) => string
+  noMealsLogged: string
+  proteinDetail: (avg: number, target: number) => string
+  hydrationDetail: (oz: number, targetOz: number) => string
+  noWaterLogged: string
+  microDetail: (hit: number, total: number) => string
+  noMicroData: string
+  activityDetail: (n: number, goal: number) => string
+  hydrationLabel: string
+  behaviorConsistent: string
+  behaviorInconsistent: string
+  behaviorSkipped: string
+  confDaysLogged: (n: number) => string
+  confWeightYes: string
+  confWeightNo: string
+  confHydrationYes: string
+  confHydrationNo: string
+  headlineNoData: (first: string) => string
+  headlineBelow: (first: string, dev: number) => string
+  headlineAbove: (first: string, dev: number) => string
+  headlineOnTrack: (first: string) => string
+  causeSkippedBreakfast: (n: number) => string
+  causeWaterDown: (pct: number) => string
+  causeHydrationBelow: string
+  causeProteinBelow: (n: number, total: number) => string
+  riskUnsustainableLoss: string
+  riskUnderfuelling: string
+  riskSurplusSlowing: string
+  riskLowProtein: string
+  recProteinWithBreakfast: string
+  recProteinNoBreakfast: string
+  recHydration: string
+  recCalories: string
+  recMicronutrients: string
+  recActivity: string
+  recDefault: string
+  memberFallback: string
+  actionBreakfastTitle: string
+  actionBreakfastOutcome: string
+  actionBreakfastMessage: (first: string) => string
+  actionProteinTitle: string
+  actionProteinOutcome: string
+  actionProteinMessage: (first: string) => string
+  actionHydrationTitle: string
+  actionHydrationOutcome: string
+  actionHydrationMessage: (first: string) => string
+  actionMicroTitle: string
+  actionMicroOutcome: string
+  actionMicroMessage: (first: string) => string
+  actionCaloriesTitle: string
+  actionCaloriesOutcome: string
+  actionCaloriesMessage: (first: string) => string
+  actionEncouragementTitle: string
+  actionEncouragementOutcome: string
+  actionEncouragementMessage: (first: string) => string
+  primaryIssueNotLogged: string
+  primaryIssueDaysSince: (n: number) => string
+  primaryIssueLabelPct: (label: string, pct: number) => string
+  primaryIssueOnTrack: string
+  healthThriving: string
+  healthHealthy: string
+  healthNeedsWork: string
+  healthAtRisk: string
+  insightUnderProtein: (n: number) => string
+  insightUnderHydration: (n: number) => string
+  insightStoppedLogging: (n: number) => string
+  insightOnTrack: (n: number) => string
+  insightSteady: string
+}
+
+export const EN_COACH_INTEL_STRINGS: CoachIntelStrings = {
+  dateLocale: 'en-US',
+  mealLabel: (t) => t[0].toUpperCase() + t.slice(1),
+  complianceLabels: { calories: 'Calories', protein: 'Protein', hydration: 'Hydration', micronutrients: 'Micronutrients', activity: 'Activity' },
+  calorieDetail: (avg, target) => `${Math.round(avg).toLocaleString()} of ${target.toLocaleString()} kcal/day`,
+  noMealsLogged: 'No meals logged',
+  proteinDetail: (avg, target) => `${Math.round(avg)} of ${Math.round(target)} g/day`,
+  hydrationDetail: (oz, targetOz) => `${oz} of ${targetOz} oz/day`,
+  noWaterLogged: 'No water logged',
+  microDetail: (hit, total) => `${hit} of ${total} on track`,
+  noMicroData: 'No data',
+  activityDetail: (n, goal) => `${n} of ${goal} active days`,
+  hydrationLabel: 'Hydration',
+  behaviorConsistent: 'Consistent',
+  behaviorInconsistent: 'Inconsistent',
+  behaviorSkipped: 'Frequently skipped',
+  confDaysLogged: (n) => `${n} of 7 days logged`,
+  confWeightYes: 'Weight data available',
+  confWeightNo: 'No recent weight data',
+  confHydrationYes: 'Hydration tracked',
+  confHydrationNo: 'Hydration not logged',
+  headlineNoData: (first) => `Not enough recent data to summarise ${first}'s week.`,
+  headlineBelow: (first, dev) => `${first} is averaging ${Math.abs(dev).toLocaleString()} kcal below target.`,
+  headlineAbove: (first, dev) => `${first} is averaging ${dev.toLocaleString()} kcal above target.`,
+  headlineOnTrack: (first) => `${first} is tracking close to their calorie target.`,
+  causeSkippedBreakfast: (n) => `Skipped breakfast ${n} of 7 days`,
+  causeWaterDown: (pct) => `Water intake down ${pct}%`,
+  causeHydrationBelow: 'Hydration below target',
+  causeProteinBelow: (n, total) => `Protein below target ${n} of ${total} days`,
+  riskUnsustainableLoss: 'Accelerated / unsustainable weight loss',
+  riskUnderfuelling: 'Under-fuelling relative to goal',
+  riskSurplusSlowing: 'Calorie surplus is slowing weight-loss progress',
+  riskLowProtein: 'Low protein may cost lean mass',
+  recProteinWithBreakfast: 'Add a protein-rich breakfast to lift protein and consistency.',
+  recProteinNoBreakfast: 'Add a higher-protein snack or meal to close the protein gap.',
+  recHydration: 'Set a hydration reminder and aim for steady water through the day.',
+  recCalories: 'Stabilise daily intake closer to target with regular meals.',
+  recMicronutrients: 'Add nutrient-dense whole foods to fill the biggest micronutrient gaps.',
+  recActivity: 'Encourage a couple more active days this week — even short walks count.',
+  recDefault: 'Keep the momentum going with consistent logging.',
+  memberFallback: 'Member',
+  actionBreakfastTitle: 'Breakfast consistency challenge',
+  actionBreakfastOutcome: 'Steadier energy and easier protein & calorie targets',
+  actionBreakfastMessage: (first) => `Hey ${first}, let's make breakfast a non-negotiable this week — even something quick. Want to try a 5-day breakfast streak together?`,
+  actionProteinTitle: 'Boost daily protein',
+  actionProteinOutcome: 'Better satiety and lean-mass retention',
+  actionProteinMessage: (first) => `Hi ${first}, your protein has been running a bit low. Adding a protein source to each meal (eggs, Greek yogurt, chicken) would make a big difference — want some easy swaps?`,
+  actionHydrationTitle: 'Hydration reset',
+  actionHydrationOutcome: 'Better appetite control and recovery',
+  actionHydrationMessage: (first) => `Hey ${first}, I noticed hydration dipped this week. Let's set a simple goal — a glass with each meal plus your bottle. How does that sound?`,
+  actionMicroTitle: 'Close micronutrient gaps',
+  actionMicroOutcome: 'Fewer deficiencies, better energy',
+  actionMicroMessage: (first) => `Hi ${first}, a few key nutrients came up short this week. A couple of targeted whole foods would close most of the gap — want me to suggest some?`,
+  actionCaloriesTitle: 'Stabilise daily intake',
+  actionCaloriesOutcome: 'More sustainable progress toward the goal',
+  actionCaloriesMessage: (first) => `Hey ${first}, your intake has been swinging quite a bit. Let's aim for more even meals day to day — what's been getting in the way?`,
+  actionEncouragementTitle: 'Send encouragement',
+  actionEncouragementOutcome: 'Reinforces a strong week and keeps momentum',
+  actionEncouragementMessage: (first) => `${first}, awesome week — you've stayed consistent and on target. Really proud of the effort. Keep it rolling! 🎉`,
+  primaryIssueNotLogged: 'Has not logged yet',
+  primaryIssueDaysSince: (n) => `${n} days since last log`,
+  primaryIssueLabelPct: (label, pct) => `${label} ${pct}%`,
+  primaryIssueOnTrack: 'On track',
+  healthThriving: 'Thriving',
+  healthHealthy: 'Healthy',
+  healthNeedsWork: 'Needs work',
+  healthAtRisk: 'At risk',
+  insightUnderProtein: (n) => `${n} members are consistently under their protein target.`,
+  insightUnderHydration: (n) => `${n} members are under-hydrated this week.`,
+  insightStoppedLogging: (n) => `${n} member${n === 1 ? ' has' : 's have'} stopped logging.`,
+  insightOnTrack: (n) => `${n} member${n === 1 ? ' is' : 's are'} on track — a quick check-in keeps momentum.`,
+  insightSteady: 'Logging is steady across the group this week.',
+}
+
 // ── helpers ──────────────────────────────────────────────────────────────────
 const within = (foods: { logged_at: string }[], fromMs: number, toMs: number) =>
   foods.filter(f => { const t = new Date(f.logged_at).getTime(); return t >= fromMs && t < toMs })
@@ -124,7 +276,9 @@ export function buildIntel(opts: {
   waterTargetMl: number
   now?: number
   timeZone?: string   // bucket days in the member's zone; defaults to UTC
+  strings?: CoachIntelStrings   // localized output strings; defaults to English.
 }): MemberIntel {
+  const S = opts.strings ?? EN_COACH_INTEL_STRINGS
   const now = opts.now ?? Date.now()
   const tz = opts.timeZone
   const dk: DayKeyFn = tz ? (iso) => userDayKey(iso, tz) : dayKey
@@ -164,64 +318,64 @@ export function buildIntel(opts: {
 
   const compliance: ComplianceMetric[] = [
     {
-      key: 'calories', label: 'Calories', pct: clamp(calPct),
+      key: 'calories', label: S.complianceLabels.calories, pct: clamp(calPct),
       severity: calPct === null ? 'critical' : bandCalories(calPct),
       ...trendOf(calPct, calPctP),
-      detail: calAvg !== null ? `${Math.round(calAvg).toLocaleString()} of ${calTarget.toLocaleString()} kcal/day` : 'No meals logged',
+      detail: calAvg !== null ? S.calorieDetail(calAvg, calTarget) : S.noMealsLogged,
     },
     {
-      key: 'protein', label: 'Protein', pct: clamp(protPct),
+      key: 'protein', label: S.complianceLabels.protein, pct: clamp(protPct),
       severity: protPct === null ? 'critical' : bandHigher(protPct),
       ...trendOf(protPct, protPctP),
-      detail: protAvg !== null ? `${Math.round(protAvg)} of ${Math.round(protTarget)} g/day` : 'No meals logged',
+      detail: protAvg !== null ? S.proteinDetail(protAvg, protTarget) : S.noMealsLogged,
     },
     {
-      key: 'hydration', label: 'Hydration', pct: clamp(hydPct),
+      key: 'hydration', label: S.complianceLabels.hydration, pct: clamp(hydPct),
       severity: hydPct === null ? 'critical' : bandHigher(hydPct),
       ...trendOf(hydPct, hydPctP),
-      detail: watAvg !== null ? `${Math.round(watAvg / 29.5735)} of ${Math.round(waterTarget / 29.5735)} oz/day` : 'No water logged',
+      detail: watAvg !== null ? S.hydrationDetail(Math.round(watAvg / 29.5735), Math.round(waterTarget / 29.5735)) : S.noWaterLogged,
     },
     {
-      key: 'micronutrients', label: 'Micronutrients', pct: clamp(micro),
+      key: 'micronutrients', label: S.complianceLabels.micronutrients, pct: clamp(micro),
       severity: micro === null ? 'critical' : bandHigher(micro),
       ...trendOf(micro, microP),
-      detail: micro !== null ? `${Math.round(micro / 100 * NUTRIENT_KEYS.length)} of ${NUTRIENT_KEYS.length} on track` : 'No data',
+      detail: micro !== null ? S.microDetail(Math.round(micro / 100 * NUTRIENT_KEYS.length), NUTRIENT_KEYS.length) : S.noMicroData,
     },
     {
-      key: 'activity', label: 'Activity', pct: clamp(actPct),
+      key: 'activity', label: S.complianceLabels.activity, pct: clamp(actPct),
       severity: bandHigher(actPct),
       ...trendOf(actPct, actPctP),
-      detail: `${activeDays(aw, dk)} of ${ACTIVE_DAYS_GOAL} active days`,
+      detail: S.activityDetail(activeDays(aw, dk), ACTIVE_DAYS_GOAL),
     },
   ]
 
   // ── Behaviour patterns (per-meal consistency over the week) ─────────────────
   const mealDays = (type: string) => new Set(fw.filter(f => f.meal_type === type).map(f => dk(f.logged_at))).size
   const behaviorNote = (n: number): { note: string; severity: Severity } =>
-    n >= 6 ? { note: 'Consistent', severity: 'good' }
-    : n >= 3 ? { note: 'Inconsistent', severity: 'watch' }
-    : { note: 'Frequently skipped', severity: n === 0 ? 'critical' : 'high' }
+    n >= 6 ? { note: S.behaviorConsistent, severity: 'good' }
+    : n >= 3 ? { note: S.behaviorInconsistent, severity: 'watch' }
+    : { note: S.behaviorSkipped, severity: n === 0 ? 'critical' : 'high' }
   const waterDays = new Set(ww.map(w => dk(w.logged_at))).size
 
   const behavior: BehaviorRow[] = [
     ...(['breakfast', 'lunch', 'dinner'] as const).map(t => {
       const n = mealDays(t)
-      return { label: t[0].toUpperCase() + t.slice(1), logged: n, of: 7, ...behaviorNote(n) }
+      return { label: S.mealLabel(t), logged: n, of: 7, ...behaviorNote(n) }
     }),
-    (() => { const b = behaviorNote(waterDays); return { label: 'Hydration', logged: waterDays, of: 7, note: b.note, severity: b.severity } })(),
+    (() => { const b = behaviorNote(waterDays); return { label: S.hydrationLabel, logged: waterDays, of: 7, note: b.note, severity: b.severity } })(),
   ]
 
   // ── Confidence (data completeness) ──────────────────────────────────────────
   const reasons: string[] = []
   let conf = Math.round((days / 7) * 70)
-  reasons.push(`${days} of 7 days logged`)
-  if (opts.hasWeight) { conf += 15; reasons.push('Weight data available') } else { reasons.push('No recent weight data') }
-  if (waterDays > 0) { conf += 15; reasons.push('Hydration tracked') } else { reasons.push('Hydration not logged') }
+  reasons.push(S.confDaysLogged(days))
+  if (opts.hasWeight) { conf += 15; reasons.push(S.confWeightYes) } else { reasons.push(S.confWeightNo) }
+  if (waterDays > 0) { conf += 15; reasons.push(S.confHydrationYes) } else { reasons.push(S.confHydrationNo) }
   const confidence = { pct: Math.max(0, Math.min(100, conf)), reasons }
 
   // ── Templated natural-language summary ──────────────────────────────────────
-  const first = opts.name.trim().split(/\s+/)[0] || 'This member'
-  let headline = `Not enough recent data to summarise ${first}'s week.`
+  const first = opts.name.trim().split(/\s+/)[0] || S.memberFallback
+  let headline = S.headlineNoData(first)
   const causes: string[] = []
   let risk: string | null = null
   let recommendation: string | null = null
@@ -229,18 +383,18 @@ export function buildIntel(opts: {
   if (hasData && calAvg !== null) {
     const dev = Math.round(calAvg - calTarget)
     headline = dev < -50
-      ? `${first} is averaging ${Math.abs(dev).toLocaleString()} kcal below target.`
+      ? S.headlineBelow(first, dev)
       : dev > 50
-        ? `${first} is averaging ${dev.toLocaleString()} kcal above target.`
-        : `${first} is tracking close to their calorie target.`
+        ? S.headlineAbove(first, dev)
+        : S.headlineOnTrack(first)
 
     // Causes — only the ones the data supports.
     const breakfastDays = mealDays('breakfast')
-    if (breakfastDays <= 4) causes.push(`Skipped breakfast ${7 - breakfastDays} of 7 days`)
+    if (breakfastDays <= 4) causes.push(S.causeSkippedBreakfast(7 - breakfastDays))
     if (hydPct !== null && hydPctP !== null && hydPct < hydPctP - 10) {
-      causes.push(`Water intake down ${Math.round(hydPctP - hydPct)}%`)
+      causes.push(S.causeWaterDown(Math.round(hydPctP - hydPct)))
     } else if (hydPct !== null && hydPct < 60) {
-      causes.push('Hydration below target')
+      causes.push(S.causeHydrationBelow)
     }
     const lowProteinDays = new Set(
       fw.filter(f => f.protein_g !== undefined).map(f => dk(f.logged_at)),
@@ -249,22 +403,22 @@ export function buildIntel(opts: {
     const protByDay = new Map<string, number>()
     for (const f of fw) protByDay.set(dk(f.logged_at), (protByDay.get(dk(f.logged_at)) ?? 0) + (f.protein_g || 0))
     const underProtein = [...protByDay.values()].filter(p => p < protTarget * 0.8).length
-    if (underProtein >= 2) causes.push(`Protein below target ${underProtein} of ${lowProteinDays.size || days} days`)
+    if (underProtein >= 2) causes.push(S.causeProteinBelow(underProtein, lowProteinDays.size || days))
 
     // Risk
-    if (dev < -300 && (opts.goal === 'lose_weight' || opts.goal === null)) risk = 'Accelerated / unsustainable weight loss'
-    else if (dev < -300) risk = 'Under-fuelling relative to goal'
-    else if (dev > 300 && opts.goal === 'lose_weight') risk = 'Calorie surplus is slowing weight-loss progress'
-    else if ((protPct ?? 100) < 60) risk = 'Low protein may cost lean mass'
+    if (dev < -300 && (opts.goal === 'lose_weight' || opts.goal === null)) risk = S.riskUnsustainableLoss
+    else if (dev < -300) risk = S.riskUnderfuelling
+    else if (dev > 300 && opts.goal === 'lose_weight') risk = S.riskSurplusSlowing
+    else if ((protPct ?? 100) < 60) risk = S.riskLowProtein
 
     // Recommendation — from the most pressing issue
     const worst = [...compliance].sort((a, b) => sevRank(b.severity) - sevRank(a.severity))[0]
     recommendation = worst
-      ? recForMetric(worst.key, breakfastDays)
-      : 'Keep the momentum going with consistent logging.'
+      ? recForMetric(worst.key, breakfastDays, S)
+      : S.recDefault
   }
 
-  const recommendedActions = buildRecommendedActions(first, compliance, mealDays('breakfast'), hasData)
+  const recommendedActions = buildRecommendedActions(first, compliance, mealDays('breakfast'), hasData, S)
 
   return {
     hasData,
@@ -280,7 +434,7 @@ export function buildIntel(opts: {
 // One-tap coaching plays, ranked by impact, derived from the worst areas. Each
 // carries a ready-to-send message the coach can copy and edit.
 function buildRecommendedActions(
-  first: string, compliance: ComplianceMetric[], breakfastDays: number, hasData: boolean,
+  first: string, compliance: ComplianceMetric[], breakfastDays: number, hasData: boolean, S: CoachIntelStrings,
 ): RecommendedAction[] {
   if (!hasData) return []
   const by = (k: ComplianceMetric['key']) => compliance.find(c => c.key === k)
@@ -289,45 +443,45 @@ function buildRecommendedActions(
 
   if (breakfastDays <= 4) {
     out.push({
-      title: 'Breakfast consistency challenge', impact: 'High',
-      outcome: 'Steadier energy and easier protein & calorie targets',
-      message: `Hey ${first}, let's make breakfast a non-negotiable this week — even something quick. Want to try a 5-day breakfast streak together?`,
+      title: S.actionBreakfastTitle, impact: 'High',
+      outcome: S.actionBreakfastOutcome,
+      message: S.actionBreakfastMessage(first),
     })
   }
   if (bad(by('protein'))) {
     out.push({
-      title: 'Boost daily protein', impact: 'High',
-      outcome: 'Better satiety and lean-mass retention',
-      message: `Hi ${first}, your protein has been running a bit low. Adding a protein source to each meal (eggs, Greek yogurt, chicken) would make a big difference — want some easy swaps?`,
+      title: S.actionProteinTitle, impact: 'High',
+      outcome: S.actionProteinOutcome,
+      message: S.actionProteinMessage(first),
     })
   }
   if (bad(by('hydration'))) {
     out.push({
-      title: 'Hydration reset', impact: 'Medium',
-      outcome: 'Better appetite control and recovery',
-      message: `Hey ${first}, I noticed hydration dipped this week. Let's set a simple goal — a glass with each meal plus your bottle. How does that sound?`,
+      title: S.actionHydrationTitle, impact: 'Medium',
+      outcome: S.actionHydrationOutcome,
+      message: S.actionHydrationMessage(first),
     })
   }
   if (bad(by('micronutrients'))) {
     out.push({
-      title: 'Close micronutrient gaps', impact: 'Medium',
-      outcome: 'Fewer deficiencies, better energy',
-      message: `Hi ${first}, a few key nutrients came up short this week. A couple of targeted whole foods would close most of the gap — want me to suggest some?`,
+      title: S.actionMicroTitle, impact: 'Medium',
+      outcome: S.actionMicroOutcome,
+      message: S.actionMicroMessage(first),
     })
   }
   const cal = by('calories')
   if (cal && cal.severity === 'critical') {
     out.push({
-      title: 'Stabilise daily intake', impact: 'High',
-      outcome: 'More sustainable progress toward the goal',
-      message: `Hey ${first}, your intake has been swinging quite a bit. Let's aim for more even meals day to day — what's been getting in the way?`,
+      title: S.actionCaloriesTitle, impact: 'High',
+      outcome: S.actionCaloriesOutcome,
+      message: S.actionCaloriesMessage(first),
     })
   }
   if (out.length === 0) {
     out.push({
-      title: 'Send encouragement', impact: 'Low',
-      outcome: 'Reinforces a strong week and keeps momentum',
-      message: `${first}, awesome week — you've stayed consistent and on target. Really proud of the effort. Keep it rolling! 🎉`,
+      title: S.actionEncouragementTitle, impact: 'Low',
+      outcome: S.actionEncouragementOutcome,
+      message: S.actionEncouragementMessage(first),
     })
   }
   const rank = { High: 0, Medium: 1, Low: 2 }
@@ -338,15 +492,13 @@ function sevRank(s: Severity): number {
   return s === 'critical' ? 3 : s === 'high' ? 2 : s === 'watch' ? 1 : 0
 }
 
-function recForMetric(key: ComplianceMetric['key'], breakfastDays: number): string {
+function recForMetric(key: ComplianceMetric['key'], breakfastDays: number, S: CoachIntelStrings): string {
   switch (key) {
-    case 'protein': return breakfastDays <= 4
-      ? 'Add a protein-rich breakfast to lift protein and consistency.'
-      : 'Add a higher-protein snack or meal to close the protein gap.'
-    case 'hydration': return 'Set a hydration reminder and aim for steady water through the day.'
-    case 'calories': return 'Stabilise daily intake closer to target with regular meals.'
-    case 'micronutrients': return 'Add nutrient-dense whole foods to fill the biggest micronutrient gaps.'
-    case 'activity': return 'Encourage a couple more active days this week — even short walks count.'
+    case 'protein': return breakfastDays <= 4 ? S.recProteinWithBreakfast : S.recProteinNoBreakfast
+    case 'hydration': return S.recHydration
+    case 'calories': return S.recCalories
+    case 'micronutrients': return S.recMicronutrients
+    case 'activity': return S.recActivity
   }
 }
 
@@ -389,7 +541,8 @@ export interface MemberRollup {
 }
 
 /** Roll a member's full intel + recency into a single triage verdict. */
-export function rollupMember(intel: MemberIntel, daysSinceLog: number | null): MemberRollup {
+export function rollupMember(intel: MemberIntel, daysSinceLog: number | null, strings?: CoachIntelStrings): MemberRollup {
+  const S = strings ?? EN_COACH_INTEL_STRINGS
   const loggingPct = Math.round((intel.daysLogged / 7) * 100)
   const get = (k: ComplianceMetric['key']) => intel.compliance.find(c => c.key === k)
   const caloriePct = get('calories')?.pct ?? null
@@ -405,10 +558,10 @@ export function rollupMember(intel: MemberIntel, daysSinceLog: number | null): M
   else if (daysSinceLog !== null && daysSinceLog >= 2) severity = worse(severity, 'high')
 
   let primaryIssue: string
-  if (daysSinceLog === null) primaryIssue = 'Has not logged yet'
-  else if (daysSinceLog >= 2) primaryIssue = `${daysSinceLog} days since last log`
-  else if (ranked.length > 0) primaryIssue = `${ranked[0].label} ${ranked[0].pct}%`
-  else primaryIssue = 'On track'
+  if (daysSinceLog === null) primaryIssue = S.primaryIssueNotLogged
+  else if (daysSinceLog >= 2) primaryIssue = S.primaryIssueDaysSince(daysSinceLog)
+  else if (ranked.length > 0) primaryIssue = S.primaryIssueLabelPct(ranked[0].label, ranked[0].pct)
+  else primaryIssue = S.primaryIssueOnTrack
 
   const priority = sevRank2(severity) * 1000 + (daysSinceLog ?? 7) * 25 + ranked.length * 10
   return { severity, priority, primaryIssue, loggingPct, caloriePct, proteinPct, hydrationPct, daysSinceLog }
@@ -424,7 +577,8 @@ export interface GroupIntel {
 
 const calorieAdherence = (pct: number | null) => pct === null ? 0 : Math.max(0, 100 - Math.abs(pct - 100))
 
-export function buildGroupIntel(rollups: MemberRollup[], opts: { checkinsSent: number }): GroupIntel {
+export function buildGroupIntel(rollups: MemberRollup[], opts: { checkinsSent: number }, strings?: CoachIntelStrings): GroupIntel {
+  const S = strings ?? EN_COACH_INTEL_STRINGS
   const total = rollups.length
   const counts = {
     critical: rollups.filter(r => r.severity === 'critical').length,
@@ -444,7 +598,7 @@ export function buildGroupIntel(rollups: MemberRollup[], opts: { checkinsSent: n
   )
   const engagementPct = total > 0 ? Math.min(100, (opts.checkinsSent / total) * 100) : 0
   const healthScore = total === 0 ? 0 : Math.round(0.85 * avg(memberHealth) + 0.15 * engagementPct)
-  const healthLabel = healthScore >= 80 ? 'Thriving' : healthScore >= 60 ? 'Healthy' : healthScore >= 40 ? 'Needs work' : 'At risk'
+  const healthLabel = healthScore >= 80 ? S.healthThriving : healthScore >= 60 ? S.healthHealthy : healthScore >= 40 ? S.healthNeedsWork : S.healthAtRisk
 
   const hydrationCompliancePct = total > 0
     ? Math.round(rollups.filter(r => (r.hydrationPct ?? 0) >= 80).length / total * 100) : 0
@@ -452,13 +606,13 @@ export function buildGroupIntel(rollups: MemberRollup[], opts: { checkinsSent: n
   // ── Deterministic group insights ──────────────────────────────────────────
   const insights: string[] = []
   const underProtein = rollups.filter(r => r.proteinPct !== null && r.proteinPct < 70).length
-  if (underProtein >= 2) insights.push(`${underProtein} members are consistently under their protein target.`)
+  if (underProtein >= 2) insights.push(S.insightUnderProtein(underProtein))
   const underHydration = rollups.filter(r => (r.hydrationPct ?? 0) < 50 && r.loggingPct > 0).length
-  if (underHydration >= 2) insights.push(`${underHydration} members are under-hydrated this week.`)
+  if (underHydration >= 2) insights.push(S.insightUnderHydration(underHydration))
   const stopped = rollups.filter(r => r.daysSinceLog === null || (r.daysSinceLog ?? 0) >= 3).length
-  if (stopped >= 1) insights.push(`${stopped} member${stopped === 1 ? ' has' : 's have'} stopped logging.`)
-  if (counts.healthy >= 1) insights.push(`${counts.healthy} member${counts.healthy === 1 ? ' is' : 's are'} on track — a quick check-in keeps momentum.`)
-  if (insights.length === 0) insights.push('Logging is steady across the group this week.')
+  if (stopped >= 1) insights.push(S.insightStoppedLogging(stopped))
+  if (counts.healthy >= 1) insights.push(S.insightOnTrack(counts.healthy))
+  if (insights.length === 0) insights.push(S.insightSteady)
 
   return { counts, healthScore, healthLabel, insights: insights.slice(0, 4), hydrationCompliancePct }
 }
@@ -473,7 +627,9 @@ export function buildDailyTrends(opts: {
   span?: number
   now?: number
   timeZone?: string   // bucket days in the member's zone; defaults to UTC
+  strings?: CoachIntelStrings
 }): TrendData {
+  const S = opts.strings ?? EN_COACH_INTEL_STRINGS
   const span = opts.span ?? 30
   const now = opts.now ?? Date.now()
   const tz = opts.timeZone
@@ -501,7 +657,7 @@ export function buildDailyTrends(opts: {
     const cal = Math.round(calByDay.get(key) ?? 0)
     return {
       date: key,
-      label: new Date(key + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }),
+      label: new Date(key + 'T12:00:00Z').toLocaleDateString(S.dateLocale, { month: 'short', day: 'numeric', timeZone: 'UTC' }),
       calories: cal,
       protein: Math.round(protByDay.get(key) ?? 0),
       waterOz: Math.round((watByDay.get(key) ?? 0) / ML_PER_OZ),

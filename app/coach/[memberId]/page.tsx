@@ -5,8 +5,10 @@ import { effectiveDiet, isDiet } from '@/lib/diets'
 import { buildWaterWeek } from '@/lib/water'
 import { calculateMacroTargets } from '@/lib/macros'
 import { resolveTimeZone, userDayKey } from '@/lib/day'
-import { buildIntel, buildDailyTrends, type IntelFood, type IntelWater, type IntelActivity, type WeightPoint } from '@/lib/coach-intel'
+import { buildIntel, buildDailyTrends, type IntelFood, type IntelWater, type IntelActivity, type WeightPoint, type CoachIntelStrings } from '@/lib/coach-intel'
 import { inferVoice } from '@/lib/coach-voice'
+import { getDict } from '@/lib/i18n'
+import { getLocale } from '@/lib/i18n/server'
 import type { Diet, NutrientTotals, Goal } from '@/types'
 import CoachMemberClient, { type CoachNote, type PendingDraft, type MiniPost } from './CoachMemberClient'
 
@@ -31,6 +33,16 @@ export default async function CoachMemberPage({ params }: { params: Promise<{ me
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
+
+  const locale = await getLocale()
+  const t = getDict(locale)
+  const dateLocale = locale === 'es' ? 'es-419' : 'en-US'
+  const intelStrings: CoachIntelStrings = {
+    ...t.coach.gen,
+    dateLocale,
+    complianceLabels: t.coach.gen.complianceLabels as CoachIntelStrings['complianceLabels'],
+    mealLabel: (mt: string) => (t.mealTypes as Record<string, { label: string }>)[mt]?.label ?? t.coach.gen.mealLabel(mt),
+  }
 
   const groupId = await groupForCoachMember(supabase, user.id, memberId)
   if (!groupId) notFound()
@@ -135,7 +147,7 @@ export default async function CoachMemberPage({ params }: { params: Promise<{ me
       meal_type: f.meal_type,
     }))
   const intel = buildIntel({
-    name: profile.display_name ?? 'Member',
+    name: profile.display_name ?? t.coach.memberFallback,
     goal: profile.goal,
     foods: intelFoods,
     water: allWater as IntelWater[],
@@ -145,6 +157,7 @@ export default async function CoachMemberPage({ params }: { params: Promise<{ me
     proteinTarget,
     waterTargetMl: waterTarget,
     timeZone: memberTz,
+    strings: intelStrings,
   })
 
   const weights: WeightPoint[] = ((weightRows ?? []) as { logged_at: string; weight_kg: number | null }[])
@@ -159,11 +172,12 @@ export default async function CoachMemberPage({ params }: { params: Promise<{ me
     waterTargetMl: waterTarget,
     span: 30,
     timeZone: memberTz,
+    strings: intelStrings,
   })
 
   return (
     <CoachMemberClient
-      member={{ id: profile.id, display_name: profile.display_name ?? 'Member', avatar_url: profile.avatar_url }}
+      member={{ id: profile.id, display_name: profile.display_name ?? t.coach.memberFallback, avatar_url: profile.avatar_url }}
       groupId={groupId}
       coachId={user.id}
       memberDiet={memberDiet}

@@ -7,6 +7,8 @@ import { BottomNav } from '../dashboard/DashboardClient'
 import CoachStyleSetting from './CoachStyleSetting'
 import { SEVERITY_STYLE, type Severity, type GroupIntel } from '@/lib/coach-intel'
 import type { AttentionLevel } from '@/lib/copilot'
+import { useI18n } from '@/components/I18nProvider'
+import type { Dict } from '@/lib/i18n/dictionaries'
 
 export interface CoachGroup { id: string; name: string; plan: 'free' | 'coach'; memberCap: number; memberCount: number }
 
@@ -28,14 +30,18 @@ export interface RosterMember {
   primaryIssue: string
 }
 
-const SEV_LABEL: Record<Severity, string> = { critical: 'Critical', high: 'High', watch: 'Watch', good: 'Healthy' }
-const CATEGORIES: { key: 'all' | Severity; label: string }[] = [
-  { key: 'all', label: 'All' },
-  { key: 'critical', label: 'Critical' },
-  { key: 'high', label: 'High' },
-  { key: 'watch', label: 'Watch' },
-  { key: 'good', label: 'Healthy' },
-]
+function sevLabel(s: Severity, c: Dict['coach']): string {
+  return s === 'critical' ? c.critical : s === 'high' ? c.high : s === 'watch' ? c.watch : c.healthy
+}
+function categories(c: Dict['coach']): { key: 'all' | Severity; label: string }[] {
+  return [
+    { key: 'all', label: c.all },
+    { key: 'critical', label: c.critical },
+    { key: 'high', label: c.high },
+    { key: 'watch', label: c.watch },
+    { key: 'good', label: c.healthy },
+  ]
+}
 
 function initials(name: string): string {
   return name.split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase() || '?'
@@ -48,6 +54,9 @@ export default function CoachClient({
   coachId: string; coachStyle: string | null
   group?: GroupIntel | null; mealsToday?: number; checkinsSent?: number
 }) {
+  const { t } = useI18n()
+  const c = t.coach
+  const CATEGORIES = categories(c)
   const [cat, setCat] = useState<'all' | Severity>('all')
   const cappedFreeGroup = groups.find(g => g.plan === 'free' && g.memberCount >= g.memberCap)
   // Members arrive pre-sorted by priority from the server.
@@ -57,12 +66,12 @@ export default function CoachClient({
   return (
     <div className="min-h-screen bg-stone-950 text-white pb-[calc(6rem+env(safe-area-inset-bottom))]">
       <header className="px-4 pt-safe pb-3 flex items-center gap-3">
-        <Link href="/profile" aria-label="Back to profile" className="text-stone-300 hover:text-white">
+        <Link href="/profile" aria-label={c.backToProfile} className="text-stone-300 hover:text-white">
           <ArrowLeft size={22} />
         </Link>
         <div>
-          <h1 className="text-xl font-bold">Coach</h1>
-          <p className="text-stone-400 text-xs">{groups.map(g => g.name).join(' · ') || 'Your group'}</p>
+          <h1 className="text-xl font-bold">{c.title}</h1>
+          <p className="text-stone-400 text-xs">{groups.map(g => g.name).join(' · ') || c.yourGroup}</p>
         </div>
       </header>
 
@@ -71,8 +80,8 @@ export default function CoachClient({
           <CoachStyleSetting userId={coachId} initial={coachStyle} />
           <div className="px-4 mt-10 text-center">
             <p className="text-5xl mb-3">🧑‍🏫</p>
-            <p className="text-stone-200 font-semibold">No members to coach yet</p>
-            <p className="text-stone-400 text-sm mt-1">Invite people to your group and they&apos;ll show up here.</p>
+            <p className="text-stone-200 font-semibold">{c.noMembersTitle}</p>
+            <p className="text-stone-400 text-sm mt-1">{c.noMembersBody}</p>
           </div>
         </>
       ) : (
@@ -84,9 +93,9 @@ export default function CoachClient({
                 <Bell size={18} className="text-amber-300 shrink-0 mt-0.5" />
                 <div>
                   <p className="text-amber-100 text-sm font-semibold">
-                    {needs} client{needs === 1 ? '' : 's'} need{needs === 1 ? 's' : ''} a check-in today
+                    {c.needCheckin(needs)}
                   </p>
-                  <p className="text-amber-200/70 text-xs mt-0.5">Tap a flagged client to review their week and draft a check-in.</p>
+                  <p className="text-amber-200/70 text-xs mt-0.5">{c.needCheckinSub}</p>
                 </div>
               </div>
             </div>
@@ -97,15 +106,15 @@ export default function CoachClient({
               {/* Daily overview — severity counts + today's signals */}
               <section className="px-4 mb-3">
                 <div className="grid grid-cols-4 gap-2">
-                  <OverviewStat label="Critical" value={group.counts.critical} tone="text-red-400" />
-                  <OverviewStat label="High" value={group.counts.high} tone="text-orange-400" />
-                  <OverviewStat label="Watch" value={group.counts.watch} tone="text-amber-300" />
-                  <OverviewStat label="Healthy" value={group.counts.healthy} tone="text-emerald-400" />
+                  <OverviewStat label={c.critical} value={group.counts.critical} tone="text-red-400" />
+                  <OverviewStat label={c.high} value={group.counts.high} tone="text-orange-400" />
+                  <OverviewStat label={c.watch} value={group.counts.watch} tone="text-amber-300" />
+                  <OverviewStat label={c.healthy} value={group.counts.healthy} tone="text-emerald-400" />
                 </div>
                 <div className="grid grid-cols-3 gap-2 mt-2">
-                  <OverviewStat label="Meals today" value={mealsToday ?? 0} tone="text-stone-200" />
-                  <OverviewStat label="Hydration" value={`${group.hydrationCompliancePct}%`} tone="text-sky-300" />
-                  <OverviewStat label="Check-ins" value={checkinsSent ?? 0} tone="text-stone-200" />
+                  <OverviewStat label={c.mealsToday} value={mealsToday ?? 0} tone="text-stone-200" />
+                  <OverviewStat label={c.hydration} value={`${group.hydrationCompliancePct}%`} tone="text-sky-300" />
+                  <OverviewStat label={c.checkins} value={checkinsSent ?? 0} tone="text-stone-200" />
                 </div>
               </section>
 
@@ -113,7 +122,7 @@ export default function CoachClient({
               <section className="px-4 mb-3">
                 <div className="bg-gradient-to-br from-emerald-950/40 to-stone-900 border border-emerald-900/40 rounded-2xl p-4">
                   <div className="flex items-center justify-between mb-2">
-                    <p className="text-stone-300 text-sm font-semibold">Group health score</p>
+                    <p className="text-stone-300 text-sm font-semibold">{c.groupHealthScore}</p>
                     <span className="text-stone-400 text-xs">{group.healthLabel}</span>
                   </div>
                   <div className="flex items-end gap-3">
@@ -132,7 +141,7 @@ export default function CoachClient({
                 <section className="px-4 mb-3">
                   <div className="flex items-center gap-1.5 mb-2">
                     <Sparkles size={13} className="text-emerald-400" />
-                    <p className="text-stone-400 text-xs uppercase tracking-wider">AI insights</p>
+                    <p className="text-stone-400 text-xs uppercase tracking-wider">{c.aiInsights}</p>
                   </div>
                   <ul className="bg-stone-900 border border-stone-800 rounded-2xl divide-y divide-stone-800">
                     {group.insights.map((t, i) => (
@@ -152,16 +161,16 @@ export default function CoachClient({
                 className="flex items-center justify-between bg-emerald-900/30 border border-emerald-800/50 rounded-2xl px-4 py-3 hover:bg-emerald-900/50 transition-colors"
               >
                 <span className="flex items-center gap-2 text-emerald-200 text-sm font-semibold">
-                  <Sparkles size={15} /> {pendingDrafts} check-in{pendingDrafts === 1 ? '' : 's'} ready to review
+                  <Sparkles size={15} /> {c.checkinsReady(pendingDrafts)}
                 </span>
-                <span className="text-emerald-400 text-xs">Open queue →</span>
+                <span className="text-emerald-400 text-xs">{c.openQueue}</span>
               </Link>
             )}
             {cappedFreeGroup && (
               <div className="flex items-center gap-2 bg-stone-900 border border-amber-900/40 rounded-2xl px-4 py-3">
                 <Crown size={15} className="text-amber-400 shrink-0" />
                 <span className="text-stone-300 text-xs">
-                  “{cappedFreeGroup.name}” is full at {cappedFreeGroup.memberCap}. The coach plan unlocks a larger roster.
+                  {c.groupFull(cappedFreeGroup.name, cappedFreeGroup.memberCap)}
                 </span>
               </div>
             )}
@@ -200,7 +209,7 @@ export default function CoachClient({
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
                         <p className="font-semibold truncate">{m.display_name}</p>
-                        <span className={`shrink-0 text-[10px] font-semibold ${s.text}`}>{SEV_LABEL[m.severity]}</span>
+                        <span className={`shrink-0 text-[10px] font-semibold ${s.text}`}>{sevLabel(m.severity, c)}</span>
                       </div>
                       <p className="text-stone-400 text-xs truncate mt-0.5">{m.primaryIssue}</p>
                     </div>
@@ -212,26 +221,28 @@ export default function CoachClient({
                   {/* Quick actions */}
                   <div className="flex border-t border-stone-800 divide-x divide-stone-800">
                     <Link href={`/coach/${m.user_id}`} className="flex-1 flex items-center justify-center gap-1.5 py-2 text-stone-300 hover:text-white hover:bg-stone-800/50 text-xs font-medium transition-colors">
-                      <TrendingUp size={13} /> Review
+                      <TrendingUp size={13} /> {c.review}
                     </Link>
                     <Link href={`/coach/${m.user_id}#copilot`} className="flex-1 flex items-center justify-center gap-1.5 py-2 text-stone-300 hover:text-white hover:bg-stone-800/50 text-xs font-medium transition-colors">
-                      <Send size={13} /> Message
+                      <Send size={13} /> {c.message}
                     </Link>
                     <Link href={`/coach/${m.user_id}#copilot`} className="flex-1 flex items-center justify-center gap-1.5 py-2 text-emerald-300 hover:text-emerald-200 hover:bg-stone-800/50 text-xs font-medium transition-colors">
-                      <Sparkles size={13} /> AI Draft
+                      <Sparkles size={13} /> {c.aiDraft}
                     </Link>
                   </div>
                 </li>
               )
             })}
             {shown.length === 0 && (
-              <li className="text-center text-stone-500 text-sm py-8">No {cat !== 'all' ? SEV_LABEL[cat as Severity].toLowerCase() : ''} clients.</li>
+              <li className="text-center text-stone-500 text-sm py-8">
+                {cat !== 'all' ? c.noClientsCategory(sevLabel(cat as Severity, c).toLowerCase()) : c.noClientsAll}
+              </li>
             )}
           </ul>
 
           {hiddenCount > 0 && (
             <p className="px-4 mt-4 text-stone-500 text-xs flex items-center gap-1.5">
-              <EyeOff size={13} /> {hiddenCount} member{hiddenCount === 1 ? '' : 's'} opted out of coach view.
+              <EyeOff size={13} /> {c.optedOut(hiddenCount)}
             </p>
           )}
 
