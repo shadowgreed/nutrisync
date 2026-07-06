@@ -352,7 +352,7 @@ export default function MealLogger({ onLogged }: Props) {
             className="shrink-0 flex items-center gap-1.5 bg-stone-800 hover:bg-stone-700 border border-stone-700 rounded-xl px-3 text-stone-300 hover:text-white text-sm transition-colors"
           >
             <ScanLine size={16} className="text-emerald-400" />
-            Scan
+            {t.logger.scan}
           </button>
         </div>
 
@@ -487,7 +487,7 @@ export default function MealLogger({ onLogged }: Props) {
             </span>
           ) : saving ? (
             <span className="flex items-center justify-center gap-2">
-              <Loader2 size={16} className="animate-spin" /> Saving…
+              <Loader2 size={16} className="animate-spin" /> {t.common.saving}
             </span>
           ) : (
             t.logger.logMeal(t.mealTypes[mealType].label, foods.length)

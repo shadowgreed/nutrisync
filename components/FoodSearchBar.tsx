@@ -5,6 +5,7 @@ import { Search, Plus, Loader2 } from 'lucide-react'
 import type { FoodEntry, NutrientTotals, MacroTotals } from '@/types'
 import { emptyTotals } from '@/lib/nutrients'
 import { emptyMacros, scaleMacros } from '@/lib/macros'
+import { useI18n } from '@/components/I18nProvider'
 
 interface SearchResult {
   fdcId: string
@@ -30,6 +31,7 @@ function scaleNutrients(per100g: NutrientTotals, servingG: number): NutrientTota
 }
 
 export default function FoodSearchBar({ onAdd }: Props) {
+  const { t } = useI18n()
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<SearchResult[]>([])
   const [loading, setLoading] = useState(false)
@@ -88,7 +90,7 @@ export default function FoodSearchBar({ onAdd }: Props) {
           type="text"
           value={query}
           onChange={e => { setQuery(e.target.value); search(e.target.value) }}
-          placeholder="Search foods (e.g. salmon, spinach)"
+          placeholder={t.logger.searchFoodsPlaceholder}
           className="flex-1 bg-transparent py-3 text-white placeholder-stone-500 text-sm focus:outline-none"
         />
       </div>
