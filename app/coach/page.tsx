@@ -5,7 +5,9 @@ import { computeStreak } from '@/lib/streak'
 import { effectiveDiet, isDiet } from '@/lib/diets'
 import { calculateMacroTargets } from '@/lib/macros'
 import { resolveTimeZone, userDayKey } from '@/lib/day'
-import { buildIntel, rollupMember, buildGroupIntel, type IntelFood, type IntelWater, type IntelActivity, type MemberRollup } from '@/lib/coach-intel'
+import { buildIntel, rollupMember, buildGroupIntel, type IntelFood, type IntelWater, type IntelActivity, type MemberRollup, type CoachIntelStrings } from '@/lib/coach-intel'
+import { getDict } from '@/lib/i18n'
+import { getLocale } from '@/lib/i18n/server'
 import type { NutrientTotals, Diet, Goal } from '@/types'
 import CoachClient, { type CoachGroup, type RosterMember } from './CoachClient'
 
@@ -34,6 +36,16 @@ export default async function CoachPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
+
+  const locale = await getLocale()
+  const t = getDict(locale)
+  const dateLocale = locale === 'es' ? 'es-419' : 'en-US'
+  const intelStrings: CoachIntelStrings = {
+    ...t.coach.gen,
+    dateLocale,
+    complianceLabels: t.coach.gen.complianceLabels as CoachIntelStrings['complianceLabels'],
+    mealLabel: (mt: string) => (t.mealTypes as Record<string, { label: string }>)[mt]?.label ?? t.coach.gen.mealLabel(mt),
+  }
 
   const { data: me } = await supabase.from('profiles').select('coach_style').eq('id', user.id).single()
   const coachStyle = (me?.coach_style as string | null) ?? null
@@ -160,7 +172,7 @@ export default async function CoachPage() {
     const proteinTarget = calculateMacroTargets(p.calorie_target ?? 2000, p.weight_kg, (p.goal as Goal | null) ?? null).protein_g
 
     const intel = buildIntel({
-      name: p.display_name ?? 'Member',
+      name: p.display_name ?? t.coach.memberFallback,
       goal: p.goal,
       foods: userFoods.map(f => ({
         logged_at: f.logged_at, total_calories: f.total_calories ?? 0,
@@ -174,8 +186,9 @@ export default async function CoachPage() {
       proteinTarget,
       waterTargetMl: p.water_daily_target_ml ?? 2500,
       timeZone: memberTz,
+      strings: intelStrings,
     })
-    const rollup = rollupMember(intel, daysSinceLog)
+    const rollup = rollupMember(intel, daysSinceLog, intelStrings)
     rollups.push(rollup)
 
     // Keep assessClient for the legacy attention field (roster colour dot fallback).
@@ -191,7 +204,7 @@ export default async function CoachPage() {
     members.push({
       user_id: m.user_id,
       group_id: m.group_id,
-      display_name: p.display_name ?? 'Member',
+      display_name: p.display_name ?? t.coach.memberFallback,
       avatar_url: p.avatar_url,
       attention, streak,
       daysLogged: intel.daysLogged,
@@ -209,7 +222,7 @@ export default async function CoachPage() {
   // Review-queue order: highest priority first, then longest streak.
   members.sort((a, b) => b.priority - a.priority || b.streak - a.streak)
 
-  const group = buildGroupIntel(rollups, { checkinsSent: checkinsSent ?? 0 })
+  const group = buildGroupIntel(rollups, { checkinsSent: checkinsSent ?? 0 }, intelStrings)
 
   return (
     <CoachClient

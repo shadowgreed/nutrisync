@@ -3,6 +3,8 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { ArrowLeft, Send, RotateCcw, X, Sparkles } from 'lucide-react'
+import { useI18n } from '@/components/I18nProvider'
+import type { Dict } from '@/lib/i18n/dictionaries'
 
 export interface QueueItem {
   id: string
@@ -13,8 +15,8 @@ export interface QueueItem {
   avatar_url: string | null
 }
 
-const KIND_LABEL: Record<QueueItem['kind'], string> = {
-  nudge: 'Nudge', praise: 'Praise', weekly_checkin: 'Weekly check-in',
+function kindLabel(kind: QueueItem['kind'], c: Dict['coach']): string {
+  return kind === 'nudge' ? c.kindNudge : kind === 'praise' ? c.kindPraise : c.kindWeekly
 }
 
 function initials(name: string): string {
@@ -22,6 +24,8 @@ function initials(name: string): string {
 }
 
 function QueueCard({ item, onResolved }: { item: QueueItem; onResolved: (id: string, sent: boolean) => void }) {
+  const { t } = useI18n()
+  const c = t.coach
   const [text, setText] = useState(item.draft_text)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -34,9 +38,9 @@ function QueueCard({ item, onResolved }: { item: QueueItem; onResolved: (id: str
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ draftId: item.id, action: 'send', text }),
       })
-      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? 'Could not send')
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? c.couldNotSend)
       onResolved(item.id, true)
-    } catch (e) { setError(e instanceof Error ? e.message : 'Could not send'); setBusy(false) }
+    } catch (e) { setError(e instanceof Error ? e.message : c.couldNotSend); setBusy(false) }
   }
 
   async function dismiss() {
@@ -58,9 +62,9 @@ function QueueCard({ item, onResolved }: { item: QueueItem; onResolved: (id: str
         body: JSON.stringify({ memberId: item.member_id }),
       })
       const json = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(json.error ?? 'Could not redraft')
+      if (!res.ok) throw new Error(json.error ?? c.couldNotRedraft)
       setText(json.draft.draft_text as string)
-    } catch (e) { setError(e instanceof Error ? e.message : 'Could not redraft') }
+    } catch (e) { setError(e instanceof Error ? e.message : c.couldNotRedraft) }
     finally { setBusy(false) }
   }
 
@@ -74,7 +78,7 @@ function QueueCard({ item, onResolved }: { item: QueueItem; onResolved: (id: str
           <span className="font-semibold truncate">{item.display_name}</span>
         </Link>
         <span className="ml-auto text-[10px] font-semibold px-1.5 py-0.5 rounded-full border border-emerald-800/60 bg-emerald-900/40 text-emerald-200">
-          {KIND_LABEL[item.kind]}
+          {kindLabel(item.kind, c)}
         </span>
       </div>
       <textarea
@@ -85,13 +89,13 @@ function QueueCard({ item, onResolved }: { item: QueueItem; onResolved: (id: str
       />
       <div className="flex items-center gap-2 mt-3">
         <button onClick={send} disabled={busy || !text.trim()} className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors">
-          <Send size={14} /> Send
+          <Send size={14} /> {c.send}
         </button>
-        <button onClick={redo} disabled={busy} aria-label="Regenerate" className="flex items-center gap-1.5 bg-stone-800 hover:bg-stone-700 disabled:opacity-50 text-stone-200 text-sm font-semibold px-3 py-2 rounded-xl transition-colors">
-          <RotateCcw size={14} /> Redo
+        <button onClick={redo} disabled={busy} aria-label={c.regenerateAria} className="flex items-center gap-1.5 bg-stone-800 hover:bg-stone-700 disabled:opacity-50 text-stone-200 text-sm font-semibold px-3 py-2 rounded-xl transition-colors">
+          <RotateCcw size={14} /> {c.redo}
         </button>
         <button onClick={dismiss} disabled={busy} className="ml-auto flex items-center gap-1.5 text-stone-400 hover:text-red-300 text-sm px-2 py-2 transition-colors">
-          <X size={15} /> Dismiss
+          <X size={15} /> {c.dismiss}
         </button>
       </div>
       {error && <p className="text-red-400 text-xs mt-2">{error}</p>}
@@ -100,32 +104,34 @@ function QueueCard({ item, onResolved }: { item: QueueItem; onResolved: (id: str
 }
 
 export default function QueueClient({ initialItems }: { initialItems: QueueItem[] }) {
+  const { t } = useI18n()
+  const c = t.coach
   const [items, setItems] = useState<QueueItem[]>(initialItems)
   const [sentCount, setSentCount] = useState(0)
 
   function onResolved(id: string, sent: boolean) {
     setItems(prev => prev.filter(i => i.id !== id))
-    if (sent) setSentCount(c => c + 1)
+    if (sent) setSentCount(n => n + 1)
   }
 
   return (
     <div className="min-h-screen bg-stone-950 text-white pb-16">
       <header className="px-4 pt-safe pb-3 flex items-center gap-3">
-        <Link href="/coach" aria-label="Back to roster" className="text-stone-300 hover:text-white">
+        <Link href="/coach" aria-label={c.backToRoster} className="text-stone-300 hover:text-white">
           <ArrowLeft size={22} />
         </Link>
         <div>
-          <h1 className="text-xl font-bold flex items-center gap-2"><Sparkles size={18} className="text-emerald-400" /> Check-in queue</h1>
-          <p className="text-stone-400 text-xs">{items.length} pending{sentCount ? ` · ${sentCount} sent` : ''}</p>
+          <h1 className="text-xl font-bold flex items-center gap-2"><Sparkles size={18} className="text-emerald-400" /> {c.checkinQueue}</h1>
+          <p className="text-stone-400 text-xs">{c.pending(items.length)}{sentCount ? c.sentSuffix(sentCount) : ''}</p>
         </div>
       </header>
 
       {items.length === 0 ? (
         <div className="px-4 mt-10 text-center">
           <p className="text-5xl mb-3">{sentCount ? '✅' : '✨'}</p>
-          <p className="text-stone-200 font-semibold">{sentCount ? 'All caught up!' : 'No drafts waiting'}</p>
+          <p className="text-stone-200 font-semibold">{sentCount ? c.allCaughtUp : c.noDraftsWaiting}</p>
           <p className="text-stone-400 text-sm mt-1">
-            {sentCount ? 'Your check-ins are on their way.' : 'Open a member and tap “Draft a check-in” to queue one up.'}
+            {sentCount ? c.onTheWay : c.openMemberHint}
           </p>
         </div>
       ) : (
