@@ -3,6 +3,8 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendPushToUser } from '@/lib/push'
 import { parseJson, badRequest } from '@/lib/validate'
+import { getDict } from '@/lib/i18n'
+import { getUserLocale } from '@/lib/i18n/server'
 
 // Recipient's unread notification count, for the app-icon badge. Best-effort.
 async function unreadCount(userId: string): Promise<number | undefined> {
@@ -43,17 +45,17 @@ export async function POST(req: NextRequest) {
   }
   if (!recipient || recipient === user.id) return NextResponse.json({ ok: true, skipped: true })
 
-  const { data: actor } = await supabase
-    .from('profiles')
-    .select('display_name')
-    .eq('id', user.id)
-    .single()
-  const who = actor?.display_name ?? 'Someone'
+  const [{ data: actor }, recipientLocale] = await Promise.all([
+    supabase.from('profiles').select('display_name').eq('id', user.id).single(),
+    getUserLocale(createAdminClient(), recipient),
+  ])
+  const tp = getDict(recipientLocale).pushNotify
+  const who = actor?.display_name ?? tp.someone
 
   const body =
-    kind === 'reply' ? `${who} replied to your comment`
-    : kind === 'comment' ? `${who} commented on your meal`
-    : `${who} reacted to your meal`
+    kind === 'reply' ? tp.replyBody(who)
+    : kind === 'comment' ? tp.commentBody(who)
+    : tp.reactionBody(who)
 
   // sendPushToUser is group-gated server-side, so targetUserId can't be abused
   // to push a stranger.
