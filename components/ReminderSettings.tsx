@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { Droplets, Utensils } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { useI18n } from '@/components/I18nProvider'
 
 function Switch({ on, onChange, label }: { on: boolean; onChange: (v: boolean) => void; label: string }) {
   return (
@@ -20,6 +21,8 @@ function Switch({ on, onChange, label }: { on: boolean; onChange: (v: boolean) =
 }
 
 export default function ReminderSettings() {
+  const { t } = useI18n()
+  const r = t.reminders
   const [water, setWater] = useState(true)
   const [meal, setMeal] = useState(true)
   const [loaded, setLoaded] = useState(false)
@@ -59,26 +62,26 @@ export default function ReminderSettings() {
 
   return (
     <div>
-      <p className="text-stone-400 text-xs uppercase tracking-wider mb-2 px-1">Reminders</p>
+      <p className="text-stone-400 text-xs uppercase tracking-wider mb-2 px-1">{r.title}</p>
       <div className="bg-stone-900 border border-stone-800 rounded-2xl divide-y divide-stone-800">
         <div className="flex items-center gap-3 px-4 py-3">
           <Droplets size={18} className="text-sky-400 shrink-0" aria-hidden="true" />
           <div className="flex-1 min-w-0">
-            <p className="text-white text-sm font-medium">Water reminders</p>
-            <p className="text-stone-400 text-xs">Every 2 hours during the day</p>
+            <p className="text-white text-sm font-medium">{r.water}</p>
+            <p className="text-stone-400 text-xs">{r.waterDesc}</p>
           </div>
-          <Switch on={water} onChange={v => toggle('water', v)} label="Water reminders" />
+          <Switch on={water} onChange={v => toggle('water', v)} label={r.water} />
         </div>
         <div className="flex items-center gap-3 px-4 py-3">
           <Utensils size={18} className="text-emerald-400 shrink-0" aria-hidden="true" />
           <div className="flex-1 min-w-0">
-            <p className="text-white text-sm font-medium">Meal reminders</p>
-            <p className="text-stone-400 text-xs">Breakfast, lunch &amp; dinner</p>
+            <p className="text-white text-sm font-medium">{r.meal}</p>
+            <p className="text-stone-400 text-xs">{r.mealDesc}</p>
           </div>
-          <Switch on={meal} onChange={v => toggle('meal', v)} label="Meal reminders" />
+          <Switch on={meal} onChange={v => toggle('meal', v)} label={r.meal} />
         </div>
       </div>
-      <p className="text-stone-400 text-[11px] mt-2 px-1">Reminders are delivered via push — enable notifications above to receive them.</p>
+      <p className="text-stone-400 text-[11px] mt-2 px-1">{r.footnote}</p>
     </div>
   )
 }

@@ -1,6 +1,8 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { HelpCircle, MessageCircle, FileText, Shield, Info } from 'lucide-react'
+import { getDict } from '@/lib/i18n'
+import { getLocale } from '@/lib/i18n/server'
 import { SettingsShell, Section, LinkRow } from '../_ui'
 
 const APP_VERSION = '0.1.0'
@@ -11,20 +13,21 @@ export default async function SupportPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
+  const t = getDict(await getLocale())
 
   return (
-    <SettingsShell title="Support">
-      <Section title="Support">
-        <LinkRow icon={<HelpCircle size={16} />} label="Help center" href="/help" />
-        <LinkRow icon={<MessageCircle size={16} />} label="Contact support" href="mailto:hello@nutrisync.app?subject=NutriSync%20support" external />
-        <LinkRow icon={<Info size={16} />} label="About us" href="/about" />
+    <SettingsShell title={t.settings.support} backAria={t.settings.backAria}>
+      <Section title={t.settings.support}>
+        <LinkRow icon={<HelpCircle size={16} />} label={t.settings.helpCenter} href="/help" />
+        <LinkRow icon={<MessageCircle size={16} />} label={t.settings.contactSupport} href="mailto:hello@nutrisync.app?subject=NutriSync%20support" external />
+        <LinkRow icon={<Info size={16} />} label={t.settings.aboutUs} href="/about" />
       </Section>
-      <Section title="Legal">
-        <LinkRow icon={<FileText size={16} />} label="Terms of Service" href="/terms" />
-        <LinkRow icon={<Shield size={16} />} label="Privacy Policy" href="/privacy" />
+      <Section title={t.settings.legal}>
+        <LinkRow icon={<FileText size={16} />} label={t.settings.termsOfService} href="/terms" />
+        <LinkRow icon={<Shield size={16} />} label={t.settings.privacyPolicy} href="/privacy" />
       </Section>
-      <Section title="App info">
-        <LinkRow icon={<Info size={16} />} label="App version" value={`v${APP_VERSION}`} />
+      <Section title={t.settings.appInfo}>
+        <LinkRow icon={<Info size={16} />} label={t.settings.appVersionLabel} value={t.settings.appVersion(APP_VERSION)} />
       </Section>
     </SettingsShell>
   )

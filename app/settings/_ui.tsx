@@ -5,11 +5,11 @@ import type { ReactNode } from 'react'
 // Shared presentational pieces for the Settings hub + its sub-screens. Pure
 // (no hooks), so they work in server components.
 
-export function SettingsShell({ title, back = '/settings', children }: { title: string; back?: string; children: ReactNode }) {
+export function SettingsShell({ title, back = '/settings', backAria = 'Back', children }: { title: string; back?: string; backAria?: string; children: ReactNode }) {
   return (
     <div className="min-h-screen bg-stone-950 text-white pb-[calc(6rem+env(safe-area-inset-bottom))]">
       <header className="px-4 pt-safe pb-3 flex items-center gap-3">
-        <Link href={back} aria-label="Back" className="text-stone-300 hover:text-white">
+        <Link href={back} aria-label={backAria} className="text-stone-300 hover:text-white">
           <ArrowLeft size={22} />
         </Link>
         <h1 className="text-xl font-bold">{title}</h1>
@@ -30,8 +30,8 @@ export function Section({ title, children }: { title?: string; children: ReactNo
   )
 }
 
-export function LinkRow({ icon, label, value, href, soon, external }: {
-  icon: ReactNode; label: string; value?: string; href?: string; soon?: boolean; external?: boolean
+export function LinkRow({ icon, label, value, href, soon, soonLabel = 'Soon', external }: {
+  icon: ReactNode; label: string; value?: string; href?: string; soon?: boolean; soonLabel?: string; external?: boolean
 }) {
   const inner = (
     <>
@@ -39,7 +39,7 @@ export function LinkRow({ icon, label, value, href, soon, external }: {
       <span className="flex-1 text-sm text-stone-200">{label}</span>
       {value && <span className="text-stone-500 text-xs">{value}</span>}
       {soon
-        ? <span className="text-[10px] font-semibold text-stone-500 bg-stone-800 border border-stone-700 px-1.5 py-0.5 rounded-full">Soon</span>
+        ? <span className="text-[10px] font-semibold text-stone-500 bg-stone-800 border border-stone-700 px-1.5 py-0.5 rounded-full">{soonLabel}</span>
         : href && <ChevronRight size={16} className="text-stone-600 shrink-0" />}
     </>
   )
