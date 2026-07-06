@@ -6,10 +6,11 @@ import { buildWaterWeek } from '@/lib/water'
 import { calculateMacroTargets } from '@/lib/macros'
 import { resolveTimeZone, userDayKey } from '@/lib/day'
 import { buildIntel, buildDailyTrends, type IntelFood, type IntelWater, type IntelActivity, type WeightPoint, type CoachIntelStrings } from '@/lib/coach-intel'
+import type { CopilotStrings } from '@/lib/copilot'
 import { inferVoice } from '@/lib/coach-voice'
 import { getDict } from '@/lib/i18n'
 import { getLocale } from '@/lib/i18n/server'
-import type { Diet, NutrientTotals, Goal } from '@/types'
+import type { Diet, NutrientTotals, Goal, NutrientKey } from '@/types'
 import CoachMemberClient, { type CoachNote, type PendingDraft, type MiniPost } from './CoachMemberClient'
 
 export const dynamic = 'force-dynamic'
@@ -43,6 +44,11 @@ export default async function CoachMemberPage({ params }: { params: Promise<{ me
     complianceLabels: t.coach.gen.complianceLabels as CoachIntelStrings['complianceLabels'],
     mealLabel: (mt: string) => (t.mealTypes as Record<string, { label: string }>)[mt]?.label ?? t.coach.gen.mealLabel(mt),
   }
+  const copilotStrings: CopilotStrings = {
+    ...t.coach.signals,
+    nutrientLabel: (key: NutrientKey) => t.nutrients[key],
+    dietLabel: (d) => d ? t.diets[d] : t.editProfile.noDiet,
+  }
 
   const groupId = await groupForCoachMember(supabase, user.id, memberId)
   if (!groupId) notFound()
@@ -73,7 +79,7 @@ export default async function CoachMemberPage({ params }: { params: Promise<{ me
     { data: intelFoodRows }, { data: intelActRows }, { data: weightRows },
     { data: historyRows }, { data: settingsRow }, { data: voiceRows },
   ] = await Promise.all([
-    assessMember(supabase, memberId, profile.calorie_target ?? 2000, diet, memberTz),
+    assessMember(supabase, memberId, profile.calorie_target ?? 2000, diet, memberTz, copilotStrings),
     supabase.from('coach_client_notes')
       .select('id, body, created_at')
       .eq('coach_id', user.id).eq('member_id', memberId).eq('group_id', groupId)

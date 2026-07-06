@@ -720,7 +720,7 @@ export default function FeedCard({ entry, currentUserId, onReact, onComment, onD
           <button
             className="absolute top-5 right-5 text-white/60 hover:text-white transition-colors z-10"
             onClick={() => setLightboxIndex(null)}
-            aria-label="Close"
+            aria-label={t.common.close}
           >
             <X size={28} />
           </button>

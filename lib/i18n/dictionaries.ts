@@ -1231,6 +1231,15 @@ const en = {
       insightOnTrack: (n: number): string => `${n} member${n === 1 ? ' is' : 's are'} on track — a quick check-in keeps momentum.`,
       insightSteady: 'Logging is steady across the group this week.',
     },
+    signals: {
+      notLoggedYet: 'Has not logged yet',
+      daysSinceLog: (n: number) => `${n} days since last log`,
+      overTarget: (kcal: string) => `${kcal} kcal/day over target`,
+      underTarget: (kcal: string) => `${kcal} kcal/day under target`,
+      nutrientLow: (emoji: string, label: string, pct: number) => `${emoji} ${label} low (${pct}%)`,
+      dietNote: (dietLbl: string, names: string) => `${dietLbl}: ${names} naturally run lower`,
+      strongWeek: 'Strong week — on calories & nutrients',
+    },
   },
   settings: {
     title: 'Settings',
@@ -2536,6 +2545,15 @@ const es: Dict = {
       insightStoppedLogging: (n: number): string => `${n} miembro${n === 1 ? '' : 's'} ${n === 1 ? 'dejó' : 'dejaron'} de registrar.`,
       insightOnTrack: (n: number): string => `${n} miembro${n === 1 ? ' está' : 's están'} al día — un breve seguimiento mantiene el impulso.`,
       insightSteady: 'El registro se mantiene constante en el grupo esta semana.',
+    },
+    signals: {
+      notLoggedYet: 'Aún no ha registrado nada',
+      daysSinceLog: (n: number) => `${n} días desde el último registro`,
+      overTarget: (kcal: string) => `${kcal} kcal/día por encima del objetivo`,
+      underTarget: (kcal: string) => `${kcal} kcal/día por debajo del objetivo`,
+      nutrientLow: (emoji: string, label: string, pct: number) => `${emoji} ${label} bajo (${pct}%)`,
+      dietNote: (dietLbl: string, names: string) => `${dietLbl}: ${names} naturalmente más bajos`,
+      strongWeek: 'Buena semana — en objetivo con calorías y nutrientes',
     },
   },
   settings: {
