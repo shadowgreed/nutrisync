@@ -1,6 +1,8 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { Check } from 'lucide-react'
+import { getDict } from '@/lib/i18n'
+import { getLocale } from '@/lib/i18n/server'
 import { SettingsShell, Section } from '../_ui'
 
 // Plan status. NutriSync is currently free for everyone — there are no in-app
@@ -10,14 +12,15 @@ export default async function SubscriptionPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
+  const t = getDict(await getLocale())
 
   return (
-    <SettingsShell title="Plan">
-      <Section title="Your plan">
+    <SettingsShell title={t.settings.plan} backAria={t.settings.backAria}>
+      <Section title={t.settings.yourPlan}>
         <div className="px-4 py-4">
-          <p className="text-white font-semibold flex items-center gap-2"><Check size={16} className="text-emerald-400" aria-hidden="true" /> NutriSync is free</p>
+          <p className="text-white font-semibold flex items-center gap-2"><Check size={16} className="text-emerald-400" aria-hidden="true" /> {t.settings.freeHeadline}</p>
           <p className="text-stone-400 text-sm mt-1.5 leading-relaxed">
-            Every feature — food logging, activity, hydration, groups, challenges, trends, and weekly reviews — is included at no cost. There are no in-app purchases.
+            {t.settings.freeBody}
           </p>
         </div>
       </Section>
