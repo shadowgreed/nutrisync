@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
-import { CATEGORIES, articlesByCategory, ALL_ARTICLES } from '@/lib/help'
+import { localizedCategories, articlesByCategory, localizedArticles } from '@/lib/help'
+import { getLocale } from '@/lib/i18n/server'
 import HelpClient, { type CategorySummary, type ArticleLink } from './HelpClient'
 
 export const metadata: Metadata = {
@@ -8,8 +9,9 @@ export const metadata: Metadata = {
 }
 
 // Public Help Center home. Content is bundled, so search runs entirely client-side.
-export default function HelpHomePage() {
-  const categories: CategorySummary[] = CATEGORIES.map(c => ({
+export default async function HelpHomePage() {
+  const locale = await getLocale()
+  const categories: CategorySummary[] = localizedCategories(locale).map(c => ({
     id: c.id,
     title: c.title,
     emoji: c.emoji,
@@ -17,7 +19,7 @@ export default function HelpHomePage() {
     count: articlesByCategory(c.id).length,
   }))
 
-  const index: ArticleLink[] = ALL_ARTICLES.map(a => ({
+  const index: ArticleLink[] = localizedArticles(locale).map(a => ({
     slug: a.slug,
     title: a.title,
     summary: a.summary,

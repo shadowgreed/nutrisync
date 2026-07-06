@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { ArrowLeft, Search, ChevronRight, X } from 'lucide-react'
 import type { CategoryId } from '@/lib/help/types'
 import { logHelpEvent } from '@/lib/help/track'
+import { useI18n } from '@/components/I18nProvider'
 
 export interface CategorySummary {
   id: CategoryId
@@ -59,6 +60,8 @@ function search(index: ArticleLink[], query: string): ArticleLink[] {
 
 export default function HelpClient({ categories, index }: { categories: CategorySummary[]; index: ArticleLink[] }) {
   const router = useRouter()
+  const { t } = useI18n()
+  const h = t.help
   const [query, setQuery] = useState('')
   const results = useMemo(() => search(index, query), [index, query])
   const searching = query.trim().length >= 2
@@ -74,10 +77,10 @@ export default function HelpClient({ categories, index }: { categories: Category
     <div className="min-h-screen bg-stone-950 text-white pb-16">
       {/* Header */}
       <header className="px-4 pt-safe pb-3 flex items-center gap-3">
-        <button onClick={() => router.back()} aria-label="Back" className="flex items-center justify-center w-11 h-11 -ml-2 text-stone-300 hover:text-white">
+        <button onClick={() => router.back()} aria-label={h.backAria} className="flex items-center justify-center w-11 h-11 -ml-2 text-stone-300 hover:text-white">
           <ArrowLeft size={20} aria-hidden="true" />
         </button>
-        <h1 className="text-2xl font-bold">Help Center</h1>
+        <h1 className="text-2xl font-bold">{h.title}</h1>
       </header>
 
       {/* Search */}
@@ -89,25 +92,25 @@ export default function HelpClient({ categories, index }: { categories: Category
             onChange={e => setQuery(e.target.value)}
             type="search"
             inputMode="search"
-            placeholder="Search for answers…"
-            aria-label="Search help articles"
+            placeholder={h.searchPlaceholder}
+            aria-label={h.searchAria}
             className="w-full bg-stone-900 border border-stone-800 rounded-2xl pl-9 pr-9 py-3 text-sm text-white placeholder-stone-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
           />
           {query && (
-            <button onClick={() => setQuery('')} aria-label="Clear search" className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center justify-center w-8 h-8 text-stone-500 hover:text-white">
+            <button onClick={() => setQuery('')} aria-label={h.clearSearchAria} className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center justify-center w-8 h-8 text-stone-500 hover:text-white">
               <X size={16} aria-hidden="true" />
             </button>
           )}
         </div>
         {!searching && (
-          <p className="text-stone-400 text-xs mt-2 px-1">Try: delete meal · create challenge · invite friend · edit calories</p>
+          <p className="text-stone-400 text-xs mt-2 px-1">{h.tryHint}</p>
         )}
       </div>
 
       {searching ? (
         /* ── Search results ─────────────────────────────────────────────────── */
         <div className="px-4">
-          <p className="text-stone-500 text-xs mb-2">{results.length} result{results.length === 1 ? '' : 's'} for “{query.trim()}”</p>
+          <p className="text-stone-500 text-xs mb-2">{h.resultsFor(results.length, query.trim())}</p>
           {results.length > 0 ? (
             <ul className="space-y-2">
               {results.map(a => (
@@ -121,9 +124,9 @@ export default function HelpClient({ categories, index }: { categories: Category
             </ul>
           ) : (
             <div className="bg-stone-900 border border-dashed border-stone-800 rounded-2xl p-6 text-center">
-              <p className="text-stone-300 text-sm font-medium">No results found</p>
-              <p className="text-stone-500 text-xs mt-1 mb-4">Try different words, or browse the categories below.</p>
-              <ContactCTA />
+              <p className="text-stone-300 text-sm font-medium">{h.noResults}</p>
+              <p className="text-stone-500 text-xs mt-1 mb-4">{h.noResultsHint}</p>
+              <ContactCTA h={h} />
             </div>
           )}
         </div>
@@ -136,13 +139,13 @@ export default function HelpClient({ categories, index }: { categories: Category
                 <div className="text-2xl mb-1.5" aria-hidden="true">{c.emoji}</div>
                 <p className="text-white text-sm font-semibold leading-tight">{c.title}</p>
                 <p className="text-stone-500 text-[11px] mt-0.5 line-clamp-2">{c.description}</p>
-                <p className="text-stone-400 text-[11px] mt-1.5">{c.count} article{c.count === 1 ? '' : 's'}</p>
+                <p className="text-stone-400 text-[11px] mt-1.5">{h.articleCount(c.count)}</p>
               </Link>
             ))}
           </div>
 
           <div className="px-4 mt-6">
-            <ContactCTA />
+            <ContactCTA h={h} />
           </div>
         </>
       )}
@@ -150,15 +153,15 @@ export default function HelpClient({ categories, index }: { categories: Category
   )
 }
 
-function ContactCTA() {
+function ContactCTA({ h }: { h: ReturnType<typeof useI18n>['t']['help'] }) {
   return (
     <a
       href="mailto:hello@nutrisync.app?subject=NutriSync%20support"
       className="flex items-center justify-between gap-2 bg-stone-900 border border-stone-800 rounded-2xl px-4 py-3 hover:border-stone-600 transition-colors"
     >
       <div>
-        <p className="text-white text-sm font-medium">Still need help?</p>
-        <p className="text-stone-500 text-xs">Contact our support team.</p>
+        <p className="text-white text-sm font-medium">{h.stillNeedHelp}</p>
+        <p className="text-stone-500 text-xs">{h.contactTeam}</p>
       </div>
       <ChevronRight size={16} className="text-stone-600 shrink-0" aria-hidden="true" />
     </a>
