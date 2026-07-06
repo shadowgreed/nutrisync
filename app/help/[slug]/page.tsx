@@ -3,6 +3,8 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { ArrowLeft, ChevronRight } from 'lucide-react'
 import { getArticle, getRelated, getCategory, allSlugs } from '@/lib/help'
+import { getDict } from '@/lib/i18n'
+import { getLocale } from '@/lib/i18n/server'
 import ArticleFeedback from './ArticleFeedback'
 
 // Help articles are bundled content — pre-render every one.
@@ -19,21 +21,24 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 
 export default async function HelpArticlePage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
-  const article = getArticle(slug)
+  const locale = await getLocale()
+  const t = getDict(locale)
+  const h = t.help
+  const article = getArticle(slug, locale)
   if (!article) notFound()
 
-  const category = getCategory(article.category)
-  const related = getRelated(article)
+  const category = getCategory(article.category, locale)
+  const related = getRelated(article, locale)
 
   return (
     <div className="min-h-screen bg-stone-950 text-white pb-16">
       {/* Header / breadcrumb */}
       <header className="px-4 pt-safe pb-3 flex items-center gap-3">
-        <Link href={`/help/category/${category.id}`} aria-label="Back" className="flex items-center justify-center w-11 h-11 -ml-2 text-stone-300 hover:text-white">
+        <Link href={`/help/category/${category.id}`} aria-label={h.backAria} className="flex items-center justify-center w-11 h-11 -ml-2 text-stone-300 hover:text-white">
           <ArrowLeft size={20} aria-hidden="true" />
         </Link>
         <div className="min-w-0">
-          <Link href="/help" className="text-stone-500 text-xs hover:text-stone-300">Help Center</Link>
+          <Link href="/help" className="text-stone-500 text-xs hover:text-stone-300">{h.helpCenterBreadcrumb}</Link>
           <span className="text-stone-400 text-xs"> / </span>
           <Link href={`/help/category/${category.id}`} className="text-stone-500 text-xs hover:text-stone-300">{category.title}</Link>
         </div>
@@ -49,7 +54,7 @@ export default async function HelpArticlePage({ params }: { params: Promise<{ sl
         {/* Step-by-step */}
         {article.steps && article.steps.length > 0 && (
           <section className="mt-6">
-            <h2 className="text-white font-semibold text-base mb-2">Step by step</h2>
+            <h2 className="text-white font-semibold text-base mb-2">{h.stepByStep}</h2>
             <ol className="space-y-2">
               {article.steps.map((step, i) => (
                 <li key={i} className="flex gap-3 text-sm text-stone-300">
@@ -64,7 +69,7 @@ export default async function HelpArticlePage({ params }: { params: Promise<{ sl
         {/* Tips */}
         {article.tips && article.tips.length > 0 && (
           <section className="mt-6">
-            <h2 className="text-white font-semibold text-base mb-2">Tips</h2>
+            <h2 className="text-white font-semibold text-base mb-2">{h.tipsTitle}</h2>
             <ul className="space-y-1.5">
               {article.tips.map((tip, i) => (
                 <li key={i} className="flex gap-2 text-sm text-stone-300 leading-relaxed">
@@ -79,7 +84,7 @@ export default async function HelpArticlePage({ params }: { params: Promise<{ sl
         {/* Common questions */}
         {article.faqs && article.faqs.length > 0 && (
           <section className="mt-6">
-            <h2 className="text-white font-semibold text-base mb-2">Common questions</h2>
+            <h2 className="text-white font-semibold text-base mb-2">{h.commonQuestions}</h2>
             <div className="space-y-3">
               {article.faqs.map((faq, i) => (
                 <div key={i}>
@@ -99,7 +104,7 @@ export default async function HelpArticlePage({ params }: { params: Promise<{ sl
         {/* Related */}
         {related.length > 0 && (
           <section className="mt-6">
-            <h2 className="text-white font-semibold text-base mb-2">Related articles</h2>
+            <h2 className="text-white font-semibold text-base mb-2">{h.relatedArticles}</h2>
             <ul className="bg-stone-900 border border-stone-800 rounded-2xl divide-y divide-stone-800 overflow-hidden">
               {related.map(r => (
                 <li key={r.slug}>
@@ -120,14 +125,14 @@ export default async function HelpArticlePage({ params }: { params: Promise<{ sl
             className="flex items-center justify-between gap-2 bg-stone-900 border border-stone-800 rounded-2xl px-4 py-3 hover:border-stone-600 transition-colors"
           >
             <div>
-              <p className="text-white text-sm font-medium">Need more help?</p>
-              <p className="text-stone-500 text-xs">Contact our support team.</p>
+              <p className="text-white text-sm font-medium">{h.needMoreHelp}</p>
+              <p className="text-stone-500 text-xs">{h.contactTeam}</p>
             </div>
             <ChevronRight size={16} className="text-stone-600 shrink-0" aria-hidden="true" />
           </a>
         </section>
 
-        <p className="text-stone-400 text-[11px] mt-6">Last updated {article.lastUpdated} · v{article.version}</p>
+        <p className="text-stone-400 text-[11px] mt-6">{h.lastUpdated(article.lastUpdated, article.version)}</p>
       </article>
     </div>
   )
