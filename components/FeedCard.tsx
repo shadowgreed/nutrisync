@@ -63,11 +63,23 @@ interface Props {
   canModerate?: boolean
   moderationGroup?: { id: string; name: string } | null
   onRemoveMember?: (userId: string) => Promise<void>
+  // Set when a notification deep-linked straight to this post — opens the
+  // comment thread immediately instead of leaving it behind the teaser.
+  autoOpenComments?: boolean
 }
 
-export default function FeedCard({ entry, currentUserId, onReact, onComment, onDelete, onEdit, onDeleteComment, onLikeComment, nameMap = {}, canModerate = false, moderationGroup = null, onRemoveMember }: Props) {
+export default function FeedCard({ entry, currentUserId, onReact, onComment, onDelete, onEdit, onDeleteComment, onLikeComment, nameMap = {}, canModerate = false, moderationGroup = null, onRemoveMember, autoOpenComments = false }: Props) {
   const { t } = useI18n()
-  const [showComments, setShowComments] = useState(false)
+  const [showComments, setShowComments] = useState(autoOpenComments)
+  // The deep-link target only resolves after mount (it comes from the URL in
+  // the parent), so the initial state above misses the flip from false to
+  // true — adjust state during render (React's documented pattern for this,
+  // rather than an effect) so it still opens without an extra render pass.
+  const [prevAutoOpen, setPrevAutoOpen] = useState(autoOpenComments)
+  if (autoOpenComments !== prevAutoOpen) {
+    setPrevAutoOpen(autoOpenComments)
+    if (autoOpenComments) setShowComments(true)
+  }
   const [showNutrients, setShowNutrients] = useState(false)
   const [commentText, setCommentText] = useState('')
   const [submitting, setSubmitting] = useState(false)

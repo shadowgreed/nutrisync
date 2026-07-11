@@ -62,7 +62,7 @@ export async function POST(req: NextRequest) {
   await sendPushToUser(supabase, recipient, {
     title: 'NutriSync',
     body,
-    url: '/feed',
+    url: `/feed?post=${foodLogId}`,
     tag: `${kind}-${foodLogId}`,
     count: await unreadCount(recipient),
   })

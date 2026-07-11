@@ -118,11 +118,20 @@ export default function FeedClient({ entries: initial, activities, milestones, c
     return () => document.removeEventListener('keydown', onKey)
   }, [showMembers])
 
-  // Deep link from a notification (/feed?post=<id>): scroll to that post and
-  // briefly highlight it. Reads the param at run time so no Suspense boundary is
-  // needed; re-runs when entries change (e.g. after a refresh pulls it in).
+  // Deep link from a notification (/feed?post=<id>): scroll to that post,
+  // briefly highlight it, and auto-open its comment thread (the id may belong
+  // to a meal or an activity post — both render a matching post-<id> anchor).
+  // Read once on mount; the URL doesn't change while this page is up. A lazy
+  // useState initializer would read window.location during the server render
+  // too (undefined there) and diverge from the client's first render, so this
+  // has to happen post-hydration in an effect — the sync setState is deliberate.
+  const [targetPost, setTargetPost] = useState<string | null>(null)
   useEffect(() => {
-    const targetPost = new URLSearchParams(window.location.search).get('post')
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setTargetPost(new URLSearchParams(window.location.search).get('post'))
+  }, [])
+
+  useEffect(() => {
     if (!targetPost) return
     const el = document.getElementById(`post-${targetPost}`)
     if (!el) return
@@ -130,7 +139,7 @@ export default function FeedClient({ entries: initial, activities, milestones, c
     el.classList.add('ring-2', 'ring-emerald-500')
     const t = setTimeout(() => el.classList.remove('ring-2', 'ring-emerald-500'), 2200)
     return () => clearTimeout(t)
-  }, [entries])
+  }, [targetPost, entries, activityList])
 
   function refreshFeed() {
     setNewCount(0)
@@ -470,21 +479,25 @@ export default function FeedClient({ entries: initial, activities, milestones, c
                       canModerate={canModerate(item.meal.user_id)}
                       moderationGroup={founderGroup}
                       onRemoveMember={handleRemoveMember}
+                      autoOpenComments={item.meal.id === targetPost}
                     />
                   </div>
                 ) : item.kind === 'activity' ? (
-                  <ActivityCard
-                    entry={item.activity}
-                    currentUserId={currentUserId}
-                    onReact={handleActivityReact}
-                    onComment={handleActivityComment}
-                    onDeleteComment={handleActivityDeleteComment}
-                    onLikeComment={toggleCommentLike}
-                    canModerate={canModerate(item.activity.user_id)}
-                    moderationGroup={founderGroup}
-                    onDelete={handleActivityDelete}
-                    onRemoveMember={handleRemoveMember}
-                  />
+                  <div id={`post-${item.activity.id}`} className="scroll-mt-24 rounded-3xl transition-shadow">
+                    <ActivityCard
+                      entry={item.activity}
+                      currentUserId={currentUserId}
+                      onReact={handleActivityReact}
+                      onComment={handleActivityComment}
+                      onDeleteComment={handleActivityDeleteComment}
+                      onLikeComment={toggleCommentLike}
+                      canModerate={canModerate(item.activity.user_id)}
+                      moderationGroup={founderGroup}
+                      onDelete={handleActivityDelete}
+                      onRemoveMember={handleRemoveMember}
+                      autoOpenComments={item.activity.id === targetPost}
+                    />
+                  </div>
                 ) : (
                   <MilestoneCard entry={item.milestone} currentUserId={currentUserId} />
                 )}
