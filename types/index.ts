@@ -179,6 +179,7 @@ export interface AppNotification {
   actor_id: string | null
   type: NotificationType
   food_log_id: string | null
+  activity_log_id: string | null
   challenge_id: string | null
   data: Record<string, unknown>
   read: boolean

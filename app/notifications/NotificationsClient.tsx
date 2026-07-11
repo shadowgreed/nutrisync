@@ -26,10 +26,14 @@ const TYPE_META: Record<NotificationType, { emoji: string; href: string }> = {
 }
 
 // Post-related notifications deep-link to the exact post on the feed; everything
-// else uses its static destination.
+// else uses its static destination. A post is either a meal (food_log) or a
+// workout (activity_log) — check both, since comments/reactions are polymorphic.
 const POST_TYPES = new Set<NotificationType>(['reaction', 'comment', 'reply', 'meal'])
 function hrefFor(n: AppNotification): string {
-  if (n.food_log_id && POST_TYPES.has(n.type)) return `/feed?post=${n.food_log_id}`
+  if (POST_TYPES.has(n.type)) {
+    if (n.food_log_id) return `/feed?post=${n.food_log_id}`
+    if (n.activity_log_id) return `/feed?post=${n.activity_log_id}`
+  }
   return TYPE_META[n.type].href
 }
 

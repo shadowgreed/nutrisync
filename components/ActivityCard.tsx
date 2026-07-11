@@ -44,13 +44,25 @@ interface Props {
   moderationGroup?: { id: string; name: string } | null
   onDelete?: (activityId: string) => Promise<void>
   onRemoveMember?: (userId: string) => Promise<void>
+  // Set when a notification deep-linked straight to this post — opens the
+  // comment thread immediately instead of leaving it behind the teaser.
+  autoOpenComments?: boolean
 }
 
-export default function ActivityCard({ entry, currentUserId, onReact, onComment, onDeleteComment, onLikeComment, canModerate = false, moderationGroup = null, onDelete, onRemoveMember }: Props) {
+export default function ActivityCard({ entry, currentUserId, onReact, onComment, onDeleteComment, onLikeComment, canModerate = false, moderationGroup = null, onDelete, onRemoveMember, autoOpenComments = false }: Props) {
   const { t } = useI18n()
   const [showProfile, setShowProfile] = useState(false)
   const [cheer, setCheer] = useState<'idle' | 'sending' | 'sent'>('idle')
-  const [showComments, setShowComments] = useState(false)
+  const [showComments, setShowComments] = useState(autoOpenComments)
+  // The deep-link target only resolves after mount (it comes from the URL in
+  // the parent), so the initial state above misses the flip from false to
+  // true — adjust state during render (React's documented pattern for this,
+  // rather than an effect) so it still opens without an extra render pass.
+  const [prevAutoOpen, setPrevAutoOpen] = useState(autoOpenComments)
+  if (autoOpenComments !== prevAutoOpen) {
+    setPrevAutoOpen(autoOpenComments)
+    if (autoOpenComments) setShowComments(true)
+  }
   const [commentText, setCommentText] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
