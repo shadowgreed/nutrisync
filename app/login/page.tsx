@@ -143,7 +143,7 @@ export default function LoginPage() {
                 onClick={() => switchLocale(l)}
                 aria-pressed={locale === l}
                 className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                  locale === l ? 'bg-emerald-700 text-white' : 'text-stone-400 hover:text-white'
+                  locale === l ? 'bg-stone-100 text-stone-900' : 'text-stone-400 hover:text-white'
                 }`}
               >
                 {LOCALE_NAMES[l]}

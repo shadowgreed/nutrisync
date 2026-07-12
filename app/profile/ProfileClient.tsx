@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useState, useEffect } from 'react'
 import { Settings, Users, ChevronRight } from 'lucide-react'
 import AvatarUpload from '@/components/AvatarUpload'
+import Segmented from '@/components/Segmented'
 import { BottomNav } from '../dashboard/DashboardClient'
 import LogFab from '@/components/LogFab'
 import { mlToOz } from '@/lib/water'
@@ -210,37 +211,40 @@ export default function ProfileClient({
       </div>
 
       {/* Tabs */}
-      <div className="px-4 flex gap-2 mb-4">
-        {(['stats', 'history'] as const).map(tKey => (
-          <button
-            key={tKey}
-            onClick={() => selectTab(tKey)}
-            className={`flex-1 py-2.5 rounded-xl text-sm font-medium capitalize transition-colors ${
-              tab === tKey ? 'bg-emerald-700 text-white' : 'bg-stone-800 text-stone-400'
-            }`}
-          >
-            {tKey === 'stats' ? p.stats : p.history}
-          </button>
-        ))}
+      <div className="px-4 mb-4">
+        <Segmented
+          variant="fill"
+          options={[
+            { value: 'stats', label: p.stats },
+            { value: 'history', label: p.history },
+          ]}
+          value={tab}
+          onChange={selectTab}
+          ariaLabel={p.tabsAria}
+        />
       </div>
 
       {/* Stats tab — health metrics grid (FR-004) */}
       {tab === 'stats' && (
         <div className="px-4">
           {/* Unit toggle */}
-          <div className="flex bg-stone-900 border border-stone-800 rounded-xl p-1 mb-3">
+          <div role="tablist" aria-label={p.unitsAria} className="flex bg-stone-900 border border-stone-800 rounded-xl p-1 mb-3">
             <button
+              role="tab"
+              aria-selected={useMetric}
               onClick={() => setUseMetric(true)}
               className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                useMetric ? 'bg-stone-700 text-white' : 'text-stone-400 hover:text-stone-300'
+                useMetric ? 'bg-stone-100 text-stone-900' : 'text-stone-400 hover:text-stone-300'
               }`}
             >
               {p.metric}
             </button>
             <button
+              role="tab"
+              aria-selected={!useMetric}
               onClick={() => setUseMetric(false)}
               className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                !useMetric ? 'bg-stone-700 text-white' : 'text-stone-400 hover:text-stone-300'
+                !useMetric ? 'bg-stone-100 text-stone-900' : 'text-stone-400 hover:text-stone-300'
               }`}
             >
               {p.imperial}

@@ -299,10 +299,10 @@ export default function ChallengesClient({ group, currentUserId, challenges, nee
           <div className="flex gap-3">
             <div className="flex-1">
               <label className="text-stone-400 text-xs mb-1.5 block">{tc.length}</label>
-              <div className="flex bg-stone-800 rounded-xl p-1">
+              <div role="tablist" aria-label={tc.length} className="flex bg-stone-800 rounded-xl p-1">
                 {LENGTHS.map(l => (
-                  <button type="button" key={l} onClick={() => selectLength(l)}
-                    className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-colors ${length === l ? 'bg-stone-600 text-white' : 'text-stone-400'}`}>
+                  <button type="button" key={l} role="tab" aria-selected={length === l} onClick={() => selectLength(l)}
+                    className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-colors ${length === l ? 'bg-stone-100 text-stone-900' : 'text-stone-400'}`}>
                     {tc.lengthDays(l)}
                   </button>
                 ))}

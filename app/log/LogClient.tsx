@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Utensils, Flame, CheckCircle, Repeat, Activity as ActivityIcon, ChevronDown, Pencil } from 'lucide-react'
 import MealLogger from '@/components/MealLogger'
+import Segmented from '@/components/Segmented'
 import { useI18n } from '@/components/I18nProvider'
 import {
   ACTIVITY_OPTIONS, estimateCaloriesBurned,
@@ -145,23 +146,17 @@ export default function LogClient({
   return (
     <div>
       {/* Tab switcher */}
-      <div className="flex gap-2 mb-6">
-        <button
-          onClick={() => setTab('food')}
-          className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-medium text-sm transition-colors ${
-            tab === 'food' ? 'bg-emerald-700 text-white' : 'bg-stone-800 text-stone-400 hover:text-white'
-          }`}
-        >
-          <Utensils size={16} /> {t.log.foodTab}
-        </button>
-        <button
-          onClick={() => setTab('activity')}
-          className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-medium text-sm transition-colors ${
-            tab === 'activity' ? 'bg-orange-700 text-white' : 'bg-stone-800 text-stone-400 hover:text-white'
-          }`}
-        >
-          <Flame size={16} /> {t.log.activityTab}
-        </button>
+      <div className="mb-6">
+        <Segmented
+          variant="fill"
+          options={[
+            { value: 'food', label: t.log.foodTab, icon: <Utensils size={16} /> },
+            { value: 'activity', label: t.log.activityTab, icon: <Flame size={16} /> },
+          ]}
+          value={tab}
+          onChange={setTab}
+          ariaLabel={t.log.tabsAria}
+        />
       </div>
 
       {tab === 'food' && <MealLogger />}
@@ -266,13 +261,15 @@ export default function LogClient({
               {/* Intensity — required, default Moderate */}
               <div>
                 <p className="text-stone-400 text-xs mb-1.5 uppercase tracking-wider">{t.log.intensityLabel}</p>
-                <div className="flex bg-stone-950 border border-stone-700 rounded-xl p-1 gap-1">
+                <div role="tablist" aria-label={t.log.intensityLabel} className="flex bg-stone-950 border border-stone-700 rounded-xl p-1 gap-1">
                   {INTENSITY.map(o => (
                     <button
                       key={o.key}
+                      role="tab"
+                      aria-selected={intensity === o.key}
                       onClick={() => { setIntensity(o.key); setCaloriesInput(null) }}
                       className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
-                        intensity === o.key ? 'bg-orange-600 text-white' : 'text-stone-400 hover:text-white'
+                        intensity === o.key ? 'bg-stone-100 text-stone-900' : 'text-stone-400 hover:text-white'
                       }`}
                     >
                       {t.log.intensityLevels[o.key]}

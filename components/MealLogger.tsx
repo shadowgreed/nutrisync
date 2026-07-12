@@ -398,7 +398,7 @@ export default function MealLogger({ onLogged }: Props) {
                               onClick={() => setPortion(i, { sizeFactor: s.factor })}
                               aria-pressed={active}
                               className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
-                                active ? 'bg-emerald-600 text-white' : 'text-stone-300 hover:text-white'
+                                active ? 'bg-stone-100 text-stone-900' : 'text-stone-300 hover:text-white'
                               }`}
                             >
                               {t.logger.sizes[s.key as keyof typeof t.logger.sizes] ?? s.label}

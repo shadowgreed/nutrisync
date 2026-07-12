@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { ArrowLeft, Save } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import AvatarUpload from '@/components/AvatarUpload'
+import Segmented from '@/components/Segmented'
 import {
   GOAL_EMOJIS,
   calculateBMR, calculateTDEE, calculateCalorieTarget,
@@ -165,16 +166,20 @@ export default function EditProfileClient({ profile }: Props) {
           <p className={sectionHdr}>{ep.bodyStats}</p>
           <div className="space-y-3">
             {/* Unit toggle */}
-            <div className="flex bg-stone-800 rounded-xl p-1">
+            <div role="tablist" aria-label={ep.unitsAria} className="flex bg-stone-800 rounded-xl p-1">
               <button
+                role="tab"
+                aria-selected={useMetric}
                 onClick={() => setUseMetric(true)}
-                className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${useMetric ? 'bg-stone-600 text-white' : 'text-stone-400 hover:text-white'}`}
+                className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${useMetric ? 'bg-stone-100 text-stone-900' : 'text-stone-400 hover:text-white'}`}
               >
                 {ep.metricUnits}
               </button>
               <button
+                role="tab"
+                aria-selected={!useMetric}
                 onClick={() => setUseMetric(false)}
-                className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${!useMetric ? 'bg-stone-600 text-white' : 'text-stone-400 hover:text-white'}`}
+                className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${!useMetric ? 'bg-stone-100 text-stone-900' : 'text-stone-400 hover:text-white'}`}
               >
                 {ep.imperialUnits}
               </button>
@@ -215,17 +220,16 @@ export default function EditProfileClient({ profile }: Props) {
               </div>
               <div>
                 <label className="text-stone-400 text-xs mb-1.5 block">{ep.biologicalSex}</label>
-                <div className="flex gap-1.5">
-                  {(['male', 'female', 'prefer_not_to_say'] as const).map(s => (
-                    <button
-                      key={s}
-                      onClick={() => setSex(s)}
-                      className={`flex-1 py-3 rounded-xl text-xs font-medium transition-colors ${sex === s ? 'bg-emerald-700 text-white' : 'bg-stone-800 text-stone-400 hover:text-white'}`}
-                    >
-                      {s === 'prefer_not_to_say' ? '—' : s === 'male' ? 'M' : 'F'}
-                    </button>
-                  ))}
-                </div>
+                <Segmented
+                  variant="fill"
+                  options={(['male', 'female', 'prefer_not_to_say'] as const).map(s => ({
+                    value: s,
+                    label: s === 'prefer_not_to_say' ? '—' : s === 'male' ? 'M' : 'F',
+                  }))}
+                  value={sex}
+                  onChange={setSex}
+                  ariaLabel={ep.biologicalSex}
+                />
               </div>
             </div>
           </div>

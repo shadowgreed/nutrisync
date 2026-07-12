@@ -6,6 +6,7 @@ import type { FeedEntry, NutrientKey, MacroTotals, Comment } from '@/types'
 import { NUTRIENT_META, NUTRIENT_KEYS } from '@/lib/nutrients'
 import { MACRO_KEYS, MACRO_META, emptyMacros } from '@/lib/macros'
 import MiniProfileModal from '@/components/MiniProfileModal'
+import Segmented from '@/components/Segmented'
 import { useI18n } from '@/components/I18nProvider'
 
 const HEART = '❤️'
@@ -429,19 +430,17 @@ export default function FeedCard({ entry, currentUserId, onReact, onComment, onD
           <div className="px-4 pb-3 space-y-3 border-b border-stone-800">
             <div>
               <p className="text-stone-400 text-xs mb-1.5">{t.feedCard.mealTag}</p>
-              <div className="grid grid-cols-4 gap-1.5">
-                {MEAL_OPTIONS.map(m => (
-                  <button
-                    key={m.key}
-                    onClick={() => setEditMeal(m.key)}
-                    className={`py-2 rounded-lg text-xs font-medium transition-colors ${
-                      editMeal === m.key ? 'bg-emerald-600 text-white' : 'bg-stone-800 text-stone-300 hover:text-white'
-                    }`}
-                  >
-                    <span aria-hidden="true">{MEAL_EMOJI[m.key]}</span> {t.mealTypes[m.key as keyof typeof t.mealTypes]?.label ?? m.label}
-                  </button>
-                ))}
-              </div>
+              <Segmented
+                variant="fill"
+                options={MEAL_OPTIONS.map(m => ({
+                  value: m.key,
+                  label: t.mealTypes[m.key as keyof typeof t.mealTypes]?.label ?? m.label,
+                  icon: <span aria-hidden="true">{MEAL_EMOJI[m.key]}</span>,
+                }))}
+                value={editMeal}
+                onChange={setEditMeal}
+                ariaLabel={t.feedCard.mealTag}
+              />
             </div>
             <div>
               <p className="text-stone-400 text-xs mb-1.5">Caption</p>
