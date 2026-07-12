@@ -90,14 +90,16 @@ export default function PrivacyClient({ initialPrivacyMode }: { initialPrivacyMo
       {/* Profile visibility */}
       <section className="px-4 mb-5">
         <p className="text-stone-400 text-xs uppercase tracking-wider mb-2">{s.profileVisibility}</p>
-        <div className="bg-stone-900 border border-stone-800 rounded-2xl p-1.5 flex gap-1.5">
+        <div role="tablist" aria-label={s.profileVisibility} className="bg-stone-900 border border-stone-800 rounded-2xl p-1.5 flex gap-1.5">
           {(['public', 'private'] as const).map(v => (
             <button
               key={v}
+              role="tab"
+              aria-selected={vis === v}
               onClick={() => setVisibility(v)}
               disabled={savingVis}
               className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium transition-colors disabled:opacity-60 ${
-                vis === v ? 'bg-emerald-700 text-white' : 'text-stone-300 hover:bg-stone-800'
+                vis === v ? 'bg-stone-100 text-stone-900' : 'text-stone-300 hover:bg-stone-800'
               }`}
             >
               {v === 'public' ? <Eye size={15} /> : <EyeOff size={15} />}

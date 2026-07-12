@@ -177,18 +177,20 @@ export default function CoachClient({
           </div>
 
           {/* Client categories + review queue */}
-          <div className="px-4 flex items-center gap-1.5 mb-2 overflow-x-auto">
-            {CATEGORIES.map(c => {
-              const count = c.key === 'all' ? members.length : members.filter(m => m.severity === c.key).length
+          <div role="tablist" aria-label={c.categoriesAria} className="px-4 flex items-center gap-1.5 mb-2 overflow-x-auto">
+            {CATEGORIES.map(cat_ => {
+              const count = cat_.key === 'all' ? members.length : members.filter(m => m.severity === cat_.key).length
               return (
                 <button
-                  key={c.key}
-                  onClick={() => setCat(c.key)}
+                  key={cat_.key}
+                  role="tab"
+                  aria-selected={cat === cat_.key}
+                  onClick={() => setCat(cat_.key)}
                   className={`shrink-0 text-xs font-semibold px-3 py-1.5 rounded-full border transition-colors ${
-                    cat === c.key ? 'bg-stone-100 text-stone-900 border-stone-100' : 'bg-stone-900 text-stone-300 border-stone-700 hover:border-stone-500'
+                    cat === cat_.key ? 'bg-stone-100 text-stone-900 border-stone-100' : 'bg-stone-900 text-stone-300 border-stone-700 hover:border-stone-500'
                   }`}
                 >
-                  {c.label} {count}
+                  {cat_.label} {count}
                 </button>
               )
             })}

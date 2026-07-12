@@ -4,6 +4,7 @@ import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { track } from '@/lib/analytics-client'
+import Segmented from '@/components/Segmented'
 import { useI18n } from '@/components/I18nProvider'
 import {
   GOAL_EMOJIS,
@@ -215,19 +216,23 @@ export default function OnboardingPage() {
               </div>
 
               {/* Unit toggle */}
-              <div className="flex bg-stone-800 rounded-xl p-1">
+              <div role="tablist" aria-label={t.onboarding.unitsAria} className="flex bg-stone-800 rounded-xl p-1">
                 <button
+                  role="tab"
+                  aria-selected={useMetric}
                   onClick={() => setUseMetric(true)}
                   className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    useMetric ? 'bg-stone-600 text-white' : 'text-stone-400 hover:text-white'
+                    useMetric ? 'bg-stone-100 text-stone-900' : 'text-stone-400 hover:text-white'
                   }`}
                 >
                   {t.onboarding.metric}
                 </button>
                 <button
+                  role="tab"
+                  aria-selected={!useMetric}
                   onClick={() => setUseMetric(false)}
                   className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    !useMetric ? 'bg-stone-600 text-white' : 'text-stone-400 hover:text-white'
+                    !useMetric ? 'bg-stone-100 text-stone-900' : 'text-stone-400 hover:text-white'
                   }`}
                 >
                   {t.onboarding.imperial}
@@ -314,19 +319,16 @@ export default function OnboardingPage() {
 
               <div>
                 <label className="text-stone-400 text-xs mb-2 block">{t.onboarding.sexLabel}</label>
-                <div className="grid grid-cols-3 gap-2">
-                  {(['male', 'female', 'prefer_not_to_say'] as const).map(s => (
-                    <button
-                      key={s}
-                      onClick={() => setSex(s)}
-                      className={`py-2.5 rounded-xl text-sm font-medium transition-colors capitalize ${
-                        sex === s ? 'bg-emerald-700 text-white' : 'bg-stone-800 text-stone-400 hover:text-white'
-                      }`}
-                    >
-                      {s === 'prefer_not_to_say' ? t.onboarding.sexPreferNot : s === 'male' ? t.onboarding.sexMale : t.onboarding.sexFemale}
-                    </button>
-                  ))}
-                </div>
+                <Segmented
+                  variant="fill"
+                  options={(['male', 'female', 'prefer_not_to_say'] as const).map(s => ({
+                    value: s,
+                    label: s === 'prefer_not_to_say' ? t.onboarding.sexPreferNot : s === 'male' ? t.onboarding.sexMale : t.onboarding.sexFemale,
+                  }))}
+                  value={sex}
+                  onChange={setSex}
+                  ariaLabel={t.onboarding.sexLabel}
+                />
               </div>
 
               <div className="flex gap-3">

@@ -14,6 +14,7 @@ import type { VoiceProfile } from '@/lib/coach-voice'
 import { ShieldCheck, AlertTriangle, Target as TargetIcon, Minus } from 'lucide-react'
 import type { Diet, Goal, NutrientKey } from '@/types'
 import CoachDietSetting from './CoachDietSetting'
+import Segmented from '@/components/Segmented'
 import { useI18n } from '@/components/I18nProvider'
 import type { Dict } from '@/lib/i18n/dictionaries'
 
@@ -329,14 +330,12 @@ function TrendAnalysis({ trends }: { trends: TrendData }) {
     <section className="px-4 mb-5">
       <div className="flex items-center justify-between mb-2">
         <p className="text-stone-400 text-xs uppercase tracking-wider">{c.trendAnalysis}</p>
-        <div className="flex bg-stone-800 rounded-lg p-0.5">
-          {([14, 30] as const).map(r => (
-            <button key={r} onClick={() => setRange(r)}
-              className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors ${range === r ? 'bg-stone-600 text-white' : 'text-stone-400'}`}>
-              {c.rangeDays(r)}
-            </button>
-          ))}
-        </div>
+        <Segmented
+          options={([14, 30] as const).map(r => ({ value: String(r), label: c.rangeDays(r) }))}
+          value={String(range)}
+          onChange={v => setRange(Number(v) as 14 | 30)}
+          ariaLabel={c.rangeSelectorAria}
+        />
       </div>
       <div className="space-y-3">
         <TrendCard title={c.statCalories} sub={c.avgTargetKcal(avg(loggedCals).toLocaleString(dateLocale), trends.calorieTarget.toLocaleString(dateLocale))}>
@@ -796,15 +795,17 @@ export default function CoachMemberClient({
 
             {/* Tone chips */}
             <p className="text-stone-400 text-[11px] uppercase tracking-wider mb-1.5">{c.toneLabel} <span className="text-stone-400 normal-case">{c.toneOverride}</span></p>
-            <div className="flex flex-wrap gap-1.5 mb-3">
+            <div role="tablist" aria-label={c.toneLabel} className="flex flex-wrap gap-1.5 mb-3">
               {DRAFT_TONES.map(dt => (
                 <button
                   key={dt.value}
+                  role="tab"
+                  aria-selected={tone === dt.value}
                   onClick={() => setTone(dt.value)}
                   disabled={generating}
                   className={`text-[12px] font-medium px-2.5 py-1 rounded-full border transition-colors disabled:opacity-50 ${
                     tone === dt.value
-                      ? 'bg-emerald-600 border-emerald-500 text-white'
+                      ? 'bg-stone-100 border-stone-100 text-stone-900'
                       : 'bg-stone-950 border-stone-700 text-stone-300 hover:border-stone-500'
                   }`}
                 >

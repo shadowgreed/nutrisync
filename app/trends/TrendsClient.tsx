@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { Scale, TrendingUp, Plus, Utensils, Flame, Droplets, Sparkles, ChevronRight } from 'lucide-react'
 import { BottomNav } from '../dashboard/DashboardClient'
 import LogFab from '@/components/LogFab'
+import Segmented from '@/components/Segmented'
 import { summarize, microConsistency, type DayTotal } from '@/lib/trends'
 import { MACRO_KEYS, MACRO_META } from '@/lib/macros'
 import { kgToLbs, lbsToKg } from '@/lib/fitness'
@@ -174,19 +175,12 @@ export default function TrendsClient({ series30, calorieTarget, macroTargets, we
           <h1 className="text-white text-2xl font-bold mt-0.5">{tr.title}</h1>
         </div>
         {/* Range toggle */}
-        <div className="flex bg-stone-800 rounded-xl p-1">
-          {([7, 14, 30] as const).map(r => (
-            <button
-              key={r}
-              onClick={() => setRange(r)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                range === r ? 'bg-stone-600 text-white' : 'text-stone-400 hover:text-white'
-              }`}
-            >
-              {r === 30 ? tr.rangeMonth : tr.rangeDays(r)}
-            </button>
-          ))}
-        </div>
+        <Segmented
+          options={([7, 14, 30] as const).map(r => ({ value: String(r), label: r === 30 ? tr.rangeMonth : tr.rangeDays(r) }))}
+          value={String(range)}
+          onChange={v => setRange(Number(v) as 7 | 14 | 30)}
+          ariaLabel={tr.rangeSelectorAria}
+        />
       </div>
 
       {/* Insight summary — the "am I on track?" answer in one line */}
