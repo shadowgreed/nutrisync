@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { Camera, X, Loader2, CheckCircle, MessageSquarePlus, ScanLine, Users } from 'lucide-react'
 import FoodSearchBar from './FoodSearchBar'
+import QuickLogSuggestions from './QuickLogSuggestions'
 import AiDisclaimer from './AiDisclaimer'
 import { createClient } from '@/lib/supabase/client'
 import { NUTRIENT_KEYS } from '@/lib/nutrients'
@@ -355,6 +356,12 @@ export default function MealLogger({ onLogged }: Props) {
             {t.logger.scan}
           </button>
         </div>
+
+        <QuickLogSuggestions
+          mealType={mealType}
+          onAddFood={f => setFoods(prev => [...prev, initFood(f)])}
+          onAddMeal={entries => setFoods(prev => [...prev, ...entries.map(initFood)])}
+        />
 
         {/* Food list */}
         {foods.length > 0 && (

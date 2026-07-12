@@ -441,6 +441,17 @@ const en = {
     searchFoodsPlaceholder: 'Search foods (e.g. salmon, spinach)',
   },
 
+  quickLog: {
+    title: 'Your usual',
+    repeatMeal: 'Log again',
+    timesLogged: (n: number) => `logged ${n}×`,
+    moreItems: (n: number) => `+ ${n} more`,
+    addAria: (name: string) => `Add ${name}`,
+    addMealAria: (label: string, kcal: number) => `Log this meal again: ${label}, ${kcal} calories`,
+    addedAnnouncement: (name: string, kcal: number) => `Added ${name}, ${kcal} calories`,
+    addedMealAnnouncement: (n: number, kcal: number) => `Added ${n} foods, ${kcal} calories`,
+  },
+
   barcode: {
     title: 'Scan barcode',
     closeAria: 'Close scanner',
@@ -1756,6 +1767,17 @@ const es: Dict = {
     saveFailed: 'No se pudo guardar',
     logMeal: (label: string, n: number) => `Registrar ${label}${n > 0 ? ` (${n} alimento${n > 1 ? 's' : ''})` : ''}`,
     searchFoodsPlaceholder: 'Busca alimentos (ej. salmón, espinaca)',
+  },
+
+  quickLog: {
+    title: 'Lo de siempre',
+    repeatMeal: 'Registrar de nuevo',
+    timesLogged: (n: number) => `registrado ${n}×`,
+    moreItems: (n: number) => `+ ${n} más`,
+    addAria: (name: string) => `Agregar ${name}`,
+    addMealAria: (label: string, kcal: number) => `Registrar esta comida de nuevo: ${label}, ${kcal} calorías`,
+    addedAnnouncement: (name: string, kcal: number) => `Se agregó ${name}, ${kcal} calorías`,
+    addedMealAnnouncement: (n: number, kcal: number) => `Se agregaron ${n} alimentos, ${kcal} calorías`,
   },
 
   barcode: {

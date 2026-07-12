@@ -16,6 +16,7 @@ export const APP_EVENTS = [
   'group_joined',
   'challenge_created',
   'challenge_completed',
+  'quick_log_used',
 ] as const
 
 export type AppEventName = (typeof APP_EVENTS)[number]
