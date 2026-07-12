@@ -10,6 +10,12 @@ import { track } from '@/lib/analytics-client'
 // GET /api/quick-log. Deliberately a separate component from MealLogger
 // (audit PR-08: don't grow another god component). Adding a suggestion only
 // pre-fills MealLogger state — saving still goes through /api/log-meal.
+//
+// MealLogger only mounts this for mealType === 'snack' — snacking is the
+// most habitual/repetitive meal type, so it's where "your usual" pays off.
+// The component itself stays meal-type-generic in case that scope widens
+// later; lib/quick-log.ts's ranking is a hard filter on the requested meal
+// type either way, so it never blends in habits from other meals.
 
 interface RankedFood {
   entry: FoodEntry

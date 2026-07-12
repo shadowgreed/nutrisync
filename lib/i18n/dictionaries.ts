@@ -442,12 +442,12 @@ const en = {
   },
 
   quickLog: {
-    title: 'Your usual',
+    title: 'Your usual snacks',
     repeatMeal: 'Log again',
     timesLogged: (n: number) => `logged ${n}×`,
     moreItems: (n: number) => `+ ${n} more`,
     addAria: (name: string) => `Add ${name}`,
-    addMealAria: (label: string, kcal: number) => `Log this meal again: ${label}, ${kcal} calories`,
+    addMealAria: (label: string, kcal: number) => `Log this snack again: ${label}, ${kcal} calories`,
     addedAnnouncement: (name: string, kcal: number) => `Added ${name}, ${kcal} calories`,
     addedMealAnnouncement: (n: number, kcal: number) => `Added ${n} foods, ${kcal} calories`,
   },
@@ -1770,12 +1770,12 @@ const es: Dict = {
   },
 
   quickLog: {
-    title: 'Lo de siempre',
+    title: 'Tus snacks de siempre',
     repeatMeal: 'Registrar de nuevo',
     timesLogged: (n: number) => `registrado ${n}×`,
     moreItems: (n: number) => `+ ${n} más`,
     addAria: (name: string) => `Agregar ${name}`,
-    addMealAria: (label: string, kcal: number) => `Registrar esta comida de nuevo: ${label}, ${kcal} calorías`,
+    addMealAria: (label: string, kcal: number) => `Registrar este snack de nuevo: ${label}, ${kcal} calorías`,
     addedAnnouncement: (name: string, kcal: number) => `Se agregó ${name}, ${kcal} calorías`,
     addedMealAnnouncement: (n: number, kcal: number) => `Se agregaron ${n} alimentos, ${kcal} calorías`,
   },
