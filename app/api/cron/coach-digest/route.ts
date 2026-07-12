@@ -6,6 +6,7 @@ import { assessClient, type CopilotStrings } from '@/lib/copilot'
 import { chooseKind, draftCheckin } from '@/lib/copilot-ai'
 import { effectiveDiet, isDiet } from '@/lib/diets'
 import { getDict, resolveLocale } from '@/lib/i18n'
+import { requireCronAuth } from '@/lib/cron-auth'
 import type { Diet, NutrientTotals, NutrientKey } from '@/types'
 
 export const dynamic = 'force-dynamic'
@@ -38,12 +39,8 @@ interface ActivityRow { user_id: string; logged_at: string; calories_burned: num
  * (so the queue is ready), and pushes the coach a "N clients need a check-in" nudge.
  */
 export async function GET(req: NextRequest) {
-  if (process.env.CRON_SECRET) {
-    const auth = req.headers.get('authorization')
-    if (auth !== `Bearer ${process.env.CRON_SECRET}`) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-  }
+  const denied = requireCronAuth(req)
+  if (denied) return denied
 
   let admin
   try { admin = createAdminClient() }

@@ -3,6 +3,7 @@ import type webpush from 'web-push'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendPushToSubscriptions } from '@/lib/push'
 import { getDict, resolveLocale } from '@/lib/i18n'
+import { requireCronAuth } from '@/lib/cron-auth'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -28,12 +29,9 @@ const MEALS: Record<number, { type: string; label: string }> = {
  * matter when within the hour the scheduler runs (and never twice per slot).
  */
 export async function GET(req: NextRequest) {
-  if (process.env.CRON_SECRET) {
-    const auth = req.headers.get('authorization')
-    if (auth !== `Bearer ${process.env.CRON_SECRET}`) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-  }
+  // PR-06: fail-closed cron auth (was: check skipped entirely if CRON_SECRET unset)
+  const denied = requireCronAuth(req)
+  if (denied) return denied
 
   let supabase
   try { supabase = createAdminClient() }
