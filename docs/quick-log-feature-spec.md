@@ -1,18 +1,22 @@
 # Quick Log — Feature Spec
 
-**Feature:** Behavior-learned quick meal logging ("Recently logged" foods + one-tap "Log it again" meals)
-**Date:** 2026-07-12 · **Status:** Proposal · **Grounded in:** `main` (`components/MealLogger.tsx`, `components/FoodSearchBar.tsx`, `app/api/log-meal/route.ts`, `types/index.ts`)
+**Feature:** Behavior-learned quick snack logging ("Recently logged" foods + one-tap "Log it again" meals)
+**Date:** 2026-07-12 (scoped to snacks-only 2026-07-12) · **Status:** Shipped (snacks only) · **Grounded in:** `main` (`components/MealLogger.tsx`, `components/FoodSearchBar.tsx`, `app/api/log-meal/route.ts`, `types/index.ts`)
 
 ---
 
 ## 1. Summary
 
-Reduce logging friction by surfacing what the user actually eats. Two surfaces inside the existing meal logger:
+Reduce logging friction by surfacing what the user actually eats. Two surfaces inside the existing meal logger, **shown only when logging a snack**:
 
-1. **Recent foods** — a ranked list of the user's most-logged foods for the *current meal type* (breakfast suggestions at 8am), each addable with one tap at their usual portion.
-2. **Log it again** — the user's most common full meals for that meal type; one tap pre-fills the entire food list.
+1. **Recent foods** — a ranked list of the user's most-logged snacks, each addable with one tap at their usual portion.
+2. **Log it again** — the user's most common full snack combos; one tap pre-fills the entire food list.
 
 Everything is derived from data already stored: every `food_logs` row carries the full `foods: FoodEntry[]` JSONB (name, calories, macros, nutrients, serving size, portion model). **No new tracking, no schema migration, no AI calls.**
+
+### Why snacks only
+
+Snacking is the most habitual and repetitive of the four meal types — the same handful of items tend to recur far more than breakfast/lunch/dinner do, which is exactly the pattern this feature is built to exploit. Scoping down also let the ranking model simplify: `rankFoods`/`rankMeals` now **hard-filter to the requested meal type** (no more cross-meal blending), so a snack suggestion only ever reflects actual snacking history — nothing "leaks in" from a food the user happens to eat at dinner. Because the ranking re-runs against the user's most recent 60 days of logs on every fetch (5-minute cache), it keeps adapting as snacking habits change: a new habit accumulates score as it repeats, and the 14-day recency half-life lets an old one fade out on its own — the suggestions are always a reflection of *recent* behavior, not a one-time snapshot. `components/MealLogger.tsx` and `components/QuickLogSuggestions.tsx` still take `mealType` as a parameter, so widening back out to other meal types later is a one-line change, not a rewrite.
 
 ## 2. Core design decision: no new write path
 
@@ -20,27 +24,28 @@ Quick log only **pre-fills MealLogger state**. Saving still goes through the exi
 
 ## 3. Ranking model (v1 — no AI)
 
-Computed server-side from the user's own last 60 days of `food_logs` (already covered by the migration-044 `user_id + logged_at` index).
+Computed server-side from the user's own last 60 days of `food_logs` (already covered by the migration-044 `user_id + logged_at` index), **hard-filtered to rows logged at the requested meal type** — in production, always `snack` (see §1).
 
 For each distinct food (normalized: lowercase, trimmed, collapsed whitespace):
 
 ```
-score = frequency × recencyDecay × mealAffinity
+score = frequency × recencyDecay
 ```
 
-- **frequency** — number of logs containing the food in the window.
-- **recencyDecay** — `exp(-daysSinceLastLogged / 14)` (half-life ≈ 2 weeks; drops foods the user stopped eating).
-- **mealAffinity** — `1 + P(food appears in requested meal_type | food logged)`. Oatmeal logged 90% at breakfast scores ~2× for breakfast, ~1× for dinner.
+- **frequency** — number of snack logs containing the food in the window.
+- **recencyDecay** — `exp(-daysSinceLastLogged / 14)` (half-life ≈ 2 weeks; drops foods the user stopped snacking on as their habits change).
+
+An earlier draft also multiplied in a `mealAffinity` term to let a food logged at multiple meal types still show up (weighted) at any of them. That's gone now that this is snack-only: since every row considered is already a snack, cross-meal blending had nothing left to do — the hard filter is both simpler and a better fit for "learn what the user actually snacks on."
 
 Each suggestion carries the **most recently used portion** (`servingSizeG`, `baseServingG`, `sizeFactor`, `quantity`) as its default — "your usual amount," adjustable with the existing S/M/L + quantity controls.
 
-**Meals** ("Log it again"): group past logs of the requested meal_type by the sorted set of normalized food names; rank groups by the same frequency × recency formula; return top 3 with a display label ("Boiled egg + Whole wheat bread + 1 more"), total calories, and the full `FoodEntry[]` from the most recent instance.
+**Meals** ("Log it again"): group past snack logs by the sorted set of normalized food names; rank groups by the same frequency × recency formula; return top 3 with a display label ("Almonds + Greek yogurt + 1 more"), total calories, and the full `FoodEntry[]` from the most recent instance.
 
 Return top **8 foods** and top **3 meals**. If history is empty, return empty arrays; the UI renders nothing (no cold-start clutter for new users).
 
 ## 4. API
 
-`GET /api/quick-log?meal=<breakfast|lunch|dinner|snack>`
+`GET /api/quick-log?meal=<breakfast|lunch|dinner|snack>` — the `meal` param stays generic (the route and `lib/quick-log.ts` don't know about the snack-only restriction; that's enforced one layer up, in `components/MealLogger.tsx`, which is the only caller).
 
 - Auth: standard `createClient()` → `getUser()` → 401, same as every route.
 - Reads only the caller's own rows (RLS-safe by construction).
@@ -65,13 +70,13 @@ Response:
 | Ranking logic | `lib/quick-log.ts` | Pure functions (`rankFoods(logs, mealType)`, `rankMeals(...)`) — framework-free, matching the `lib/` convention, and directly unit-testable |
 | API route | `app/api/quick-log/route.ts` | Thin: auth → query → call lib → respond |
 | UI | `components/QuickLogSuggestions.tsx` | **New component, not more lines in MealLogger.** MealLogger's sibling FeedCard/CoachMemberClient god-component problem (audit PR-08) started exactly this way |
-| Wiring | `components/MealLogger.tsx` | Render `<QuickLogSuggestions mealType={mealType} onAddFood={f => setFoods(p => [...p, initFood(f)])} onAddMeal={...} />` above the FoodSearchBar row; refetch when `mealType` changes |
+| Wiring | `components/MealLogger.tsx` | Renders `<QuickLogSuggestions mealType={mealType} onAddFood={f => setFoods(p => [...p, initFood(f)])} onAddMeal={...} />` above the FoodSearchBar row, **only when `mealType === 'snack'`**; refetches when `mealType` changes |
 
 `initFood()` already normalizes `baseServingG`/`sizeFactor`/`quantity`, so quick-added foods get working portion controls with zero extra code.
 
 ## 6. UI behavior
 
-- Section header "Your usual" (collapsible), shown only when suggestions exist.
+- Section header "Your usual snacks" (collapsible), shown only when suggestions exist.
 - Food rows: name, usual portion + kcal, a `+` add button — visually consistent with FoodSearchBar result rows.
 - "Log it again" cards above the food rows: meal label, total kcal, one-tap adds all entries (appends; doesn't clear foods already staged).
 - Tapping `+` gives immediate feedback and **announces via an `aria-live="polite"` region** ("Added boiled egg, 78 calories"). Status messages being visual-only is an app-wide WCAG 4.1.3 failure (audit PR-26) — don't extend the pattern to new code.

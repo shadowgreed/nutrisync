@@ -6,13 +6,19 @@ import type { FoodEntry, MealType } from '@/types'
  * Derives "your usual" suggestions from the user's own food_logs history:
  * no new tracking, no AI calls. Consumed by app/api/quick-log/route.ts.
  *
- *   score = frequency × recencyDecay × mealAffinity
+ * Currently wired up for snacks only (components/MealLogger.tsx only renders
+ * the suggestions UI when mealType === 'snack') — snacking tends to be
+ * habitual and repetitive in a way that rewards this kind of suggestion more
+ * than planned meals do. Both ranking functions filter to the requested
+ * meal type, so a snack suggestion reflects what the user actually snacks
+ * on, not foods eaten at other meals — the model keeps learning as new
+ * snack logs arrive and old ones age out of relevance.
  *
- * - frequency:   times the food appeared in the window
+ *   score = frequency × recencyDecay
+ *
+ * - frequency:    times the food appeared at this meal type in the window
  * - recencyDecay: exp(-daysSinceLastLogged / 14) — half-life ≈ 2 weeks, so
- *   foods the user stopped eating fade out on their own
- * - mealAffinity: 1 + P(food was logged in the requested meal type), so
- *   oatmeal-at-breakfast scores ~2× for breakfast and ~1× for dinner
+ *   foods the user stopped eating fade out on their own as habits change
  */
 
 export interface QuickLogSourceRow {
@@ -56,24 +62,19 @@ export function rankFoods(
   now: Date = new Date(),
   max: number = MAX_FOODS,
 ): RankedFood[] {
-  interface Acc { count: number; mealCount: number; lastAt: string; entry: FoodEntry }
+  interface Acc { count: number; lastAt: string; entry: FoodEntry }
   const byName = new Map<string, Acc>()
 
   for (const row of rows) {
+    if (row.meal_type !== mealType) continue
     for (const f of row.foods ?? []) {
       if (!f?.name) continue
       const key = normalizeName(f.name)
       const acc = byName.get(key)
       if (!acc) {
-        byName.set(key, {
-          count: 1,
-          mealCount: row.meal_type === mealType ? 1 : 0,
-          lastAt: row.logged_at,
-          entry: f,
-        })
+        byName.set(key, { count: 1, lastAt: row.logged_at, entry: f })
       } else {
         acc.count++
-        if (row.meal_type === mealType) acc.mealCount++
         // Most recent portion wins as the suggested default ("your usual amount")
         if (Date.parse(row.logged_at) > Date.parse(acc.lastAt)) {
           acc.lastAt = row.logged_at
@@ -84,10 +85,7 @@ export function rankFoods(
   }
 
   return [...byName.values()]
-    .map(acc => ({
-      acc,
-      score: acc.count * recencyWeight(acc.lastAt, now) * (1 + acc.mealCount / acc.count),
-    }))
+    .map(acc => ({ acc, score: acc.count * recencyWeight(acc.lastAt, now) }))
     .sort((a, b) => b.score - a.score)
     .slice(0, max)
     .map(({ acc }) => ({ entry: acc.entry, timesLogged: acc.count, lastLoggedAt: acc.lastAt }))

@@ -64,7 +64,7 @@ describe('rankFoods', () => {
     expect(ranked[0].entry.name).toBe('Greek yogurt')
   })
 
-  it('boosts foods matching the requested meal type', () => {
+  it('only considers foods logged at the requested meal type', () => {
     const rows = [
       // Rice: 2× at dinner
       row('dinner', 1, [food('Rice')]),
@@ -75,6 +75,17 @@ describe('rankFoods', () => {
     ]
     expect(rankFoods(rows, 'breakfast', NOW)[0].entry.name).toBe('Eggs')
     expect(rankFoods(rows, 'dinner', NOW)[0].entry.name).toBe('Rice')
+  })
+
+  it('excludes foods never logged at the requested meal type — no cross-meal blending', () => {
+    const rows = [
+      row('dinner', 1, [food('Steak')]),
+      row('dinner', 2, [food('Steak')]),
+      row('dinner', 3, [food('Steak')]),
+    ]
+    // Steak has real dinner history but none at snack — snack suggestions
+    // shouldn't surface it just because it's frequent at another meal.
+    expect(rankFoods(rows, 'snack', NOW)).toEqual([])
   })
 
   it('dedupes by normalized name and keeps the most recent portion', () => {
