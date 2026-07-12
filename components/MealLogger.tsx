@@ -357,11 +357,15 @@ export default function MealLogger({ onLogged }: Props) {
           </button>
         </div>
 
-        <QuickLogSuggestions
-          mealType={mealType}
-          onAddFood={f => setFoods(prev => [...prev, initFood(f)])}
-          onAddMeal={entries => setFoods(prev => [...prev, ...entries.map(initFood)])}
-        />
+        {/* Snacks are the most habitual/repetitive meal type — that's where
+            "your usual" suggestions pay off most. Not shown for planned meals. */}
+        {mealType === 'snack' && (
+          <QuickLogSuggestions
+            mealType={mealType}
+            onAddFood={f => setFoods(prev => [...prev, initFood(f)])}
+            onAddMeal={entries => setFoods(prev => [...prev, ...entries.map(initFood)])}
+          />
+        )}
 
         {/* Food list */}
         {foods.length > 0 && (
