@@ -36,15 +36,22 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
   const url = (event.notification.data && event.notification.data.url) || '/notifications'
+  const urlToOpen = new URL(url, self.location.origin).href
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
-      for (const client of list) {
-        if ('focus' in client) {
-          client.navigate(url)
-          return client.focus()
-        }
-      }
-      if (self.clients.openWindow) return self.clients.openWindow(url)
+      // An already-open window at the exact target URL: just focus it.
+      const exact = list.find((client) => client.url === urlToOpen)
+      if (exact) return exact.focus()
+      // Otherwise open a fresh window/tab at the target URL. client.navigate()
+      // on an existing window is deliberately not used here — its returned
+      // promise was previously fired-and-forgotten (never awaited before the
+      // waitUntil() chain resolved), which is a race the service worker can
+      // lose on any platform, and some mobile WebKit/PWA builds have also
+      // shown it silently no-op instead of navigating. openWindow() is the
+      // well-supported, reliable primitive for this.
+      if (self.clients.openWindow) return self.clients.openWindow(urlToOpen)
+      const any = list.find((client) => 'focus' in client)
+      if (any) return any.focus()
     }),
   )
 })
