@@ -103,6 +103,11 @@ export default function EditProfileClient({ profile }: Props) {
       birth_year:            birthYear ? Number(birthYear) : null,
       biological_sex:        sex,
       goal,
+      // Keep goals[] in sync: consumers (Weekly Review, MiniProfileModal)
+      // read goals[0] as the primary goal, so editing `goal` alone left them
+      // showing a stale goal forever (audit PR-07). Chosen goal moves to the
+      // front; any other onboarding-selected goals are preserved behind it.
+      goals:                 [goal, ...(profile.goals ?? []).filter(g => g !== goal)],
       activity_level:        activityLevel,
       calorie_target:        calorieTarget,
       water_bottle_ml:       waterBottleMl,

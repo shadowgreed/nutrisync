@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Trophy, Users, ArrowUp, X, Crown } from 'lucide-react'
@@ -131,14 +131,23 @@ export default function FeedClient({ entries: initial, activities, milestones, c
     setTargetPost(new URLSearchParams(window.location.search).get('post'))
   }, [])
 
+  // Scroll/highlight exactly once. The entries/activityList deps exist only to
+  // retry until the target card has rendered — but every optimistic like/comment
+  // also replaces those arrays, and without the once-guard each interaction
+  // yanked the viewport back to the deep-linked post and re-flashed its ring
+  // (audit 2026-07-15, NF-CLIENT-1).
+  const scrolledToTarget = useRef(false)
   useEffect(() => {
-    if (!targetPost) return
+    if (!targetPost || scrolledToTarget.current) return
     const el = document.getElementById(`post-${targetPost}`)
     if (!el) return
+    scrolledToTarget.current = true
     el.scrollIntoView({ behavior: 'smooth', block: 'center' })
     el.classList.add('ring-2', 'ring-emerald-500')
-    const t = setTimeout(() => el.classList.remove('ring-2', 'ring-emerald-500'), 2200)
-    return () => clearTimeout(t)
+    // No cleanup: a deps-driven re-run would clear the timeout while the
+    // once-guard blocks rescheduling, freezing the ring on. Firing on a
+    // detached node after unmount is a harmless no-op.
+    setTimeout(() => el.classList.remove('ring-2', 'ring-emerald-500'), 2200)
   }, [targetPost, entries, activityList])
 
   function refreshFeed() {
