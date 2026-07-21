@@ -14,7 +14,7 @@ import {
 import { mlToOz, ozToMl, BOTTLE_OZ_PRESETS, TARGET_OZ_PRESETS } from '@/lib/water'
 import { DIETS, DIET_EMOJIS } from '@/lib/diets'
 import { useI18n } from '@/components/I18nProvider'
-import type { Goal, ActivityLevel, Profile, Diet } from '@/types'
+import type { Goal, ActivityLevel, Profile, Diet, FoodUnit } from '@/types'
 
 const GOALS: Goal[] = ['lose_weight', 'maintain', 'build_muscle', 'improve_health']
 // Omnivore == "no specific diet" for nutrient purposes, so it's the null option.
@@ -52,6 +52,7 @@ export default function EditProfileClient({ profile }: Props) {
     (profile.activity_level as ActivityLevel) ?? 'moderate'
   )
   const [diet, setDiet] = useState<Diet | null>((profile.diet as Diet) ?? null)
+  const [foodUnit, setFoodUnit] = useState<FoodUnit>(profile.food_unit ?? 'g')
   const [waterBottleMl, setWaterBottleMl] = useState(profile.water_bottle_ml ?? ozToMl(24))
   const [waterTargetMl, setWaterTargetMl] = useState(profile.water_daily_target_ml ?? ozToMl(64))
   const [bottleOzDraft, setBottleOzDraft] = useState(String(mlToOz(profile.water_bottle_ml ?? ozToMl(24))))
@@ -110,11 +111,12 @@ export default function EditProfileClient({ profile }: Props) {
     }
     const targetKg = targetWeightLbs ? lbsToKg(Number(targetWeightLbs)) : null
 
-    // `diet` (migration 036) and `target_weight_kg` (migration 014) come from later
-    // migrations. If the DB hasn't caught up, the update 204s on the missing column —
-    // fall back to the core fields so the rest of the form still saves.
+    // `diet` (migration 036), `target_weight_kg` (migration 014), and `food_unit`
+    // (migration 055) come from later migrations. If the DB hasn't caught up, the
+    // update 204s on the missing column — fall back to the core fields so the
+    // rest of the form still saves.
     let { error: err } = await supabase.from('profiles')
-      .update({ ...baseUpdate, diet, target_weight_kg: targetKg }).eq('id', profile.id)
+      .update({ ...baseUpdate, diet, target_weight_kg: targetKg, food_unit: foodUnit }).eq('id', profile.id)
     if (err && err.code === 'PGRST204') {
       ;({ error: err } = await supabase.from('profiles').update(baseUpdate).eq('id', profile.id))
     }
@@ -407,6 +409,22 @@ export default function EditProfileClient({ profile }: Props) {
               <span className="text-sky-400 font-bold text-sm">{mlToOz(waterTargetMl)} oz</span>
             </div>
           </div>
+        </div>
+
+        {/* Food logging unit */}
+        <div>
+          <p className={sectionHdr}>{ep.foodUnit}</p>
+          <p className="text-stone-400 text-xs mb-2">{ep.foodUnitIntro}</p>
+          <Segmented
+            variant="fill"
+            options={[
+              { value: 'g', label: ep.grams },
+              { value: 'oz', label: ep.ounces },
+            ]}
+            value={foodUnit}
+            onChange={setFoodUnit}
+            ariaLabel={ep.foodUnitAria}
+          />
         </div>
 
         {error && (

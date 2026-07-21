@@ -15,7 +15,7 @@ export default async function LogPage({ searchParams }: { searchParams: Promise<
   const [{ data: profile }, { data: recentActivities }] = await Promise.all([
     supabase
       .from('profiles')
-      .select('weight_kg')
+      .select('weight_kg, food_unit')
       .eq('id', user.id)
       .single(),
     // Recent activity for today's progress + the "Log again" cards.
@@ -36,6 +36,7 @@ export default async function LogPage({ searchParams }: { searchParams: Promise<
       <div className="px-4">
         <LogClient
           weightKg={profile?.weight_kg ?? 70}
+          foodUnit={(profile?.food_unit as 'g' | 'oz') ?? 'g'}
           initialTab={initialTab}
           recentActivities={(recentActivities ?? []) as { activity_name: string; duration_minutes: number | null; distance_km: number | null; steps: number | null; logged_at: string }[]}
         />

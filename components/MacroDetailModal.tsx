@@ -2,9 +2,10 @@
 
 import { X } from 'lucide-react'
 import { MACRO_META } from '@/lib/macros'
+import { servingForDisplay } from '@/lib/foodUnit'
 import { useFocusTrap } from '@/lib/useFocusTrap'
 import { useI18n } from '@/components/I18nProvider'
-import type { MacroKey, MacroTotals } from '@/types'
+import type { MacroKey, MacroTotals, FoodUnit } from '@/types'
 
 interface FoodItem {
   name: string
@@ -19,19 +20,22 @@ const MEAL_EMOJI: Record<string, string> = {
 
 // Which of today's logged foods provided a given macro, biggest contributor first.
 export default function MacroDetailModal({
-  macroKey, foods, onClose,
-}: { macroKey: MacroKey; foods: FoodItem[]; onClose: () => void }) {
+  macroKey, foods, foodUnit = 'g', onClose,
+}: { macroKey: MacroKey; foods: FoodItem[]; foodUnit?: FoodUnit; onClose: () => void }) {
   const meta = MACRO_META[macroKey]
   const { t } = useI18n()
   const displayLabel = t.macros[macroKey]
   // useFocusTrap handles Escape, focus-in on open, and focus restore on close.
   const trapRef = useFocusTrap<HTMLDivElement>(onClose)
 
+  // `amount` (this macro's contribution, e.g. protein grams) always stays in
+  // grams below — that's the universal nutrition-facts convention, unrelated
+  // to food_unit. Only `serving` (the food's own portion weight) respects it.
   const items = foods
     .map(f => ({
       name: f.name,
       amount: f.macros?.[macroKey] ?? 0,
-      grams: f.servingSizeG ? Math.round(f.servingSizeG) : null,
+      serving: f.servingSizeG ? servingForDisplay(f.servingSizeG, foodUnit) : null,
       meal: f.meal_type,
     }))
     .filter(x => x.amount > 0.05)
@@ -77,7 +81,7 @@ export default function MacroDetailModal({
                     <p className="flex-1 min-w-0 text-stone-100 text-sm truncate">
                       {x.meal && <span className="mr-1" aria-hidden="true">{MEAL_EMOJI[x.meal] ?? ''}</span>}
                       {x.name}
-                      {x.grams != null && <span className="text-stone-500"> · {x.grams}g</span>}
+                      {x.serving != null && <span className="text-stone-500"> · {x.serving}{foodUnit}</span>}
                     </p>
                     <span className="text-white text-sm font-semibold tabular-nums shrink-0">
                       {x.amount % 1 === 0 ? x.amount : x.amount.toFixed(1)}{meta.unit}

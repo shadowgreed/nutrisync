@@ -24,7 +24,7 @@ export default async function DashboardPage() {
   const [{ data: profile }, { data: logs }, { data: activities }, { data: waterLogs }, { data: streakRows }] = await Promise.all([
     supabase
       .from('profiles')
-      .select('display_name, calorie_target, onboarding_done, water_bottle_ml, water_daily_target_ml, weight_kg, goal, reminder_timezone')
+      .select('display_name, calorie_target, onboarding_done, water_bottle_ml, water_daily_target_ml, weight_kg, goal, reminder_timezone, food_unit')
       .eq('id', user.id)
       .single(),
     // select('*') so a missing macro_totals column (pre-migration-007) doesn't break the read
@@ -77,6 +77,7 @@ export default async function DashboardPage() {
       waterTargetMl={profile?.water_daily_target_ml ?? 2500}
       waterBottleMl={profile?.water_bottle_ml ?? 500}
       initialWaterLogs={waterLogs ?? []}
+      foodUnit={(profile?.food_unit as 'g' | 'oz') ?? 'g'}
     />
   )
 }

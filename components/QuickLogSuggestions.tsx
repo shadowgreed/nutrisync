@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { Plus, History, RotateCcw } from 'lucide-react'
-import type { FoodEntry, MealType } from '@/types'
+import type { FoodEntry, MealType, FoodUnit } from '@/types'
+import { formatServing } from '@/lib/foodUnit'
 import { useI18n } from '@/components/I18nProvider'
 import { track } from '@/lib/analytics-client'
 
@@ -34,9 +35,10 @@ interface Props {
   mealType: MealType
   onAddFood: (f: FoodEntry) => void
   onAddMeal: (entries: FoodEntry[]) => void
+  foodUnit?: FoodUnit
 }
 
-export default function QuickLogSuggestions({ mealType, onAddFood, onAddMeal }: Props) {
+export default function QuickLogSuggestions({ mealType, onAddFood, onAddMeal, foodUnit = 'g' }: Props) {
   const { t } = useI18n()
   const [foods, setFoods] = useState<RankedFood[]>([])
   const [meals, setMeals] = useState<RankedMeal[]>([])
@@ -123,7 +125,7 @@ export default function QuickLogSuggestions({ mealType, onAddFood, onAddMeal }: 
               <span className="flex-1 min-w-0">
                 <span className="block text-white text-sm truncate">{rf.entry.name}</span>
                 <span className="block text-stone-400 text-xs">
-                  {Math.round(rf.entry.calories)} kcal · {Math.round(rf.entry.servingSizeG)} g
+                  {Math.round(rf.entry.calories)} kcal · {formatServing(rf.entry.servingSizeG, foodUnit)}
                 </span>
               </span>
               <button

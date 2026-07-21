@@ -17,7 +17,7 @@ import { formatOz } from '@/lib/water'
 import { WEEKLY_SEEN_KEY, currentWeekKey } from '@/lib/weekly'
 import { sumTotals, emptyTotals, buildGapCorrections } from '@/lib/nutrients'
 import { sumMacros, emptyMacros, MACRO_KEYS, MACRO_META, macroPct } from '@/lib/macros'
-import type { NutrientKey, NutrientTotals, MacroTotals, MacroTargets, MacroKey, GapCorrection } from '@/types'
+import type { NutrientKey, NutrientTotals, MacroTotals, MacroTargets, MacroKey, GapCorrection, FoodUnit } from '@/types'
 
 interface LogRow {
   nutrient_totals: NutrientTotals
@@ -42,6 +42,7 @@ interface Props {
   waterTargetMl: number
   waterBottleMl: number
   initialWaterLogs: WaterLog[]
+  foodUnit?: FoodUnit
 }
 
 // Is this timestamp on the viewer's *local* calendar day? The server sends a 48h
@@ -51,7 +52,7 @@ const localDayKey = (ts: string | number | Date) => new Date(ts).toLocaleDateStr
 
 export default function DashboardClient({
   logs: allLogs, activities, displayName, calorieTarget, streak, macroTargets,
-  waterTargetMl, waterBottleMl, initialWaterLogs,
+  waterTargetMl, waterBottleMl, initialWaterLogs, foodUnit = 'g',
 }: Props) {
   const router = useRouter()
   const { t } = useI18n()
@@ -518,7 +519,7 @@ export default function DashboardClient({
       )}
 
       {activeMacro && (
-        <MacroDetailModal macroKey={activeMacro} foods={todayFoods} onClose={() => setActiveMacro(null)} />
+        <MacroDetailModal macroKey={activeMacro} foods={todayFoods} foodUnit={foodUnit} onClose={() => setActiveMacro(null)} />
       )}
 
       <LogFab />

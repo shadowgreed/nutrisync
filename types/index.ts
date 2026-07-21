@@ -68,6 +68,11 @@ export interface MacroTargets {
   fiber_g: number
 }
 
+// Serving-size unit for food logging/display (grams vs ounces) — an
+// account-level preference (profiles.food_unit, migration 055), distinct
+// from the ephemeral metric/imperial input toggles used for body weight.
+export type FoodUnit = 'g' | 'oz'
+
 export interface Profile {
   id: string
   display_name: string
@@ -89,6 +94,7 @@ export interface Profile {
   coach_visible: boolean
   coach_style: string | null
   diet: Diet | null
+  food_unit: FoodUnit
 }
 
 export type GroupRole = 'coach' | 'member'

@@ -5,6 +5,7 @@ import { Utensils, Flame, CheckCircle, Repeat, Activity as ActivityIcon, Chevron
 import MealLogger from '@/components/MealLogger'
 import Segmented from '@/components/Segmented'
 import { useI18n } from '@/components/I18nProvider'
+import type { FoodUnit } from '@/types'
 import {
   ACTIVITY_OPTIONS, estimateCaloriesBurned,
   isDistanceActivity, activityUsesSteps,
@@ -38,9 +39,9 @@ interface RecentActivity { activity_name: string; duration_minutes: number | nul
 const localDayKey = (ts: string | number | Date) => new Date(ts).toLocaleDateString('en-CA')
 
 export default function LogClient({
-  weightKg, initialTab = 'food', recentActivities = [],
+  weightKg, foodUnit = 'g', initialTab = 'food', recentActivities = [],
 }: {
-  weightKg: number; initialTab?: 'food' | 'activity'; recentActivities?: RecentActivity[]
+  weightKg: number; foodUnit?: FoodUnit; initialTab?: 'food' | 'activity'; recentActivities?: RecentActivity[]
 }) {
   const [tab, setTab] = useState<'food' | 'activity'>(initialTab)
   const { t } = useI18n()
@@ -159,7 +160,7 @@ export default function LogClient({
         />
       </div>
 
-      {tab === 'food' && <MealLogger />}
+      {tab === 'food' && <MealLogger foodUnit={foodUnit} />}
 
       {tab === 'activity' && (
         <div className="space-y-5">
