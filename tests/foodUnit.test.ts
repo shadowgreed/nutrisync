@@ -1,5 +1,18 @@
 import { describe, it, expect } from 'vitest'
-import { gToOz, ozToG, servingForDisplay, servingFromDisplay, formatServing } from '../lib/foodUnit'
+import { gToOz, ozToG, servingForDisplay, servingFromDisplay, formatServing, isFoodUnit } from '../lib/foodUnit'
+
+describe('isFoodUnit', () => {
+  it('accepts exactly g and oz', () => {
+    expect(isFoodUnit('g')).toBe(true)
+    expect(isFoodUnit('oz')).toBe(true)
+  })
+
+  it('rejects everything else (cookie/account values are untrusted input)', () => {
+    for (const bad of ['grams', 'OZ', '', null, undefined, 0, {}]) {
+      expect(isFoodUnit(bad)).toBe(false)
+    }
+  })
+})
 
 describe('gToOz / ozToG', () => {
   it('converts grams to ounces to one decimal', () => {

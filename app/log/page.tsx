@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { getFoodUnit } from '@/lib/foodUnit-server'
 import { BottomNav } from '../dashboard/DashboardClient'
 import LogClient from './LogClient'
 
@@ -13,9 +14,13 @@ export default async function LogPage({ searchParams }: { searchParams: Promise<
 
   const since30 = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
   const [{ data: profile }, { data: recentActivities }] = await Promise.all([
+    // select('*') so a missing food_unit column (pre-migration-055) degrades to
+    // an undefined field instead of failing the whole query (an explicit column
+    // list 400s on any missing column, which nulled `profile` — including
+    // weight_kg — on unmigrated databases).
     supabase
       .from('profiles')
-      .select('weight_kg, food_unit')
+      .select('*')
       .eq('id', user.id)
       .single(),
     // Recent activity for today's progress + the "Log again" cards.
@@ -36,7 +41,7 @@ export default async function LogPage({ searchParams }: { searchParams: Promise<
       <div className="px-4">
         <LogClient
           weightKg={profile?.weight_kg ?? 70}
-          foodUnit={(profile?.food_unit as 'g' | 'oz') ?? 'g'}
+          foodUnit={await getFoodUnit(profile?.food_unit)}
           initialTab={initialTab}
           recentActivities={(recentActivities ?? []) as { activity_name: string; duration_minutes: number | null; distance_km: number | null; steps: number | null; logged_at: string }[]}
         />

@@ -40,4 +40,19 @@ merge and the Spanish i18n merge).
 ## Applied-migration ledger
 
 Keep `supabase/migrations/` and the live DB in sync; as of this writing the
-repo contains migrations through **051**.
+repo contains migrations through **055**. Confirmed applied during the
+2026-07 sessions: 052 (notification activity link) and 053 (P0 security
+fixes). **054 (group re-join fix) and 055 (food_unit preference) still need
+applying** unless done since — check with:
+
+```sql
+SELECT column_name FROM information_schema.columns
+WHERE table_name = 'profiles' AND column_name = 'food_unit';  -- 055
+SELECT policyname, with_check FROM pg_policies
+WHERE tablename = 'group_members' AND policyname = 'Users can join groups';
+-- 054 applied when with_check no longer references group_join_requests
+```
+
+(The food-unit feature degrades gracefully without 055 — the preference is
+mirrored in a device cookie via `/api/food-unit` — but the account-level,
+cross-device copy only works once the column exists.)
