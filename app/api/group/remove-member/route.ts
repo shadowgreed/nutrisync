@@ -36,5 +36,16 @@ export async function POST(req: NextRequest) {
     .eq('user_id', userId)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // Retire the member's approved join request too. Post-054 a stale approval
+  // no longer grants re-entry via RLS, but leaving it 'approved' misstates
+  // reality — rejoining should require a fresh request the founder approves.
+  await admin
+    .from('group_join_requests')
+    .update({ status: 'denied' })
+    .eq('group_id', groupId)
+    .eq('user_id', userId)
+    .eq('status', 'approved')
+
   return NextResponse.json({ ok: true })
 }
