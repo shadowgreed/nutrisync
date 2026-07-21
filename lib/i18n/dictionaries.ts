@@ -960,6 +960,7 @@ const en = {
     saved: 'Saved!',
     saving: 'Saving…',
     saveChanges: 'Save changes',
+    partialSaveWarning: 'Most changes saved, but a couple of newer settings couldn’t be — please try again in a few minutes.',
   },
   groups: {
     back: '← Back',
@@ -2301,6 +2302,7 @@ const es: Dict = {
     saved: '¡Guardado!',
     saving: 'Guardando…',
     saveChanges: 'Guardar cambios',
+    partialSaveWarning: 'Se guardaron la mayoría de los cambios, pero un par de opciones nuevas no se pudieron guardar — intenta de nuevo en unos minutos.',
   },
   groups: {
     back: '← Atrás',

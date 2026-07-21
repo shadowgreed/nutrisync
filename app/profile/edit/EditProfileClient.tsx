@@ -112,16 +112,33 @@ export default function EditProfileClient({ profile }: Props) {
     const targetKg = targetWeightLbs ? lbsToKg(Number(targetWeightLbs)) : null
 
     // `diet` (migration 036), `target_weight_kg` (migration 014), and `food_unit`
-    // (migration 055) come from later migrations. If the DB hasn't caught up, the
-    // update 204s on the missing column — fall back to the core fields so the
-    // rest of the form still saves.
+    // (migration 055) come from later migrations. If the DB hasn't caught up, a
+    // combined update 204s on WHICHEVER of these is missing — bundling them meant
+    // a single unmigrated column silently dropped every one of them, including
+    // ones the DB actually supported (e.g. food_unit updates never persisting,
+    // reported as "changes revert to grams", because one PGRST204 from an
+    // unrelated column blew away the whole write). Try the fast path first (one
+    // request, the common fully-migrated case), and only fall back to isolating
+    // fields when that fails, so each optional field gets its own chance.
     let { error: err } = await supabase.from('profiles')
       .update({ ...baseUpdate, diet, target_weight_kg: targetKg, food_unit: foodUnit }).eq('id', profile.id)
+
+    let unsavedOptionalFields = false
     if (err && err.code === 'PGRST204') {
       ;({ error: err } = await supabase.from('profiles').update(baseUpdate).eq('id', profile.id))
+      const optionalFields: Record<string, unknown> = { diet, target_weight_kg: targetKg, food_unit: foodUnit }
+      for (const [key, value] of Object.entries(optionalFields)) {
+        const { error: fieldErr } = await supabase.from('profiles').update({ [key]: value }).eq('id', profile.id)
+        if (fieldErr) unsavedOptionalFields = true
+      }
     }
 
     if (err) { setError(err.message); setSaving(false); return }
+    if (unsavedOptionalFields) {
+      setError(ep.partialSaveWarning)
+      setSaving(false)
+      return
+    }
     setSaved(true)
     setSaving(false)
     setTimeout(() => router.push('/profile'), 900)
