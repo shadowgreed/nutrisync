@@ -41,13 +41,14 @@ export default function Segmented<T extends string>({
       {options.map(o => (
         <button
           key={o.value}
+          type="button"
           role="tab"
           aria-selected={o.value === value}
           disabled={disabled}
           onClick={() => onChange(o.value)}
           className={
             isFill
-              ? `flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium transition-colors disabled:opacity-60 ${
+              ? `flex-1 min-w-0 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium transition-colors disabled:opacity-60 ${
                   o.value === value ? 'bg-stone-100 text-stone-900' : 'bg-stone-800 text-stone-400 hover:text-white'
                 }`
               : `px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
@@ -55,8 +56,10 @@ export default function Segmented<T extends string>({
                 }`
           }
         >
-          {o.icon}
-          {o.label}
+          {o.icon && <span className="shrink-0 flex items-center" aria-hidden="true">{o.icon}</span>}
+          {/* min-w-0 + truncate: 4-up fill rows (FeedCard meal tags) overflowed
+              320px viewports with Spanish labels (audit NF-CLIENT-3). */}
+          <span className={isFill ? 'truncate' : undefined}>{o.label}</span>
         </button>
       ))}
     </div>

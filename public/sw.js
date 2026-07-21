@@ -39,19 +39,30 @@ self.addEventListener('notificationclick', (event) => {
   const urlToOpen = new URL(url, self.location.origin).href
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
-      // An already-open window at the exact target URL: just focus it.
-      const exact = list.find((client) => client.url === urlToOpen)
-      if (exact) return exact.focus()
-      // Otherwise open a fresh window/tab at the target URL. client.navigate()
-      // on an existing window is deliberately not used here — its returned
-      // promise was previously fired-and-forgotten (never awaited before the
-      // waitUntil() chain resolved), which is a race the service worker can
-      // lose on any platform, and some mobile WebKit/PWA builds have also
-      // shown it silently no-op instead of navigating. openWindow() is the
-      // well-supported, reliable primitive for this.
+      // Prefer an existing app window: exact URL if one exists, else any
+      // window under this SW's scope. Deep links are /feed?post=<id>, which
+      // an open client essentially never exact-matches — so without the
+      // scope fallback every tap opened a NEW window, and on iOS standalone
+      // PWAs openWindow() often lands in Safari instead of the installed
+      // app (audit 2026-07-15, NF-PWA-1).
+      const scope = self.registration.scope
+      const client =
+        list.find((c) => c.url === urlToOpen) ||
+        list.find((c) => c.url.startsWith(scope))
+      if (client) {
+        // Focus first, then navigate, and AWAIT both inside waitUntil — the
+        // pre-#100 bug was a fired-and-forgotten navigate() the worker could
+        // be reaped under. If navigate is unsupported or fails (some WebKit
+        // builds), fall back to a fresh window.
+        return client.focus().then((focused) => {
+          const target = focused || client
+          if (target.url === urlToOpen || typeof target.navigate !== 'function') return target
+          return target.navigate(urlToOpen).catch(() =>
+            self.clients.openWindow ? self.clients.openWindow(urlToOpen) : undefined,
+          )
+        })
+      }
       if (self.clients.openWindow) return self.clients.openWindow(urlToOpen)
-      const any = list.find((client) => 'focus' in client)
-      if (any) return any.focus()
     }),
   )
 })
