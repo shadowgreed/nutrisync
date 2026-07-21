@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Users, Copy, Check, LogOut, Camera, Loader2, UserPlus, X, Pencil, Link2, AlertTriangle } from 'lucide-react'
+import { ArrowLeft, Users, Copy, Check, LogOut, Camera, Loader2, X, Pencil, Link2, AlertTriangle } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useI18n } from '@/components/I18nProvider'
 

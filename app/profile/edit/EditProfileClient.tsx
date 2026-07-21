@@ -117,14 +117,12 @@ export default function EditProfileClient({ profile }: Props) {
     const targetKg = targetWeightLbs ? lbsToKg(Number(targetWeightLbs)) : null
 
     // `diet` (migration 036), `target_weight_kg` (migration 014), and `food_unit`
-    // (migration 055) come from later migrations. If the DB hasn't caught up, a
-    // combined update 204s on WHICHEVER of these is missing — bundling them meant
-    // a single unmigrated column silently dropped every one of them, including
-    // ones the DB actually supported (e.g. food_unit updates never persisting,
-    // reported as "changes revert to grams", because one PGRST204 from an
-    // unrelated column blew away the whole write). Try the fast path first (one
-    // request, the common fully-migrated case), and only fall back to isolating
-    // fields when that fails, so each optional field gets its own chance.
+    // (migration 055) come from later migrations. On a DB where one of those
+    // columns isn't applied yet, a combined update 204s on the missing column
+    // and, bundled, would drop the others with it. Fast path first (one request,
+    // the fully-migrated case); on PGRST204 fall back to isolating each optional
+    // field so a single missing column can't take the rest down, and warn if
+    // one genuinely couldn't be saved instead of showing a false "Saved!".
     let { error: err } = await supabase.from('profiles')
       .update({ ...baseUpdate, diet, target_weight_kg: targetKg, food_unit: foodUnit }).eq('id', profile.id)
 
@@ -146,6 +144,13 @@ export default function EditProfileClient({ profile }: Props) {
     }
     setSaved(true)
     setSaving(false)
+    // Clear the client Router Cache so /profile and a later return to this edit
+    // page re-fetch the freshly-saved row. Every other client-side write in the
+    // app does this (see I18nProvider's note, AvatarUpload, DashboardClient…);
+    // this page was the lone exception, which is why a saved value — food_unit
+    // most visibly, since it's the field users toggle then immediately re-check —
+    // appeared to "revert" on the next visit even though the DB write succeeded.
+    router.refresh()
     setTimeout(() => router.push('/profile'), 900)
   }
 
