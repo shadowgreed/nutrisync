@@ -21,9 +21,9 @@ const GOALS: Goal[] = ['lose_weight', 'maintain', 'build_muscle', 'improve_healt
 const DIET_CHOICES: Diet[] = DIETS.filter(d => d !== 'omnivore')
 const ACTIVITY_LEVELS: ActivityLevel[] = ['sedentary', 'light', 'moderate', 'active', 'very_active']
 
-interface Props { profile: Profile }
+interface Props { profile: Profile; initialFoodUnit: FoodUnit }
 
-export default function EditProfileClient({ profile }: Props) {
+export default function EditProfileClient({ profile, initialFoodUnit }: Props) {
   const router = useRouter()
   const supabase = createClient()
   const { t } = useI18n()
@@ -52,7 +52,9 @@ export default function EditProfileClient({ profile }: Props) {
     (profile.activity_level as ActivityLevel) ?? 'moderate'
   )
   const [diet, setDiet] = useState<Diet | null>((profile.diet as Diet) ?? null)
-  const [foodUnit, setFoodUnit] = useState<FoodUnit>(profile.food_unit ?? 'g')
+  // Resolved server-side (account column → device cookie → 'g'), so the toggle
+  // reflects the real preference even where migration 055 isn't applied.
+  const [foodUnit, setFoodUnit] = useState<FoodUnit>(initialFoodUnit)
   const [waterBottleMl, setWaterBottleMl] = useState(profile.water_bottle_ml ?? ozToMl(24))
   const [waterTargetMl, setWaterTargetMl] = useState(profile.water_daily_target_ml ?? ozToMl(64))
   const [bottleOzDraft, setBottleOzDraft] = useState(String(mlToOz(profile.water_bottle_ml ?? ozToMl(24))))
@@ -116,40 +118,49 @@ export default function EditProfileClient({ profile }: Props) {
     }
     const targetKg = targetWeightLbs ? lbsToKg(Number(targetWeightLbs)) : null
 
-    // `diet` (migration 036), `target_weight_kg` (migration 014), and `food_unit`
-    // (migration 055) come from later migrations. On a DB where one of those
-    // columns isn't applied yet, a combined update 204s on the missing column
-    // and, bundled, would drop the others with it. Fast path first (one request,
-    // the fully-migrated case); on PGRST204 fall back to isolating each optional
-    // field so a single missing column can't take the rest down, and warn if
-    // one genuinely couldn't be saved instead of showing a false "Saved!".
+    // The food unit is persisted through /api/food-unit (device cookie always,
+    // profiles.food_unit when migration 055 exists) — never through the profile
+    // update below, so it cannot depend on the column existing. Fired in
+    // parallel with the profile write; a network failure is the only way it can
+    // fail, and that surfaces as the partial-save warning.
+    const unitSave = fetch('/api/food-unit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ unit: foodUnit }),
+    }).then(r => r.ok).catch(() => false)
+
+    // `diet` (migration 036) and `target_weight_kg` (migration 014) come from
+    // later migrations. On a DB where one isn't applied yet, a combined update
+    // 204s on the missing column and, bundled, would drop the other with it.
+    // Fast path first (one request, the fully-migrated case); on PGRST204 fall
+    // back to isolating each field, and warn if one genuinely couldn't be saved
+    // instead of showing a false "Saved!".
     let { error: err } = await supabase.from('profiles')
-      .update({ ...baseUpdate, diet, target_weight_kg: targetKg, food_unit: foodUnit }).eq('id', profile.id)
+      .update({ ...baseUpdate, diet, target_weight_kg: targetKg }).eq('id', profile.id)
 
     let unsavedOptionalFields = false
     if (err && err.code === 'PGRST204') {
       ;({ error: err } = await supabase.from('profiles').update(baseUpdate).eq('id', profile.id))
-      const optionalFields: Record<string, unknown> = { diet, target_weight_kg: targetKg, food_unit: foodUnit }
+      const optionalFields: Record<string, unknown> = { diet, target_weight_kg: targetKg }
       for (const [key, value] of Object.entries(optionalFields)) {
         const { error: fieldErr } = await supabase.from('profiles').update({ [key]: value }).eq('id', profile.id)
         if (fieldErr) unsavedOptionalFields = true
       }
     }
 
+    const unitSaved = await unitSave
     if (err) { setError(err.message); setSaving(false); return }
-    if (unsavedOptionalFields) {
+    if (unsavedOptionalFields || !unitSaved) {
       setError(ep.partialSaveWarning)
       setSaving(false)
       return
     }
     setSaved(true)
     setSaving(false)
-    // Clear the client Router Cache so /profile and a later return to this edit
-    // page re-fetch the freshly-saved row. Every other client-side write in the
-    // app does this (see I18nProvider's note, AvatarUpload, DashboardClient…);
-    // this page was the lone exception, which is why a saved value — food_unit
-    // most visibly, since it's the field users toggle then immediately re-check —
-    // appeared to "revert" on the next visit even though the DB write succeeded.
+    // Clear the client Router Cache so /profile, /log, /dashboard and a later
+    // return to this edit page re-fetch the freshly-saved values (and the
+    // cookie the food-unit route just set). Every other client-side write in
+    // the app does this — see I18nProvider's note.
     router.refresh()
     setTimeout(() => router.push('/profile'), 900)
   }

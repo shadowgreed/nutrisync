@@ -94,7 +94,10 @@ export interface Profile {
   coach_visible: boolean
   coach_style: string | null
   diet: Diet | null
-  food_unit: FoodUnit
+  // Absent until migration 055 is applied — never read this directly for
+  // display; resolve through lib/foodUnit-server's getFoodUnit(), which
+  // falls back to the device cookie and then 'g'.
+  food_unit?: FoodUnit
 }
 
 export type GroupRole = 'coach' | 'member'
