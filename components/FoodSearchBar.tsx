@@ -2,9 +2,10 @@
 
 import { useState, useCallback, useRef } from 'react'
 import { Search, Plus, Loader2 } from 'lucide-react'
-import type { FoodEntry, NutrientTotals, MacroTotals } from '@/types'
+import type { FoodEntry, NutrientTotals, MacroTotals, FoodUnit } from '@/types'
 import { emptyTotals } from '@/lib/nutrients'
 import { emptyMacros, scaleMacros } from '@/lib/macros'
+import { servingForDisplay, servingFromDisplay } from '@/lib/foodUnit'
 import { useI18n } from '@/components/I18nProvider'
 
 interface SearchResult {
@@ -19,6 +20,7 @@ interface SearchResult {
 
 interface Props {
   onAdd: (food: FoodEntry) => void
+  foodUnit?: FoodUnit
 }
 
 function scaleNutrients(per100g: NutrientTotals, servingG: number): NutrientTotals {
@@ -30,7 +32,7 @@ function scaleNutrients(per100g: NutrientTotals, servingG: number): NutrientTota
   return result
 }
 
-export default function FoodSearchBar({ onAdd }: Props) {
+export default function FoodSearchBar({ onAdd, foodUnit = 'g' }: Props) {
   const { t } = useI18n()
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<SearchResult[]>([])
@@ -104,14 +106,24 @@ export default function FoodSearchBar({ onAdd }: Props) {
                 <div className="flex items-center gap-1.5 mt-0.5">
                   <input
                     type="number"
-                    min={1}
-                    max={2000}
-                    defaultValue={r.defaultServingG}
-                    onChange={e => setServingOverride(prev => ({ ...prev, [r.fdcId]: Number(e.target.value) }))}
+                    min={foodUnit === 'oz' ? 0.1 : 1}
+                    max={servingForDisplay(2000, foodUnit)}
+                    step={foodUnit === 'oz' ? 0.1 : 1}
+                    inputMode={foodUnit === 'oz' ? 'decimal' : 'numeric'}
+                    defaultValue={servingForDisplay(r.defaultServingG, foodUnit)}
+                    // servingOverride stays in grams (the unit every calorie/macro
+                    // scale below operates in) — only the input's own display and
+                    // typed value are in the user's food_unit preference.
+                    onChange={e => {
+                      const n = Number(e.target.value)
+                      if (Number.isFinite(n) && n > 0) {
+                        setServingOverride(prev => ({ ...prev, [r.fdcId]: servingFromDisplay(n, foodUnit) }))
+                      }
+                    }}
                     onClick={e => e.stopPropagation()}
                     className="w-16 bg-stone-700 rounded px-1.5 py-0.5 text-stone-300 text-xs text-right focus:outline-none focus:ring-1 focus:ring-emerald-500"
                   />
-                  <span className="text-stone-400 text-xs">g</span>
+                  <span className="text-stone-400 text-xs">{foodUnit}</span>
                   {r.caloriesPer100g > 0 && (
                     <span className="text-stone-400 text-xs">
                       · {Math.round(r.caloriesPer100g * (servingOverride[r.fdcId] ?? r.defaultServingG) / 100)} kcal

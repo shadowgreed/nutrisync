@@ -10,7 +10,8 @@ import AiDisclaimer from './AiDisclaimer'
 import { createClient } from '@/lib/supabase/client'
 import { NUTRIENT_KEYS } from '@/lib/nutrients'
 import { MACRO_KEYS } from '@/lib/macros'
-import type { FoodEntry, MealType } from '@/types'
+import type { FoodEntry, MealType, FoodUnit } from '@/types'
+import { servingForDisplay, servingFromDisplay } from '@/lib/foodUnit'
 import { useI18n } from '@/components/I18nProvider'
 
 // The barcode scanner pulls in the heavy @zxing libraries. Load it only when the
@@ -63,9 +64,9 @@ function smartDefaultMeal(): MealType {
   return 'snack'
 }
 
-interface Props { onLogged?: () => void }
+interface Props { onLogged?: () => void; foodUnit?: FoodUnit }
 
-export default function MealLogger({ onLogged }: Props) {
+export default function MealLogger({ onLogged, foodUnit = 'g' }: Props) {
   const { t } = useI18n()
   const router = useRouter()
   const [mealType, setMealType] = useState<MealType>(smartDefaultMeal)
@@ -121,8 +122,11 @@ export default function MealLogger({ onLogged }: Props) {
   function updateServing(i: number, raw: string) {
     setServingDrafts(d => ({ ...d, [i]: raw }))
     const n = Number(raw)
-    if (raw !== '' && Number.isFinite(n) && n > 0 && n <= 3000) {
-      setPortion(i, { grams: n })
+    if (raw !== '' && Number.isFinite(n) && n > 0) {
+      // `raw` is in the user's display unit; convert to grams (the only unit
+      // setPortion/rescaleFood ever operate in) before bounding and applying.
+      const grams = servingFromDisplay(n, foodUnit)
+      if (grams > 0 && grams <= 3000) setPortion(i, { grams })
     }
   }
 
@@ -345,7 +349,7 @@ export default function MealLogger({ onLogged }: Props) {
         {/* Manual food search + barcode scan */}
         <div className="flex gap-2">
           <div className="flex-1">
-            <FoodSearchBar onAdd={f => setFoods(prev => [...prev, initFood(f)])} />
+            <FoodSearchBar foodUnit={foodUnit} onAdd={f => setFoods(prev => [...prev, initFood(f)])} />
           </div>
           <button
             onClick={() => setShowScanner(true)}
@@ -362,6 +366,7 @@ export default function MealLogger({ onLogged }: Props) {
         {mealType === 'snack' && (
           <QuickLogSuggestions
             mealType={mealType}
+            foodUnit={foodUnit}
             onAddFood={f => setFoods(prev => [...prev, initFood(f)])}
             onAddMeal={entries => setFoods(prev => [...prev, ...entries.map(initFood)])}
           />
@@ -414,22 +419,23 @@ export default function MealLogger({ onLogged }: Props) {
                       </div>
                     </div>
 
-                    {/* Exact grams (fine-tune) + macro preview */}
+                    {/* Exact serving (fine-tune, in the user's food_unit preference) + macro preview */}
                     <div className="flex items-center gap-2 flex-wrap text-xs text-stone-400">
                       <span aria-hidden="true">≈</span>
                       <div className="flex items-center bg-stone-700/40 rounded-md pl-1.5 pr-1 py-0.5 gap-0.5">
                         <input
                           type="number"
-                          min={1}
-                          max={3000}
-                          inputMode="numeric"
-                          value={servingDrafts[i] ?? String(Math.round(f.servingSizeG))}
+                          min={foodUnit === 'oz' ? 0.1 : 1}
+                          max={servingForDisplay(3000, foodUnit)}
+                          step={foodUnit === 'oz' ? 0.1 : 1}
+                          inputMode={foodUnit === 'oz' ? 'decimal' : 'numeric'}
+                          value={servingDrafts[i] ?? String(servingForDisplay(f.servingSizeG, foodUnit))}
                           onChange={e => updateServing(i, e.target.value)}
                           onBlur={() => commitServing(i)}
-                          aria-label={t.logger.exactGramsAria(f.name)}
+                          aria-label={t.logger.exactGramsAria(f.name, foodUnit)}
                           className="w-12 bg-transparent text-stone-200 text-right focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                         />
-                        <span>g</span>
+                        <span>{foodUnit}</span>
                       </div>
                       {f.macros && (f.macros.protein_g > 0 || f.macros.carbs_g > 0 || f.macros.fat_g > 0) && (
                         <span>P {Math.round(f.macros.protein_g)} · C {Math.round(f.macros.carbs_g)} · F {Math.round(f.macros.fat_g)}</span>
